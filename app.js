@@ -205,14 +205,64 @@ const Theme = {
 // ========== Background Manager ==========
 const Background = {
     async setImage(file) {
-        const base64 = await Utils.fileToBase64(file);
-        localStorage.setItem('backgroundImage', base64);
-        document.body.style.backgroundImage = `url(${base64})`;
-        const position = document.getElementById('bgPosition').value;
-        this.applyPosition(position);
+        console.log('[Background] setImage called with file:', file.name, file.type, file.size, 'bytes');
+        
+        try {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                console.error('[Background] Invalid file type:', file.type);
+                UI.showToast('❌ Please select a valid image file');
+                return;
+            }
+
+            // Check file size (warn if > 2MB)
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            if (file.size > maxSize) {
+                console.warn('[Background] Large file warning:', file.size, 'bytes');
+                UI.showToast('⚠️ Large image may cause issues. Converting...');
+            } else {
+                UI.showToast('⏳ Loading background image...');
+            }
+
+            console.log('[Background] Converting file to base64...');
+            const base64 = await Utils.fileToBase64(file);
+            console.log('[Background] Conversion successful, size:', base64.length, 'characters');
+            
+            console.log('[Background] Storing in localStorage...');
+            try {
+                localStorage.setItem('backgroundImage', base64);
+                console.log('[Background] Successfully stored in localStorage');
+            } catch (storageError) {
+                console.error('[Background] localStorage error:', storageError);
+                if (storageError.name === 'QuotaExceededError') {
+                    UI.showToast('❌ Image too large for localStorage! Try a smaller image.');
+                    return;
+                }
+                throw storageError;
+            }
+            
+            console.log('[Background] Applying to document.body...');
+            document.body.style.backgroundImage = `url(${base64})`;
+            
+            console.log('[Background] Getting position setting...');
+            const positionSelect = document.getElementById('bgPosition');
+            const position = positionSelect ? positionSelect.value : 'cover';
+            console.log('[Background] Position:', position);
+            
+            this.applyPosition(position);
+            
+            console.log('[Background] ✅ Background image set successfully!');
+            UI.showToast('✅ Background image set successfully!');
+            
+        } catch (error) {
+            console.error('[Background] ❌ Error setting image:', error);
+            console.error('[Background] Error stack:', error.stack);
+            UI.showToast('❌ Failed to set background: ' + error.message);
+        }
     },
 
     applyPosition(position) {
+        console.log('[Background] Applying position:', position);
         const body = document.body;
         body.style.backgroundSize = '';
         body.style.backgroundPosition = '';
@@ -233,12 +283,14 @@ const Background = {
             body.style.backgroundSize = config.size;
             if (config.position) body.style.backgroundPosition = config.position;
             body.style.backgroundRepeat = config.repeat;
+            console.log('[Background] Applied position config:', config);
         }
         
         localStorage.setItem('backgroundPosition', position);
     },
 
     applyBlur(blurLevel) {
+        console.log('[Background] Applying blur:', blurLevel);
         const overlay = document.querySelector('.overlay');
         overlay.className = 'overlay';
         
@@ -250,25 +302,35 @@ const Background = {
     },
 
     clear() {
+        console.log('[Background] Clearing background image');
         localStorage.removeItem('backgroundImage');
         localStorage.removeItem('backgroundPosition');
         document.body.style.backgroundImage = 'none';
-        UI.showToast('Background image cleared!');
+        UI.showToast('✅ Background image cleared!');
     },
 
     load() {
+        console.log('[Background] Loading saved background settings...');
         const bgImage = localStorage.getItem('backgroundImage');
         const bgPosition = localStorage.getItem('backgroundPosition') || 'cover';
         const bgBlur = localStorage.getItem('backgroundBlur') || 'medium-blur';
         
         if (bgImage) {
+            console.log('[Background] Found saved background, applying...');
             document.body.style.backgroundImage = `url(${bgImage})`;
             this.applyPosition(bgPosition);
+        } else {
+            console.log('[Background] No saved background found');
         }
         
-        document.getElementById('bgPosition').value = bgPosition;
-        document.getElementById('bgBlur').value = bgBlur;
+        const bgPositionSelect = document.getElementById('bgPosition');
+        const bgBlurSelect = document.getElementById('bgBlur');
+        
+        if (bgPositionSelect) bgPositionSelect.value = bgPosition;
+        if (bgBlurSelect) bgBlurSelect.value = bgBlur;
+        
         this.applyBlur(bgBlur);
+        console.log('[Background] Settings loaded');
     }
 };
 
@@ -617,10 +679,27 @@ const UI = {
 // ========== Utility Functions ==========
 const Utils = {
     fileToBase64(file) {
+        console.log('[Utils] Converting file to base64:', file.name);
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
+            
+            reader.onload = () => {
+                console.log('[Utils] FileReader onload - conversion successful');
+                resolve(reader.result);
+            };
+            
+            reader.onerror = (error) => {
+                console.error('[Utils] FileReader error:', error);
+                reject(new Error('Failed to read file: ' + (error.message || 'Unknown error')));
+            };
+            
+            reader.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total * 100).toFixed(0);
+                    console.log(`[Utils] Reading file: ${percent}%`);
+                }
+            };
+            
             reader.readAsDataURL(file);
         });
     },
