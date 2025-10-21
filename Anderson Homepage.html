@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anderson Homepage v1.1 (2025-10-21)</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="overlay"></div>
+    
+    <header class="header">
+        <h1>🚀 Anderson Homepage v1.1 (2025-10-21)</h1>
+        <div class="controls">
+            <div class="view-toggle">
+                <button id="gridView" class="active" title="Grid View">⊞</button>
+                <button id="listView" title="List View">☰</button>
+            </div>
+            <input type="range" class="size-slider" id="sizeSlider" min="50" max="150" value="80" title="Icon Size">
+            <button id="addGroupBtn">📁 Add Group</button>
+            <button id="addWebsiteBtn">+ Add Website</button>
+            <button id="settingsBtn">⚙️ Settings</button>
+            <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <h2>No websites added yet</h2>
+            <p>Click "Add Website" or "Add Group" to get started!</p>
+        </div>
+        <div id="mainContainer"></div>
+    </div>
+
+    <!-- Modal container for dynamically created modals -->
+    <div id="modalContainer"></div>
+
+    <!-- Settings Modal (static, not managed by modal module) -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-modal" id="closeSettings">×</button>
+            </div>
+            <div class="form-group">
+                <label for="bgImage">Background Image</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="bgImage" accept="image/*">
+                    <label for="bgImage" class="file-input-label">
+                        Choose background image
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="bgPosition">Background Position</label>
+                <select id="bgPosition">
+                    <option value="cover" selected>Fill (Cover)</option>
+                    <option value="contain">Fit (Contain)</option>
+                    <option value="stretch">Stretch</option>
+                    <option value="stretch-horizontal">Stretch Horizontal</option>
+                    <option value="stretch-vertical">Stretch Vertical</option>
+                    <option value="center">Center (Original Size)</option>
+                    <option value="tile">Tile (Repeat)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="bgBlur">Background Blur Effect</label>
+                <select id="bgBlur">
+                    <option value="no-blur">No Blur (Crisp)</option>
+                    <option value="light-blur">Light Blur</option>
+                    <option value="medium-blur" selected>Medium Blur (Default)</option>
+                    <option value="heavy-blur">Heavy Blur</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <button id="clearBgImage">Clear Background Image</button>
+            </div>
+            <div class="form-group">
+                <button id="exportData">Export Data</button>
+                <button id="importData">Import Data</button>
+                <input type="file" id="importFile" accept=".json" style="display: none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Load scripts in dependency order -->
+    <script src="app.js"></script>
+    <script src="ui-renderer.js"></script>
+    <script src="group-modal.js"></script>
+    <script src="app-modal.js"></script>
+</body>
+</html>
