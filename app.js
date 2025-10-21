@@ -1,7 +1,7 @@
 // ==========================================
-// WebApp Launcher - Core Module v0.7
+// WebApp Launcher - Core Module v0.8
 // Handles state, storage, and core managers
-// NOW SUPPORTS: Pin groups + Website position tracking
+// NOW SUPPORTS: User-assignable position numbers + Pin groups
 // ==========================================
 
 // Predefined color palette for groups
@@ -56,32 +56,31 @@ const Storage = {
                 name: 'My Apps',
                 color: COLOR_PALETTE[0].value,
                 width: 'full',
-                order: 0,
+                position: 999999, // Default group always last
                 pinned: false
             }];
             this.save();
         }
         
-        // Ensure all groups have width, order, and pinned properties
+        // Migrate: Ensure all groups have required properties
         AppState.groups.forEach((group, index) => {
             if (!group.width) group.width = 'full';
-            if (group.order === undefined) group.order = index;
             if (group.pinned === undefined) group.pinned = false;
+            
+            // Migrate old order property to position
+            if (group.position === undefined) {
+                if (group.id === 'ungrouped') {
+                    group.position = 999999; // Always last
+                } else if (group.order !== undefined) {
+                    group.position = group.order + 1; // Convert old order to position (1-based)
+                } else {
+                    group.position = index + 1; // Assign based on current index
+                }
+            }
         });
         
-        // Sort groups: pinned first (by order), regular (by order), then ungrouped last
-        AppState.groups.sort((a, b) => {
-            // Ungrouped always last
-            if (a.id === 'ungrouped') return 1;
-            if (b.id === 'ungrouped') return -1;
-            
-            // Pinned groups first
-            if (a.pinned && !b.pinned) return -1;
-            if (!a.pinned && b.pinned) return 1;
-            
-            // Within same section, sort by order
-            return a.order - b.order;
-        });
+        // Sort groups by position (with special handling for pinned and ungrouped)
+        this.sortGroups();
         
         AppState.websites.forEach(website => {
             if (!website.groupId) {
@@ -98,6 +97,22 @@ const Storage = {
         if (savedSize) {
             AppState.iconSize = parseInt(savedSize);
         }
+    },
+
+    sortGroups() {
+        // Sort: Pinned first (by position), then regular (by position), then ungrouped last
+        AppState.groups.sort((a, b) => {
+            // Ungrouped always last
+            if (a.id === 'ungrouped') return 1;
+            if (b.id === 'ungrouped') return -1;
+            
+            // Pinned groups first
+            if (a.pinned && !b.pinned) return -1;
+            if (!a.pinned && b.pinned) return 1;
+            
+            // Within same section (pinned or regular), sort by position number
+            return (a.position || 0) - (b.position || 0);
+        });
     },
 
     export() {
@@ -147,11 +162,13 @@ const Storage = {
             delete website._iconNote;
         });
         
-        // Ensure all groups have width, order, and pinned
+        // Ensure all groups have required properties
         AppState.groups.forEach((group, index) => {
             if (!group.width) group.width = 'full';
-            if (group.order === undefined) group.order = index;
             if (group.pinned === undefined) group.pinned = false;
+            if (group.position === undefined) {
+                group.position = group.id === 'ungrouped' ? 999999 : index + 1;
+            }
         });
         
         localStorage.setItem('websites', JSON.stringify(AppState.websites));
@@ -258,13 +275,20 @@ const Background = {
 // ========== Group Manager ==========
 const GroupManager = {
     add(groupData) {
-        // Set order to be last among regular groups (excluding ungrouped)
-        const regularGroups = AppState.groups.filter(g => g.id !== 'ungrouped' && !g.pinned);
-        groupData.order = regularGroups.length > 0 ? Math.max(...regularGroups.map(g => g.order)) + 1 : 0;
+        // Use the position provided by the user, or assign next available
+        if (!groupData.position) {
+            const regularGroups = AppState.groups.filter(g => g.id !== 'ungrouped');
+            const maxPosition = regularGroups.length > 0 
+                ? Math.max(...regularGroups.map(g => g.position || 0))
+                : 0;
+            groupData.position = maxPosition + 1;
+        }
+        
         if (!groupData.width) groupData.width = 'full';
         if (groupData.pinned === undefined) groupData.pinned = false;
         
         AppState.groups.push(groupData);
+        Storage.sortGroups();
         Storage.save();
         if (window.UIRenderer) UIRenderer.render();
         UI.showToast('Group added successfully!');
@@ -273,9 +297,9 @@ const GroupManager = {
     update(id, groupData) {
         const index = AppState.groups.findIndex(g => g.id === id);
         if (index !== -1) {
-            // Preserve order, width, and pinned if not specified
-            if (groupData.order === undefined) {
-                groupData.order = AppState.groups[index].order;
+            // Preserve properties if not specified
+            if (groupData.position === undefined) {
+                groupData.position = AppState.groups[index].position;
             }
             if (!groupData.width) {
                 groupData.width = AppState.groups[index].width || 'full';
@@ -285,6 +309,7 @@ const GroupManager = {
             }
             
             AppState.groups[index] = groupData;
+            Storage.sortGroups();
             Storage.save();
             if (window.UIRenderer) UIRenderer.render();
             UI.showToast('Group updated successfully!');
@@ -318,57 +343,12 @@ const GroupManager = {
         if (group) {
             group.pinned = !group.pinned;
             
-            // Reorganize orders
-            if (group.pinned) {
-                // Moving to pinned: place at end of pinned groups
-                const pinnedGroups = AppState.groups.filter(g => g.pinned && g.id !== id && g.id !== 'ungrouped');
-                const maxPinnedOrder = pinnedGroups.length > 0 ? Math.max(...pinnedGroups.map(g => g.order)) : -1;
-                group.order = maxPinnedOrder + 1;
-            } else {
-                // Moving to unpinned: place at start of unpinned groups
-                const unpinnedGroups = AppState.groups.filter(g => !g.pinned && g.id !== id && g.id !== 'ungrouped');
-                const minUnpinnedOrder = unpinnedGroups.length > 0 ? Math.min(...unpinnedGroups.map(g => g.order)) : 0;
-                group.order = minUnpinnedOrder;
-            }
-            
+            // Re-sort groups with new pinned status
+            Storage.sortGroups();
             Storage.save();
             if (window.UIRenderer) UIRenderer.render();
             UI.showToast(group.pinned ? 'Group pinned to top!' : 'Group unpinned!');
         }
-    },
-
-    swapOrder(fromIndex, toIndex) {
-        if (fromIndex < 0 || fromIndex >= AppState.groups.length ||
-            toIndex < 0 || toIndex >= AppState.groups.length) {
-            return;
-        }
-        
-        const fromGroup = AppState.groups[fromIndex];
-        const toGroup = AppState.groups[toIndex];
-        
-        // Don't allow moving the ungrouped group
-        if (fromGroup.id === 'ungrouped' || toGroup.id === 'ungrouped') {
-            UI.showToast('The default "My Apps" group cannot be moved');
-            return;
-        }
-        
-        // Don't allow swapping between pinned and unpinned sections
-        if (fromGroup.pinned !== toGroup.pinned) {
-            UI.showToast('Cannot reorder between pinned and regular groups');
-            return;
-        }
-        
-        // Swap the groups
-        [AppState.groups[fromIndex], AppState.groups[toIndex]] = 
-        [AppState.groups[toIndex], AppState.groups[fromIndex]];
-        
-        // Update order values
-        AppState.groups.forEach((group, index) => {
-            group.order = index;
-        });
-        
-        Storage.save();
-        if (window.UIRenderer) UIRenderer.render();
     },
 
     delete(id) {
@@ -394,11 +374,6 @@ const GroupManager = {
             });
             
             AppState.groups = AppState.groups.filter(g => g.id !== id);
-            
-            // Reorder remaining groups
-            AppState.groups.forEach((group, index) => {
-                group.order = index;
-            });
             
             Storage.save();
             if (window.UIRenderer) UIRenderer.render();
@@ -681,6 +656,7 @@ const App = {
         }
         
         this.attachEventListeners();
+        this.initClock();
         
         if (AppState.currentView === 'list') {
             ViewManager.setListView();
@@ -692,18 +668,117 @@ const App = {
         }
     },
 
+    initClock() {
+        this.updateClock();
+        // Update every second
+        setInterval(() => this.updateClock(), 1000);
+    },
+
+    updateClock() {
+        // Get saved timezones or use defaults
+        const timezone1 = localStorage.getItem('timezone1') || 'local';
+        const timezone2 = localStorage.getItem('timezone2') || 'UTC';
+        
+        this.updateClockDisplay('clock', timezone1);
+        this.updateClockDisplay('clock2', timezone2);
+    },
+
+    updateClockDisplay(elementId, timezone) {
+        const clockElement = document.getElementById(elementId);
+        if (!clockElement) return;
+
+        const now = new Date();
+        
+        // Determine timezone options
+        let options = {};
+        let timezoneName = timezone;
+        
+        if (timezone === 'local') {
+            // Use browser's local timezone
+            options = { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+            timezoneName = 'Local Time';
+        } else {
+            options = { timeZone: timezone };
+            // Extract city name from timezone (e.g., "America/New_York" -> "New York")
+            timezoneName = timezone.split('/').pop().replace(/_/g, ' ');
+        }
+        
+        // Format date: Tue, Oct 21, 2025
+        const dateOptions = { 
+            ...options, 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+        };
+        const dateStr = now.toLocaleDateString('en-US', dateOptions);
+        
+        // Format time: 13:25
+        const timeOptions = { 
+            ...options, 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+        };
+        const timeStr = now.toLocaleTimeString('en-US', timeOptions);
+        
+        clockElement.innerHTML = `
+            <div class="clock-date">${dateStr}</div>
+            <div class="clock-time">${timeStr}</div>
+            <div class="clock-timezone">${timezoneName}</div>
+        `;
+    },
+
     attachEventListeners() {
         // Theme
         document.getElementById('themeToggle')?.addEventListener('click', Theme.toggle);
         
+        // Search form
+        const searchForm = document.getElementById('searchForm');
+        if (searchForm) {
+            searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const searchInput = document.getElementById('searchInput');
+                const query = searchInput?.value.trim();
+                
+                if (query) {
+                    const encodedQuery = encodeURIComponent(query);
+                    window.location.href = `https://www.google.com/search?q=${encodedQuery}`;
+                }
+            });
+        }
+        
+        // Hamburger menu
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        if (hamburgerBtn) {
+            hamburgerBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleMenu();
+            });
+        }
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('dropdownMenu');
+            const hamburger = document.getElementById('hamburgerBtn');
+            if (menu && hamburger && !menu.contains(e.target) && !hamburger.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+        
         // Modals
         document.getElementById('addWebsiteBtn')?.addEventListener('click', () => {
             if (window.AppModal) AppModal.openAdd();
+            this.closeMenu();
         });
         document.getElementById('addGroupBtn')?.addEventListener('click', () => {
             if (window.GroupModal) GroupModal.openAdd();
+            this.closeMenu();
         });
-        document.getElementById('settingsBtn')?.addEventListener('click', () => this.openSettings());
+        document.getElementById('settingsBtn')?.addEventListener('click', () => {
+            this.openSettings();
+            this.closeMenu();
+        });
         document.getElementById('closeSettings')?.addEventListener('click', () => this.closeSettings());
         
         // Views
@@ -720,6 +795,16 @@ const App = {
         document.getElementById('bgBlur')?.addEventListener('change', (e) => Background.applyBlur(e.target.value));
         document.getElementById('clearBgImage')?.addEventListener('click', Background.clear);
         
+        // Timezone settings
+        document.getElementById('timezone1')?.addEventListener('change', (e) => {
+            localStorage.setItem('timezone1', e.target.value);
+            this.updateClock();
+        });
+        document.getElementById('timezone2')?.addEventListener('change', (e) => {
+            localStorage.setItem('timezone2', e.target.value);
+            this.updateClock();
+        });
+        
         // Import/Export
         document.getElementById('exportData')?.addEventListener('click', Storage.export);
         document.getElementById('importData')?.addEventListener('click', () => {
@@ -731,9 +816,40 @@ const App = {
         });
     },
 
+    toggleMenu() {
+        const menu = document.getElementById('dropdownMenu');
+        if (menu) {
+            const isVisible = menu.classList.contains('show');
+            console.log('[App] Toggle menu - currently visible:', isVisible);
+            menu.classList.toggle('show');
+            console.log('[App] Menu now:', menu.classList.contains('show') ? 'visible' : 'hidden');
+        } else {
+            console.error('[App] Dropdown menu element not found');
+        }
+    },
+
+    closeMenu() {
+        const menu = document.getElementById('dropdownMenu');
+        if (menu) {
+            menu.classList.remove('show');
+        }
+    },
+
     openSettings() {
         const modal = document.getElementById('settingsModal');
-        if (modal) modal.classList.add('show');
+        if (modal) {
+            // Load current timezone settings
+            const timezone1 = localStorage.getItem('timezone1') || 'local';
+            const timezone2 = localStorage.getItem('timezone2') || 'UTC';
+            
+            const tz1Select = document.getElementById('timezone1');
+            const tz2Select = document.getElementById('timezone2');
+            
+            if (tz1Select) tz1Select.value = timezone1;
+            if (tz2Select) tz2Select.value = timezone2;
+            
+            modal.classList.add('show');
+        }
     },
 
     closeSettings() {
