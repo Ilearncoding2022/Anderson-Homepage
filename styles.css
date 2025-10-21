@@ -1,7 +1,7 @@
 /* ==========================================
-   WebApp Launcher - Complete Styles v0.7
+   WebApp Launcher - Complete Styles v1.4
    All styling for the application
-   UPDATED: Removed old drag styles, added new drag between groups
+   UPDATED: Added Google search bar in header
    ========================================== */
 
 /* ========== CSS Variables ========== */
@@ -84,6 +84,24 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
+    gap: 1rem;
+}
+
+.header-left {
+    flex: 0 0 auto;
+}
+
+.header-search {
+    flex: 0 0 auto;
+    margin-left: 50px;
+}
+
+.header-center {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-left: 150px;
 }
 
 .header h1 {
@@ -96,6 +114,99 @@ body {
     gap: 1rem;
     align-items: center;
     flex-wrap: wrap;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+/* ========== Search Form ========== */
+.search-form {
+    position: relative;
+    width: 320px;
+}
+
+.search-input {
+    width: 100%;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 0 40px 0 15px;
+    font-size: 0.9rem;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.search-button {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 0 18px 18px 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: opacity 0.2s;
+}
+
+.search-button:hover {
+    opacity: 0.7;
+    transform: none;
+}
+
+/* ========== Digital Clock ========== */
+.digital-clock {
+    text-align: center;
+    user-select: none;
+    padding: 0 1.5rem;
+}
+
+.digital-clock.clock-secondary {
+    border-left: 2px solid var(--border-color);
+}
+
+.clock-date {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.clock-time {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.clock-timezone {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.7;
 }
 
 /* ========== Buttons ========== */
@@ -115,6 +226,19 @@ button:hover {
     opacity: 0.9;
 }
 
+.hamburger-btn {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    padding: 0;
+}
+
 .theme-toggle {
     background-color: var(--bg-secondary);
     color: var(--text-primary);
@@ -125,6 +249,71 @@ button:hover {
     align-items: center;
     justify-content: center;
     font-size: 1.2rem;
+}
+
+/* ========== Dropdown Menu ========== */
+.dropdown-menu {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    min-width: 250px;
+    z-index: 1000;
+    display: none;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    pointer-events: none;
+}
+
+.dropdown-menu.show {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.dropdown-section {
+    margin-bottom: 1rem;
+}
+
+.dropdown-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-item {
+    width: 100%;
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    text-align: left;
+    margin-bottom: 0.5rem;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.dropdown-item:hover {
+    background-color: var(--bg-secondary);
+    transform: translateX(4px);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 1rem 0;
 }
 
 /* ========== View Controls ========== */
@@ -141,6 +330,11 @@ button:hover {
     color: var(--text-secondary);
     padding: 0.5rem;
     font-size: 1.2rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .view-toggle button.active {
@@ -148,8 +342,12 @@ button:hover {
     color: white;
 }
 
+.view-toggle button:hover {
+    transform: none;
+}
+
 .size-slider {
-    width: 150px;
+    width: 100%;
 }
 
 /* ========== Container ========== */
@@ -448,7 +646,7 @@ button:hover {
     align-items: center;
     gap: 0.5rem;
     animation: cardFadeIn 0.4s ease-out;
-    pointer-events: auto; /* Ensure card receives events */
+    pointer-events: auto;
 }
 
 /* Ensure all child elements don't interfere with drag */
@@ -600,7 +798,7 @@ button:hover {
 }
 
 /* ========================================== */
-/* DRAG AND DROP VISUAL EFFECTS - NEW */
+/* DRAG AND DROP VISUAL EFFECTS */
 /* ========================================== */
 
 /* Card being dragged - semi-transparent with rotation */
@@ -1004,13 +1202,52 @@ button:hover {
         gap: 1rem;
     }
 
+    .header-left {
+        width: 100%;
+        text-align: center;
+    }
+
+    .header-center {
+        width: 100%;
+    }
+
     .header h1 {
         font-size: 1.2rem;
+    }
+
+    .digital-clock {
+        width: 100%;
+        padding: 0.5rem 0;
+    }
+
+    .digital-clock.clock-secondary {
+        border-left: none;
+        border-top: 2px solid var(--border-color);
+        padding-top: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .clock-time {
+        font-size: 1.5rem;
+    }
+
+    .clock-date {
+        font-size: 0.8rem;
+    }
+
+    .clock-timezone {
+        font-size: 0.65rem;
     }
 
     .controls {
         width: 100%;
         justify-content: center;
+    }
+
+    .dropdown-menu {
+        right: 10px;
+        left: 10px;
+        min-width: unset;
     }
 
     .websites-grid {
