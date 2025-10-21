@@ -1,0 +1,1042 @@
+/* ==========================================
+   WebApp Launcher - Complete Styles v0.7
+   All styling for the application
+   UPDATED: Removed old drag styles, added new drag between groups
+   ========================================== */
+
+/* ========== CSS Variables ========== */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --bg-card: #ffffff;
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --border-color: #e0e0e0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --accent: #4CAF50;
+    --hover-scale: 1.05;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --bg-card: #2d2d2d;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --border-color: #404040;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ========== Base Styles ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    transition: background-color 0.3s, color 0.3s;
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+/* ========== Background Overlay ========== */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    z-index: -1;
+    transition: backdrop-filter 0.3s, background 0.3s;
+}
+
+.overlay.no-blur {
+    backdrop-filter: none;
+    background: rgba(0,0,0,0.2);
+}
+
+.overlay.light-blur {
+    backdrop-filter: blur(3px);
+    background: rgba(0,0,0,0.3);
+}
+
+.overlay.heavy-blur {
+    backdrop-filter: blur(20px);
+    background: rgba(0,0,0,0.5);
+}
+
+/* ========== Header ========== */
+.header {
+    background-color: var(--bg-card);
+    padding: 1rem 2rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* ========== Buttons ========== */
+button {
+    background-color: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+.theme-toggle {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+/* ========== View Controls ========== */
+.view-toggle {
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--bg-secondary);
+    padding: 0.25rem;
+    border-radius: 6px;
+}
+
+.view-toggle button {
+    background-color: transparent;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    font-size: 1.2rem;
+}
+
+.view-toggle button.active {
+    background-color: var(--accent);
+    color: white;
+}
+
+.size-slider {
+    width: 150px;
+}
+
+/* ========== Container ========== */
+.container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.groups-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: flex-start;
+    min-height: 300px;
+}
+
+/* ========== Empty State ========== */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-state h2 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+/* ========== Group Styles ========== */
+.app-group {
+    width: 100%;
+    margin-bottom: 0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    position: relative;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.app-group.half-width {
+    width: calc(50% - 1rem);
+}
+
+.app-group:hover {
+    box-shadow: 0 6px 30px rgba(0,0,0,0.15);
+}
+
+/* ========== Pinned Group Styles ========== */
+.app-group.pinned {
+    border: 2px solid rgba(255, 215, 0, 0.4);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1), 
+                0 0 20px rgba(255, 215, 0, 0.2);
+    margin-bottom: 2.5rem;
+}
+
+.app-group.pinned::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, 
+        rgba(255, 215, 0, 0.3), 
+        transparent, 
+        rgba(255, 215, 0, 0.3));
+    border-radius: 16px;
+    z-index: -1;
+    opacity: 0.5;
+}
+
+.pin-indicator {
+    font-size: 1.1rem;
+    margin-right: 0.3rem;
+    animation: pinPulse 2s infinite;
+}
+
+@keyframes pinPulse {
+    0%, 100% { 
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+    50% { 
+        transform: scale(1.1) rotate(-5deg);
+        opacity: 0.8;
+    }
+}
+
+/* ========== Default Group Styles ========== */
+.app-group.default-group {
+    border: 2px solid rgba(100, 181, 246, 0.5);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1), 
+                0 0 20px rgba(100, 181, 246, 0.3);
+    margin-top: 2.5rem;
+}
+
+.app-group.default-group::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, 
+        rgba(100, 181, 246, 0.2), 
+        transparent, 
+        rgba(100, 181, 246, 0.2));
+    border-radius: 16px;
+    z-index: -1;
+    opacity: 0.6;
+}
+
+.app-group.default-group::after {
+    content: 'UNCATEGORIZED';
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.25rem 1rem;
+    background: rgba(100, 181, 246, 0.2);
+    border-radius: 12px;
+}
+
+.default-indicator {
+    font-size: 1.1rem;
+    margin-right: 0.3rem;
+    opacity: 0.8;
+}
+
+/* ========== Group Header ========== */
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+}
+
+.group-title-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.group-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.group-count {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    font-weight: normal;
+    transition: all 0.3s ease;
+}
+
+.group-actions {
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.app-group:hover .group-actions {
+    opacity: 1;
+}
+
+.group-action-btn {
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    backdrop-filter: blur(5px);
+}
+
+.group-action-btn:hover {
+    background-color: rgba(255,255,255,0.3);
+    transform: scale(1.1);
+}
+
+.pin-btn {
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.pin-btn:hover {
+    transform: scale(1.15) rotate(15deg);
+}
+
+.app-group.pinned .pin-btn {
+    background-color: rgba(255, 215, 0, 0.3);
+}
+
+.width-toggle-btn {
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    white-space: nowrap;
+}
+
+.width-toggle-btn:hover {
+    background-color: rgba(255,255,255,0.3);
+    transform: scale(1.05);
+}
+
+.delete-group-btn:hover {
+    background-color: rgba(244, 67, 54, 0.8) !important;
+    transform: scale(1.15) !important;
+}
+
+.group-drop-zone {
+    min-height: 100px;
+    border: 2px dashed rgba(255,255,255,0.3);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+/* ========== Section Dividers ========== */
+.groups-container:has(.app-group.pinned) .app-group:not(.pinned):not(.default-group):first-of-type::before {
+    content: 'REGULAR GROUPS';
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 0.25rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+.app-group:not(.pinned):not(.default-group):first-of-type {
+    position: relative;
+}
+
+/* ========== Website Grid/List ========== */
+.websites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
+    gap: 1.5rem;
+}
+
+.websites-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ========== Website Card ========== */
+.website-card {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    text-align: center;
+    cursor: grab;
+    transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s;
+    box-shadow: var(--shadow);
+    position: relative;
+    text-decoration: none;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    animation: cardFadeIn 0.4s ease-out;
+    pointer-events: auto; /* Ensure card receives events */
+}
+
+/* Ensure all child elements don't interfere with drag */
+.website-card * {
+    pointer-events: none;
+}
+
+/* Re-enable pointer events for interactive elements */
+.website-card .card-actions,
+.website-card .card-actions *,
+.website-card .new-tab-btn {
+    pointer-events: auto;
+}
+
+.website-card:active {
+    cursor: grabbing;
+}
+
+@keyframes cardFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.website-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.website-card.list-view {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 1rem 1.5rem;
+}
+
+/* ========== Website Card Elements ========== */
+.website-icon {
+    border-radius: 12px;
+    object-fit: cover;
+    background-color: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: width 0.3s, height 0.3s;
+}
+
+.website-card.list-view .website-icon {
+    width: 50px;
+    height: 50px;
+    margin: 0 1rem 0 0;
+}
+
+.website-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.website-card.list-view .website-info {
+    align-items: flex-start;
+    text-align: left;
+    flex: 1;
+}
+
+.website-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+.website-version {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+/* ========== Card Actions ========== */
+.card-actions {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+
+.website-card:hover .card-actions {
+    opacity: 1;
+}
+
+.edit-btn, .delete-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.edit-btn {
+    background-color: #2196F3;
+}
+
+.delete-btn {
+    background-color: #f44336;
+}
+
+.new-tab-btn {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 2;
+    padding: 0;
+}
+
+.website-card:hover .new-tab-btn {
+    opacity: 1;
+}
+
+.new-tab-btn:hover {
+    background-color: var(--accent);
+    color: white;
+}
+
+/* ========================================== */
+/* DRAG AND DROP VISUAL EFFECTS - NEW */
+/* ========================================== */
+
+/* Card being dragged - semi-transparent with rotation */
+.website-card.dragging {
+    opacity: 0.6;
+    transform: rotate(3deg) scale(0.95);
+    cursor: grabbing !important;
+    z-index: 1000;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    transition: none;
+}
+
+/* Prevent text selection during drag */
+.website-card.dragging * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    pointer-events: none;
+}
+
+/* Card being hovered over during drag - for reordering */
+.website-card.drag-over-card {
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: 0 10px 30px rgba(33, 150, 243, 0.4),
+                0 0 0 3px rgba(33, 150, 243, 0.6);
+    border: 2px solid rgba(33, 150, 243, 0.8);
+    animation: cardReorderPulse 0.8s infinite alternate;
+}
+
+@keyframes cardReorderPulse {
+    0% { 
+        transform: translateY(-5px) scale(1.05);
+        box-shadow: 0 10px 30px rgba(33, 150, 243, 0.4),
+                    0 0 0 3px rgba(33, 150, 243, 0.6);
+    }
+    100% { 
+        transform: translateY(-8px) scale(1.08);
+        box-shadow: 0 15px 40px rgba(33, 150, 243, 0.6),
+                    0 0 0 4px rgba(33, 150, 243, 0.8);
+    }
+}
+
+/* Source group highlight - where the card came from */
+.app-group.drag-source-group {
+    border: 2px solid rgba(255, 152, 0, 0.6);
+    box-shadow: 0 4px 20px rgba(255, 152, 0, 0.3),
+                inset 0 0 30px rgba(255, 152, 0, 0.1);
+    animation: sourceGroupPulse 1.5s infinite alternate;
+}
+
+@keyframes sourceGroupPulse {
+    0% {
+        border-color: rgba(255, 152, 0, 0.6);
+        box-shadow: 0 4px 20px rgba(255, 152, 0, 0.3),
+                    inset 0 0 30px rgba(255, 152, 0, 0.1);
+    }
+    100% {
+        border-color: rgba(255, 152, 0, 0.8);
+        box-shadow: 0 6px 30px rgba(255, 152, 0, 0.5),
+                    inset 0 0 50px rgba(255, 152, 0, 0.2);
+    }
+}
+
+/* Target group highlight - where you can drop */
+.app-group.drag-over-group {
+    border: 3px solid rgba(76, 175, 80, 0.8);
+    box-shadow: 0 8px 30px rgba(76, 175, 80, 0.4),
+                inset 0 0 40px rgba(76, 175, 80, 0.15);
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+    animation: targetGroupGlow 1s infinite alternate;
+}
+
+@keyframes targetGroupGlow {
+    0% {
+        border-color: rgba(76, 175, 80, 0.8);
+        box-shadow: 0 8px 30px rgba(76, 175, 80, 0.4),
+                    inset 0 0 40px rgba(76, 175, 80, 0.15);
+    }
+    100% {
+        border-color: rgba(76, 175, 80, 1);
+        box-shadow: 0 12px 40px rgba(76, 175, 80, 0.6),
+                    inset 0 0 60px rgba(76, 175, 80, 0.25);
+    }
+}
+
+/* Drop zone highlight - the inner container */
+.drag-over-drop-zone {
+    background: linear-gradient(135deg, 
+        rgba(76, 175, 80, 0.2), 
+        rgba(76, 175, 80, 0.1),
+        rgba(76, 175, 80, 0.2));
+    border-radius: 12px;
+    padding: 1rem;
+    position: relative;
+    animation: dropZoneShimmer 2s infinite;
+}
+
+@keyframes dropZoneShimmer {
+    0%, 100% {
+        background: linear-gradient(135deg, 
+            rgba(76, 175, 80, 0.2), 
+            rgba(76, 175, 80, 0.1),
+            rgba(76, 175, 80, 0.2));
+    }
+    50% {
+        background: linear-gradient(135deg, 
+            rgba(76, 175, 80, 0.15), 
+            rgba(76, 175, 80, 0.25),
+            rgba(76, 175, 80, 0.15));
+    }
+}
+
+/* Pulsing effect for drop zone */
+.drag-over-drop-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 80%;
+    border: 3px dashed rgba(76, 175, 80, 0.5);
+    border-radius: 12px;
+    animation: dropZonePulse 1.5s infinite;
+    pointer-events: none;
+}
+
+@keyframes dropZonePulse {
+    0%, 100% {
+        width: 80%;
+        height: 80%;
+        opacity: 0.5;
+    }
+    50% {
+        width: 90%;
+        height: 90%;
+        opacity: 1;
+    }
+}
+
+/* Success animation when dropped */
+.app-group.drop-success {
+    animation: dropSuccess 0.6s ease-out;
+}
+
+@keyframes dropSuccess {
+    0% {
+        transform: scale(1);
+    }
+    25% {
+        transform: scale(1.05);
+        border-color: rgba(76, 175, 80, 1);
+        box-shadow: 0 10px 40px rgba(76, 175, 80, 0.6),
+                    0 0 0 8px rgba(76, 175, 80, 0.2);
+    }
+    50% {
+        border-color: rgba(76, 175, 80, 0.8);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Visual feedback for empty drop zones during drag */
+.drag-over-drop-zone .group-drop-zone {
+    background: rgba(76, 175, 80, 0.15);
+    border: 2px dashed rgba(76, 175, 80, 0.6);
+    color: rgba(76, 175, 80, 1);
+    font-weight: 600;
+}
+
+/* Group count animation on successful drop */
+.drop-success .group-count {
+    color: #4CAF50;
+    transform: scale(1.2);
+}
+
+/* ========== Modal ========== */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--bg-card);
+    padding: 2rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-header h2 {
+    color: var(--text-primary);
+}
+
+.close-modal {
+    background: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+}
+
+/* ========== Form Elements ========== */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.icon-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.icon-input-group input[type="text"] {
+    flex: 1;
+}
+
+.icon-input-group button {
+    padding: 0.75rem 1rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ========== Color Picker ========== */
+.color-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.color-option {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.color-option:hover {
+    transform: scale(1.1);
+    border-color: var(--text-primary);
+}
+
+.color-option.selected {
+    border-color: var(--text-primary);
+    box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--text-primary);
+}
+
+.color-option.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 1.2rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* ========== File Input ========== */
+.file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    width: 100%;
+}
+
+.file-input-wrapper input[type=file] {
+    position: absolute;
+    left: -9999px;
+}
+
+.file-input-label {
+    display: block;
+    padding: 0.75rem;
+    background-color: var(--bg-secondary);
+    border: 2px dashed var(--border-color);
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: background-color 0.3s;
+}
+
+.file-input-label:hover {
+    background-color: var(--bg-primary);
+}
+
+.icon-preview {
+    width: 80px;
+    height: 80px;
+    margin: 1rem auto;
+    border-radius: 8px;
+    object-fit: cover;
+    display: none;
+}
+
+.icon-preview.show {
+    display: block;
+}
+
+/* ========== Toast Notification ========== */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10000;
+    animation: slideUp 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.toast.success {
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+/* ========== Accessibility ========== */
+@media (prefers-reduced-motion: reduce) {
+    .website-card.dragging,
+    .app-group.drag-source-group,
+    .app-group.drag-over-group,
+    .drag-over-drop-zone,
+    .app-group.drop-success {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ========== Responsive Design ========== */
+@media (max-width: 768px) {
+    .header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .header h1 {
+        font-size: 1.2rem;
+    }
+
+    .controls {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .websites-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 1rem;
+    }
+
+    .card-actions, .new-tab-btn, .group-actions {
+        opacity: 1;
+    }
+
+    .app-group {
+        padding: 1rem;
+    }
+
+    .group-title {
+        font-size: 1.2rem;
+    }
+
+    /* Force 1 column on mobile */
+    .groups-container {
+        display: block;
+    }
+    
+    .app-group {
+        width: 100% !important;
+        margin-bottom: 2rem;
+    }
+}
