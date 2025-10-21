@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anderson Homepage v1.1 (2025-10-21)</title>
+    <title>Anderson Homepage v1.4 (2025-10-21)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -11,19 +11,52 @@
     <div class="overlay"></div>
     
     <header class="header">
-        <h1>🚀 Anderson Homepage v1.1 (2025-10-21)</h1>
+        <div class="header-left">
+            <h1>🚀 Anderson Homepage v1.4 (2025-10-21)</h1>
+        </div>
+        <div class="header-search">
+            <form id="searchForm" class="search-form">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." autocomplete="off">
+                <button type="submit" class="search-button">🔍</button>
+            </form>
+        </div>
+        <div class="header-center">
+            <div id="clock" class="digital-clock">
+                <div class="clock-date">Loading...</div>
+                <div class="clock-time">--:--</div>
+                <div class="clock-timezone">Local Time</div>
+            </div>
+            <div id="clock2" class="digital-clock clock-secondary">
+                <div class="clock-date">Loading...</div>
+                <div class="clock-time">--:--</div>
+                <div class="clock-timezone">UTC</div>
+            </div>
+        </div>
         <div class="controls">
+            <button class="hamburger-btn" id="hamburgerBtn" title="Menu">☰</button>
+            <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
+        </div>
+    </header>
+
+    <!-- Dropdown Menu -->
+    <div class="dropdown-menu" id="dropdownMenu">
+        <div class="dropdown-section">
+            <label class="dropdown-label">View Layout</label>
             <div class="view-toggle">
                 <button id="gridView" class="active" title="Grid View">⊞</button>
                 <button id="listView" title="List View">☰</button>
             </div>
-            <input type="range" class="size-slider" id="sizeSlider" min="50" max="150" value="80" title="Icon Size">
-            <button id="addGroupBtn">📁 Add Group</button>
-            <button id="addWebsiteBtn">+ Add Website</button>
-            <button id="settingsBtn">⚙️ Settings</button>
-            <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
         </div>
-    </header>
+        <div class="dropdown-section">
+            <label class="dropdown-label">Icon Size</label>
+            <input type="range" class="size-slider" id="sizeSlider" min="50" max="150" value="80" title="Icon Size">
+        </div>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
+        <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" id="settingsBtn">⚙️ Settings</button>
+    </div>
 
     <div class="container">
         <div class="empty-state" id="emptyState" style="display: none;">
@@ -75,6 +108,60 @@
             </div>
             <div class="form-group">
                 <button id="clearBgImage">Clear Background Image</button>
+            </div>
+            <div class="form-group">
+                <label for="timezone1">Clock #1 Timezone</label>
+                <select id="timezone1">
+                    <option value="local">Local Time (Auto-detect)</option>
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern Time (New York)</option>
+                    <option value="America/Chicago">Central Time (Chicago)</option>
+                    <option value="America/Denver">Mountain Time (Denver)</option>
+                    <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                    <option value="America/Anchorage">Alaska Time</option>
+                    <option value="Pacific/Honolulu">Hawaii Time</option>
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET/CEST)</option>
+                    <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                    <option value="Europe/Moscow">Moscow (MSK)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Asia/Kolkata">India (IST)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Seoul">Seoul (KST)</option>
+                    <option value="Asia/Singapore">Singapore (SGT)</option>
+                    <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                    <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                    <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                    <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="timezone2">Clock #2 Timezone</label>
+                <select id="timezone2">
+                    <option value="local">Local Time (Auto-detect)</option>
+                    <option value="UTC" selected>UTC</option>
+                    <option value="America/New_York">Eastern Time (New York)</option>
+                    <option value="America/Chicago">Central Time (Chicago)</option>
+                    <option value="America/Denver">Mountain Time (Denver)</option>
+                    <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                    <option value="America/Anchorage">Alaska Time</option>
+                    <option value="Pacific/Honolulu">Hawaii Time</option>
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET/CEST)</option>
+                    <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                    <option value="Europe/Moscow">Moscow (MSK)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Asia/Kolkata">India (IST)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Seoul">Seoul (KST)</option>
+                    <option value="Asia/Singapore">Singapore (SGT)</option>
+                    <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                    <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                    <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                    <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                </select>
             </div>
             <div class="form-group">
                 <button id="exportData">Export Data</button>

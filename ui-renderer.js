@@ -1,7 +1,7 @@
 // ==========================================
-// UI Renderer Module v1.0 - WITH DRAG AND DROP
-// Handles rendering with click navigation + drag between groups
-// Drag and drop for moving apps between groups only
+// UI Renderer Module v1.1 - WITH POSITION NUMBERS
+// Handles rendering with position-based sorting
+// Groups sorted by: pinned status + position number
 // ==========================================
 
 const UIRenderer = {
@@ -17,7 +17,6 @@ const UIRenderer = {
         
         console.log('[UIRenderer] Websites count:', AppState.websites.length);
         console.log('[UIRenderer] Groups count:', AppState.groups.length);
-        console.log('[UIRenderer] Websites array:', AppState.websites.map(w => `${w.id.slice(-4)}:${w.name}:pos${w.position}`));
         
         if (AppState.websites.length === 0 && AppState.groups.length <= 1) {
             emptyState.style.display = 'block';
@@ -28,16 +27,23 @@ const UIRenderer = {
         
         emptyState.style.display = 'none';
         
-        // Sort groups: pinned first (by order), regular (by order), ungrouped last
+        // Sort groups: pinned first (by position), regular (by position), ungrouped last
         const sortedGroups = [...AppState.groups].sort((a, b) => {
+            // Ungrouped always last
             if (a.id === 'ungrouped') return 1;
             if (b.id === 'ungrouped') return -1;
+            
+            // Pinned groups first
             if (a.pinned && !b.pinned) return -1;
             if (!a.pinned && b.pinned) return 1;
-            return (a.order || 0) - (b.order || 0);
+            
+            // Within same section (pinned or regular), sort by position number
+            return (a.position || 0) - (b.position || 0);
         });
         
-        console.log('[UIRenderer] Sorted groups:', sortedGroups.map(g => g.name));
+        console.log('[UIRenderer] Sorted groups:', sortedGroups.map(g => 
+            `${g.name} (pos:${g.position}, pinned:${g.pinned})`
+        ));
         
         const groupsHTML = sortedGroups.map(group => {
             // Filter websites for this group and sort by position
@@ -46,12 +52,12 @@ const UIRenderer = {
                 .sort((a, b) => {
                     const posA = a.position !== undefined ? a.position : 999999;
                     const posB = b.position !== undefined ? b.position : 999999;
-                    console.log(`[UIRenderer] Comparing ${a.name}(${posA}) vs ${b.name}(${posB}) = ${posA - posB}`);
                     return posA - posB;
                 });
             
-            console.log(`[UIRenderer] Group "${group.name}" has websites:`, groupWebsites.map(w => `pos${w.position}:${w.name}`));
-            console.log(`[UIRenderer] Rendering order:`, groupWebsites.map(w => w.name).join(' → '));
+            console.log(`[UIRenderer] Group "${group.name}" (pos:${group.position}) has websites:`, 
+                groupWebsites.map(w => `pos${w.position}:${w.name}`));
+            
             return this.createGroupSection(group, groupWebsites);
         }).join('');
         
@@ -83,7 +89,6 @@ const UIRenderer = {
         const showPinButton = !isDefault;
         const showDeleteButton = !isDefault;
         
-        // Don't sort - preserve the array order from AppState.websites
         const websitesHTML = websites && websites.length > 0
             ? websites.map(w => this.createWebsiteCard(w)).join('')
             : '<div class="group-drop-zone">Drag websites here</div>';
@@ -91,7 +96,7 @@ const UIRenderer = {
         return `
             <div class="app-group ${widthClass} ${pinnedClass} ${defaultClass}" 
                  data-group-id="${group.id}" 
-                 data-order="${group.order}" 
+                 data-position="${group.position}" 
                  data-pinned="${group.pinned}" 
                  style="background: ${group.color || COLOR_PALETTE[0].value};">
                 <div class="group-header">
