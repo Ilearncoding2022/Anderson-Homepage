@@ -1,7 +1,7 @@
 /* ==========================================
-   WebApp Launcher - Complete Styles v1.4
+   WebApp Launcher - Complete Styles v1.5
    All styling for the application
-   UPDATED: Added Google search bar in header
+   UPDATED: Added 33% width support + icon size label
    ========================================== */
 
 /* ========== CSS Variables ========== */
@@ -115,7 +115,7 @@ body {
     align-items: center;
     flex-wrap: wrap;
     flex: 0 0 auto;
-    margin-left: -40px;              /* CHANGED: auto → -40px (move left) */
+    margin-left: -40px;
 }
 
 /* ========== Search Form ========== */
@@ -126,11 +126,11 @@ body {
 
 .search-input {
     width: 100%;
-    height: 40px;                    /* CHANGED: 36px → 40px (+4px) */
+    height: 40px;
     border: 1px solid var(--border-color);
-    border-radius: 20px;             /* CHANGED: 18px → 20px (proportional) */
+    border-radius: 20px;
     padding: 0 40px 0 15px;
-    font-size: 1.03rem;              /* CHANGED: 0.9rem → 1.03rem (+2pt equivalent) */
+    font-size: 1.03rem;
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     outline: none;
@@ -145,20 +145,20 @@ body {
 .search-input::placeholder {
     color: var(--text-secondary);
     opacity: 0.7;
-    font-size: 1.03rem;              /* ADDED: Explicit placeholder font size */
+    font-size: 1.03rem;
 }
 
 .search-button {
     position: absolute;
     right: 0;
     top: 0;
-    width: 40px;                     /* CHANGED: 36px → 40px */
-    height: 40px;                    /* CHANGED: 36px → 40px */
+    width: 40px;
+    height: 40px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    border-radius: 0 20px 20px 0;   /* CHANGED: 18px → 20px */
+    border-radius: 0 20px 20px 0;
     font-size: 1rem;
     display: flex;
     align-items: center;
@@ -177,7 +177,7 @@ body {
     text-align: center;
     user-select: none;
     padding: 0 1.5rem;
-    margin-left: -140px;              /* ADDED: Move 30px to the left */
+    margin-left: -140px;
 }
 
 .digital-clock.clock-secondary {
@@ -263,8 +263,9 @@ button:hover {
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
     border: 1px solid var(--border-color);
-    padding: 1rem;
-    min-width: 250px;
+    padding: 1.25rem;
+    min-width: 300px;
+    max-width: 320px;
     z-index: 1000;
     display: none;
     visibility: hidden;
@@ -286,12 +287,16 @@ button:hover {
     margin-bottom: 1rem;
 }
 
+.dropdown-section {
+    margin-bottom: 1.25rem;
+}
+
 .dropdown-label {
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -349,8 +354,137 @@ button:hover {
     transform: none;
 }
 
-.size-slider {
+/* ========== Icon Size Slider with Label ========== */
+.size-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
     width: 100%;
+}
+
+.size-slider {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+}
+
+/* Slider thumb styling - WebKit browsers (Chrome, Safari, Edge) */
+.size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 3px solid white;
+}
+
+.size-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+}
+
+.size-slider::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+}
+
+/* Slider thumb styling - Firefox */
+.size-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.size-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+}
+
+.size-slider::-moz-range-thumb:active {
+    transform: scale(1.15);
+}
+
+/* Slider track styling */
+.size-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+}
+
+.size-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+}
+
+/* Size label - the pixel count indicator */
+.size-label {
+    min-width: 50px;
+    max-width: 50px;
+    width: 50px;
+    flex-shrink: 0;
+    flex-grow: 0;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: white !important;
+    background-color: var(--accent) !important;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+    border: 2px solid var(--accent);
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    line-height: 1.2;
+}
+
+/* Size markers - reference numbers below slider */
+.size-markers {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    padding: 0;
+    margin-top: 0.35rem;
+    margin-left: 0;
+    margin-right: 50px;
+    font-family: 'Courier New', Courier, monospace;
+    opacity: 0.8;
+    user-select: none;
+}
+
+.size-markers span {
+    flex: 1;
+    text-align: center;
+    font-weight: 600;
+}
+
+.size-markers span:first-child {
+    text-align: left;
+}
+
+.size-markers span:last-child {
+    text-align: right;
 }
 
 /* ========== Container ========== */
@@ -380,7 +514,7 @@ button:hover {
     color: var(--text-primary);
 }
 
-/* ========== Group Styles ========== */
+/* ========== Group Styles with Width Options ========== */
 .app-group {
     width: 100%;
     margin-bottom: 0;
@@ -395,6 +529,10 @@ button:hover {
 
 .app-group.half-width {
     width: calc(50% - 1rem);
+}
+
+.app-group.third-width {
+    width: calc(33.333% - 1.34rem);
 }
 
 .app-group:hover {
@@ -652,12 +790,10 @@ button:hover {
     pointer-events: auto;
 }
 
-/* Ensure all child elements don't interfere with drag */
 .website-card * {
     pointer-events: none;
 }
 
-/* Re-enable pointer events for interactive elements */
 .website-card .card-actions,
 .website-card .card-actions *,
 .website-card .new-tab-btn {
@@ -804,7 +940,6 @@ button:hover {
 /* DRAG AND DROP VISUAL EFFECTS */
 /* ========================================== */
 
-/* Card being dragged - semi-transparent with rotation */
 .website-card.dragging {
     opacity: 0.6;
     transform: rotate(3deg) scale(0.95);
@@ -814,7 +949,6 @@ button:hover {
     transition: none;
 }
 
-/* Prevent text selection during drag */
 .website-card.dragging * {
     user-select: none;
     -webkit-user-select: none;
@@ -822,7 +956,6 @@ button:hover {
     pointer-events: none;
 }
 
-/* Card being hovered over during drag - for reordering */
 .website-card.drag-over-card {
     transform: translateY(-5px) scale(1.05);
     box-shadow: 0 10px 30px rgba(33, 150, 243, 0.4),
@@ -844,7 +977,6 @@ button:hover {
     }
 }
 
-/* Source group highlight - where the card came from */
 .app-group.drag-source-group {
     border: 2px solid rgba(255, 152, 0, 0.6);
     box-shadow: 0 4px 20px rgba(255, 152, 0, 0.3),
@@ -865,7 +997,6 @@ button:hover {
     }
 }
 
-/* Target group highlight - where you can drop */
 .app-group.drag-over-group {
     border: 3px solid rgba(76, 175, 80, 0.8);
     box-shadow: 0 8px 30px rgba(76, 175, 80, 0.4),
@@ -888,7 +1019,6 @@ button:hover {
     }
 }
 
-/* Drop zone highlight - the inner container */
 .drag-over-drop-zone {
     background: linear-gradient(135deg, 
         rgba(76, 175, 80, 0.2), 
@@ -915,7 +1045,6 @@ button:hover {
     }
 }
 
-/* Pulsing effect for drop zone */
 .drag-over-drop-zone::before {
     content: '';
     position: absolute;
@@ -943,7 +1072,6 @@ button:hover {
     }
 }
 
-/* Success animation when dropped */
 .app-group.drop-success {
     animation: dropSuccess 0.6s ease-out;
 }
@@ -966,7 +1094,6 @@ button:hover {
     }
 }
 
-/* Visual feedback for empty drop zones during drag */
 .drag-over-drop-zone .group-drop-zone {
     background: rgba(76, 175, 80, 0.15);
     border: 2px dashed rgba(76, 175, 80, 0.6);
@@ -974,7 +1101,6 @@ button:hover {
     font-weight: 600;
 }
 
-/* Group count animation on successful drop */
 .drop-success .group-count {
     color: #4CAF50;
     transform: scale(1.2);
