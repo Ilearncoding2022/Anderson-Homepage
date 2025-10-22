@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anderson Homepage v1.5 (2025-10-21)</title>
+    <title>Anderson Homepage v1.7 (2025-10-22)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,7 +12,7 @@
     
     <header class="header">
         <div class="header-left">
-            <h1>🚀 Anderson Homepage v1.5 (2025-10-21)</h1>
+            <h1>🚀 Anderson Homepage v1.7 (2025-10-22)</h1>
         </div>
         <div class="header-search">
             <form id="searchForm" class="search-form">
@@ -38,8 +38,11 @@
         </div>
     </header>
 
-    <!-- Dropdown Menu -->
+    <!-- ============================================ -->
+    <!-- DROPDOWN MENU - UPDATED WITH SIZE LABEL -->
+    <!-- ============================================ -->
     <div class="dropdown-menu" id="dropdownMenu">
+        <!-- View Layout Section -->
         <div class="dropdown-section">
             <label class="dropdown-label">View Layout</label>
             <div class="view-toggle">
@@ -47,17 +50,46 @@
                 <button id="listView" title="List View">☰</button>
             </div>
         </div>
+        
+        <!-- Icon Size Section - WITH LABEL -->
         <div class="dropdown-section">
             <label class="dropdown-label">Icon Size</label>
-            <input type="range" class="size-slider" id="sizeSlider" min="50" max="150" value="80" title="Icon Size">
+            
+            <!-- Slider Container with Label -->
+            <div class="size-slider-container">
+                <input type="range" 
+                       class="size-slider" 
+                       id="sizeSlider" 
+                       min="20" 
+                       max="100" 
+                       value="80" 
+                       step="5" 
+                       title="Adjust Icon Size">
+                <span class="size-label" id="sizeLabel">80px</span>
+            </div>
+            
+            <!-- Reference Markers -->
+            <div class="size-markers">
+                <span>20</span>
+                <span>40</span>
+                <span>60</span>
+                <span>80</span>
+                <span>100</span>
+            </div>
         </div>
+        
         <div class="dropdown-divider"></div>
+        
+        <!-- Action Buttons -->
         <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
         <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
+        
         <div class="dropdown-divider"></div>
+        
         <button class="dropdown-item" id="settingsBtn">⚙️ Settings</button>
     </div>
 
+    <!-- Main Content Container -->
     <div class="container">
         <div class="empty-state" id="emptyState" style="display: none;">
             <h2>No websites added yet</h2>
@@ -69,7 +101,7 @@
     <!-- Modal container for dynamically created modals -->
     <div id="modalContainer"></div>
 
-    <!-- Settings Modal (static, not managed by modal module) -->
+    <!-- Settings Modal -->
     <div class="modal" id="settingsModal">
         <div class="modal-content">
             <div class="modal-header">
