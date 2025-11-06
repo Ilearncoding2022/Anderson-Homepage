@@ -1,0 +1,292 @@
+{
+  "websites": [
+    {
+      "id": "1760169733173",
+      "name": "Mệnh Lý",
+      "url": "D:\\App Development\\Apps\\Mệnh Lý (B)\\Mệnh Lý.html",
+      "groupId": "1760929390915",
+      "version": "v4.3",
+      "versionDate": "2025-10-06",
+      "icon": null,
+      "position": 0,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1758685704431",
+      "name": "Fin Tracker",
+      "url": "D:\\App Development\\Apps\\FinTracker\\FinTracker.html",
+      "groupId": "1760929904592",
+      "version": "2.1.6",
+      "versionDate": "2025-09-20",
+      "icon": null,
+      "position": 1,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1756817655616",
+      "name": "Exp Tracker",
+      "url": "D:\\App Development\\Apps\\Exp Tracker\\index.html",
+      "groupId": "1760929904592",
+      "version": "v1.2",
+      "versionDate": "2025-10-07",
+      "icon": null,
+      "position": 2,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1756659418786",
+      "name": "Medi Track",
+      "url": "D:\\App Development\\Apps\\MediTrack (B)\\MediTrack.html",
+      "groupId": "1760929904592",
+      "version": "v1.3",
+      "versionDate": "2025-09-07",
+      "icon": null,
+      "position": 3,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1756659302611",
+      "name": "Glass Tank Designer",
+      "url": "D:\\App Development\\Apps\\Glass Tank Designer\\Compartmentalized version\\v2.9\\Glass Tank Designer.html",
+      "groupId": "1760929390915",
+      "version": "v2.9",
+      "versionDate": "2025-09-02",
+      "icon": null,
+      "position": 3,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1760927760866",
+      "name": "My Dup Finder",
+      "url": "D:\\App Development\\Apps\\File Utilities\\My Dup Finder.html",
+      "groupId": "1760929385252",
+      "version": "v0.3",
+      "versionDate": "2025-10-20",
+      "icon": null,
+      "position": 4,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1760927877046",
+      "name": "PNG to ICO",
+      "url": "D:\\App Development\\Apps\\File Utilities\\PNG to ICO.html",
+      "groupId": "1760929385252",
+      "version": null,
+      "versionDate": "2025-10-20",
+      "icon": null,
+      "position": 5,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1760931030461",
+      "name": "Netflix",
+      "url": "https://www.netflix.com/",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 0,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1760931547724",
+      "name": "IHG Hotels",
+      "url": "https://www.ihg.com/",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 2,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1760931400393",
+      "name": "LinkedIn",
+      "url": "http://www.LinkedIn.com",
+      "groupId": "1760931006371",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 0,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761023803623",
+      "name": "Personal Calendar",
+      "url": "D:\\App Development\\Apps\\Anderson Personal Calendar\\Index.html",
+      "groupId": "1760929904592",
+      "version": "v2.8",
+      "versionDate": null,
+      "icon": null,
+      "position": 0,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761024812796",
+      "name": "American Express",
+      "url": "https://www.americanexpress.com/",
+      "groupId": "1760931006371",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 1,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761024838407",
+      "name": "Discover",
+      "url": "https://www.discover.com/",
+      "groupId": "1760931006371",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 0,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761024869554",
+      "name": "Chase",
+      "url": "https://www.chase.com/",
+      "groupId": "1760931006371",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 3,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761025203601",
+      "name": "Hilton",
+      "url": "https://www.hilton.com/",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 1,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761025426753",
+      "name": "United Air",
+      "url": "https://united.com",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 3,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761025510075",
+      "name": "Amazon",
+      "url": "https://www.amazon.com",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": "2025-10-21",
+      "icon": null,
+      "position": 4,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761025570684",
+      "name": "Ebay",
+      "url": "https://ebay.us",
+      "groupId": "1761024701624",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 5,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761025679207",
+      "name": "Coinbase",
+      "url": "https://www.coinbase.com/",
+      "groupId": "1760931006371",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 4,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761034223856",
+      "name": "Gieo Quẻ",
+      "url": "https://hocvienlyso.org/boidich/luchao.php",
+      "groupId": "1760929390915",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 1,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    },
+    {
+      "id": "1761034288410",
+      "name": "Chọn Ngày",
+      "url": "https://maphuong.com/admin/dichly/lichdungsu.html#",
+      "groupId": "1760929390915",
+      "version": null,
+      "versionDate": null,
+      "icon": null,
+      "position": 2,
+      "_iconNote": "Base64 image removed - please use file path instead"
+    }
+  ],
+  "groups": [
+    {
+      "id": "1760931006371",
+      "name": "Business Sites",
+      "color": "rgba(255, 193, 7, 0.25)",
+      "position": 1,
+      "width": "half",
+      "pinned": false
+    },
+    {
+      "id": "1761024701624",
+      "name": "Entertainment Sites",
+      "color": "rgba(0, 188, 212, 0.25)",
+      "position": 2,
+      "width": "half",
+      "pinned": false
+    },
+    {
+      "id": "1760929904592",
+      "name": "Trackers",
+      "color": "rgba(63, 81, 181, 0.25)",
+      "position": 5,
+      "width": "half",
+      "pinned": false
+    },
+    {
+      "id": "1760929390915",
+      "name": "Hobbies",
+      "color": "rgba(233, 30, 99, 0.25)",
+      "position": 6,
+      "width": "half",
+      "pinned": false
+    },
+    {
+      "id": "1760929385252",
+      "name": "Files Management",
+      "color": "rgba(0, 150, 136, 0.25)",
+      "position": 8,
+      "width": "half",
+      "pinned": false
+    },
+    {
+      "id": "ungrouped",
+      "name": "My Apps (Uncategorized)",
+      "color": "rgba(30, 136, 229, 0.25)",
+      "width": "full",
+      "order": 4,
+      "pinned": false,
+      "position": 999999
+    }
+  ],
+  "theme": "light",
+  "view": "grid",
+  "iconSize": "50",
+  "backgroundPosition": "contain",
+  "backgroundBlur": "no-blur",
+  "_exportNote": "Image data (base64) excluded from export. Use file:// paths for icons and backgrounds."
+}
