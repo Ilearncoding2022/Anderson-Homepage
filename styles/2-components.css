@@ -1,0 +1,447 @@
+/* ==========================================
+   2-COMPONENTS.CSS - UI Components
+   Anderson Homepage v1.9
+   
+   Contents:
+   1. Header & Navigation
+   2. Search Form
+   3. Digital Clocks
+   4. Buttons (All Types)
+   5. Dropdown Menu
+   6. View Controls
+   7. Icon Size Slider
+   ========================================== */
+
+/* ========================================
+   1. HEADER & NAVIGATION
+   ======================================== */
+
+.header {
+    background-color: var(--bg-card);
+    padding: 1rem 2rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    gap: 1rem;
+}
+
+.header-left {
+    flex: 0 0 auto;
+}
+
+.header-search {
+    flex: 0 0 auto;
+    margin-left: 50px;
+}
+
+.header-center {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-left: 150px;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+    margin-left: -40px;
+}
+
+/* ========================================
+   2. SEARCH FORM
+   ======================================== */
+
+.search-form {
+    position: relative;
+    width: 320px;
+}
+
+.search-input {
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 0 40px 0 15px;
+    font-size: 1.03rem;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+    font-size: 1.03rem;
+}
+
+.search-button {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 0 20px 20px 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: opacity 0.2s;
+}
+
+.search-button:hover {
+    opacity: 0.7;
+    transform: none;
+}
+
+/* ========================================
+   3. DIGITAL CLOCKS
+   ======================================== */
+
+.digital-clock {
+    text-align: center;
+    user-select: none;
+    padding: 0 1.5rem;
+    margin-left: -140px;
+}
+
+.digital-clock.clock-secondary {
+    border-left: 2px solid var(--border-color);
+    margin-left: -3px;
+}
+
+.clock-date {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.clock-time {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.clock-timezone {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.7;
+}
+
+/* ========================================
+   4. BUTTONS (ALL TYPES)
+   ======================================== */
+
+/* Base Button Styles */
+button {
+    background-color: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: transform 0.2s, opacity 0.2s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+/* Hamburger Button */
+.hamburger-btn {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    padding: 0;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+/* ========================================
+   5. DROPDOWN MENU
+   ======================================== */
+
+.dropdown-menu {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    border: 1px solid var(--border-color);
+    padding: 1.25rem;
+    min-width: 300px;
+    max-width: 320px;
+    z-index: 1000;
+    display: none;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    pointer-events: none;
+}
+
+.dropdown-menu.show {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.dropdown-section {
+    margin-bottom: 1.25rem;
+}
+
+.dropdown-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-item {
+    width: 100%;
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    text-align: left;
+    margin-bottom: 0.5rem;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.dropdown-item:hover {
+    background-color: var(--bg-secondary);
+    transform: translateX(4px);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 1rem 0;
+}
+
+/* ========================================
+   6. VIEW CONTROLS
+   ======================================== */
+
+.view-toggle {
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--bg-secondary);
+    padding: 0.25rem;
+    border-radius: 6px;
+}
+
+.view-toggle button {
+    background-color: transparent;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    font-size: 1.2rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-toggle button.active {
+    background-color: var(--accent);
+    color: white;
+}
+
+.view-toggle button:hover {
+    transform: none;
+}
+
+/* ========================================
+   7. ICON SIZE SLIDER WITH LABEL
+   ======================================== */
+
+.size-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    width: 100%;
+}
+
+.size-slider {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+}
+
+/* Slider thumb styling - WebKit browsers (Chrome, Safari, Edge) */
+.size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 3px solid white;
+}
+
+.size-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+}
+
+.size-slider::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+}
+
+/* Slider thumb styling - Firefox */
+.size-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.size-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+}
+
+.size-slider::-moz-range-thumb:active {
+    transform: scale(1.15);
+}
+
+/* Slider track styling */
+.size-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+}
+
+.size-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+}
+
+/* Size label - the pixel count indicator */
+.size-label {
+    min-width: 50px;
+    max-width: 50px;
+    width: 50px;
+    flex-shrink: 0;
+    flex-grow: 0;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: white !important;
+    background-color: var(--accent) !important;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+    border: 2px solid var(--accent);
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    line-height: 1.2;
+}
+
+/* Size markers - reference numbers below slider */
+.size-markers {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    padding: 0;
+    margin-top: 0.35rem;
+    margin-left: 0;
+    margin-right: 50px;
+    font-family: 'Courier New', Courier, monospace;
+    opacity: 0.8;
+    user-select: none;
+}
+
+.size-markers span {
+    flex: 1;
+    text-align: center;
+    font-weight: 600;
+}
+
+.size-markers span:first-child {
+    text-align: left;
+}
+
+.size-markers span:last-child {
+    text-align: right;
+}
