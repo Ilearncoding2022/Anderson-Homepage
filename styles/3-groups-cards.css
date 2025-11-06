@@ -1,0 +1,459 @@
+/* ==========================================
+   3-GROUPS-CARDS.CSS - Content Display
+   Anderson Homepage v1.9
+   
+   Contents:
+   1. Group Containers & Layouts
+   2. Pinned Group Styling
+   3. Default Group Styling
+   4. Group Headers & Actions
+   5. Section Dividers
+   6. Website Cards
+   7. Card Elements
+   8. Card Actions
+   ========================================== */
+
+/* ========================================
+   1. GROUP CONTAINERS & LAYOUTS
+   ======================================== */
+
+.app-group {
+    width: 100%;
+    margin-bottom: 0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    position: relative;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    transition: width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.app-group.half-width {
+    width: calc(50% - 1rem);
+}
+
+.app-group.third-width {
+    width: calc(33.333% - 1.34rem);
+}
+
+.app-group:hover {
+    box-shadow: 0 6px 30px rgba(0,0,0,0.15);
+}
+
+/* ========================================
+   2. PINNED GROUP STYLING
+   ======================================== */
+
+.app-group.pinned {
+    border: 2px solid rgba(255, 215, 0, 0.4);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1), 
+                0 0 20px rgba(255, 215, 0, 0.2);
+    margin-bottom: 2.5rem;
+}
+
+.app-group.pinned::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, 
+        rgba(255, 215, 0, 0.3), 
+        transparent, 
+        rgba(255, 215, 0, 0.3));
+    border-radius: 16px;
+    z-index: -1;
+    opacity: 0.5;
+}
+
+.pin-indicator {
+    font-size: 1.1rem;
+    margin-right: 0.3rem;
+    animation: pinPulse 2s infinite;
+}
+
+@keyframes pinPulse {
+    0%, 100% { 
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+    50% { 
+        transform: scale(1.1) rotate(-5deg);
+        opacity: 0.8;
+    }
+}
+
+/* ========================================
+   3. DEFAULT GROUP STYLING
+   ======================================== */
+
+.app-group.default-group {
+    border: 2px solid rgba(100, 181, 246, 0.5);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1), 
+                0 0 20px rgba(100, 181, 246, 0.3);
+    margin-top: 2.5rem;
+}
+
+.app-group.default-group::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, 
+        rgba(100, 181, 246, 0.2), 
+        transparent, 
+        rgba(100, 181, 246, 0.2));
+    border-radius: 16px;
+    z-index: -1;
+    opacity: 0.6;
+}
+
+.app-group.default-group::after {
+    content: 'UNCATEGORIZED';
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.25rem 1rem;
+    background: rgba(100, 181, 246, 0.2);
+    border-radius: 12px;
+}
+
+.default-indicator {
+    font-size: 1.1rem;
+    margin-right: 0.3rem;
+    opacity: 0.8;
+}
+
+/* ========================================
+   4. GROUP HEADERS & ACTIONS
+   ======================================== */
+
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+}
+
+.group-title-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.group-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.group-count {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    font-weight: normal;
+    transition: all 0.3s ease;
+}
+
+.group-actions {
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.app-group:hover .group-actions {
+    opacity: 1;
+}
+
+.group-action-btn {
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    backdrop-filter: blur(5px);
+}
+
+.group-action-btn:hover {
+    background-color: rgba(255,255,255,0.3);
+    transform: scale(1.1);
+}
+
+.pin-btn {
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.pin-btn:hover {
+    transform: scale(1.15) rotate(15deg);
+}
+
+.app-group.pinned .pin-btn {
+    background-color: rgba(255, 215, 0, 0.3);
+}
+
+.width-toggle-btn {
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    white-space: nowrap;
+}
+
+.width-toggle-btn:hover {
+    background-color: rgba(255,255,255,0.3);
+    transform: scale(1.05);
+}
+
+.delete-group-btn:hover {
+    background-color: rgba(244, 67, 54, 0.8) !important;
+    transform: scale(1.15) !important;
+}
+
+.group-drop-zone {
+    min-height: 100px;
+    border: 2px dashed rgba(255,255,255,0.3);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+/* ========================================
+   5. SECTION DIVIDERS
+   ======================================== */
+
+.groups-container:has(.app-group.pinned) .app-group:not(.pinned):not(.default-group):first-of-type::before {
+    content: 'REGULAR GROUPS';
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 0.25rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+.app-group:not(.pinned):not(.default-group):first-of-type {
+    position: relative;
+}
+
+/* ========================================
+   6. WEBSITE CARDS
+   ======================================== */
+
+.websites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
+    gap: 1.5rem;
+}
+
+.websites-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.website-card {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    text-align: center;
+    cursor: grab;
+    transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s;
+    box-shadow: var(--shadow);
+    position: relative;
+    text-decoration: none;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    animation: cardFadeIn 0.4s ease-out;
+    pointer-events: auto;
+}
+
+.website-card * {
+    pointer-events: none;
+}
+
+.website-card .card-actions,
+.website-card .card-actions *,
+.website-card .new-tab-btn {
+    pointer-events: auto;
+}
+
+.website-card:active {
+    cursor: grabbing;
+}
+
+@keyframes cardFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.website-card:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.website-card.list-view {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 1rem 1.5rem;
+}
+
+/* ========================================
+   7. CARD ELEMENTS
+   ======================================== */
+
+.website-icon {
+    border-radius: 12px;
+    object-fit: cover;
+    background-color: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: width 0.3s, height 0.3s;
+}
+
+.website-card.list-view .website-icon {
+    width: 50px;
+    height: 50px;
+    margin: 0 1rem 0 0;
+}
+
+.website-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.website-card.list-view .website-info {
+    align-items: flex-start;
+    text-align: left;
+    flex: 1;
+}
+
+.website-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+.website-version {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+/* ========================================
+   8. CARD ACTIONS
+   ======================================== */
+
+.card-actions {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+
+.website-card:hover .card-actions {
+    opacity: 1;
+}
+
+.edit-btn, .delete-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.edit-btn {
+    background-color: #2196F3;
+}
+
+.delete-btn {
+    background-color: #f44336;
+}
+
+.new-tab-btn {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 2;
+    padding: 0;
+}
+
+.website-card:hover .new-tab-btn {
+    opacity: 1;
+}
+
+.new-tab-btn:hover {
+    background-color: var(--accent);
+    color: white;
+}

@@ -3,20 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anderson Homepage v1.7 (2025-10-22)</title>
+    <title>Anderson Homepage v2.0 (2025-10-22)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
-    <link rel="stylesheet" href="styles.css">
+    
+    <!-- CSS Modules - Load in order -->
+    <link rel="stylesheet" href="styles/1-core.css">
+    <link rel="stylesheet" href="styles/2-components.css">
+    <link rel="stylesheet" href="styles/3-groups-cards.css">
+    <link rel="stylesheet" href="styles/4-interactions.css">
 </head>
 <body>
     <div class="overlay"></div>
     
     <header class="header">
         <div class="header-left">
-            <h1>🚀 Anderson Homepage v1.7 (2025-10-22)</h1>
+            <h1>🚀 Anderson Homepage v2.0 (2025-10-22)</h1>
         </div>
         <div class="header-search">
             <form id="searchForm" class="search-form">
-                <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." autocomplete="off">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." autocomplete="off" autofocus>
                 <button type="submit" class="search-button">🔍</button>
             </form>
         </div>
@@ -203,8 +208,22 @@
         </div>
     </div>
 
-    <!-- Load scripts in dependency order -->
-    <script src="app.js"></script>
+    <!-- ================================================== -->
+    <!-- JavaScript Modules - Load in order (v2.0)         -->
+    <!-- ================================================== -->
+    
+    <!-- Core Managers: Data & Business Logic -->
+    <script src="scripts/1-core-managers.js"></script>
+    
+    <!-- UI Controllers: Visual Controls & Presentation -->
+    <script src="scripts/2-ui-controllers.js"></script>
+    
+    <!-- App Init: Bootstrap & Event Handling -->
+    <script src="scripts/3-app-init.js"></script>
+    
+    <!-- ================================================== -->
+    <!-- Specialized Scripts (Existing - Keep as-is)       -->
+    <!-- ================================================== -->
     <script src="ui-renderer.js"></script>
     <script src="group-modal.js"></script>
     <script src="app-modal.js"></script>
