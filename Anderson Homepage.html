@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anderson Homepage v2.0 (2025-10-22)</title>
+    <title>Anderson Homepage v2.2 (2025-01-08)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
     
     <!-- CSS Modules - Load in order -->
@@ -11,13 +11,14 @@
     <link rel="stylesheet" href="styles/2-components.css">
     <link rel="stylesheet" href="styles/3-groups-cards.css">
     <link rel="stylesheet" href="styles/4-interactions.css">
+    <link rel="stylesheet" href="styles/5-ip-info.css">
 </head>
 <body>
     <div class="overlay"></div>
     
     <header class="header">
         <div class="header-left">
-            <h1>🚀 Anderson Homepage v2.0 (2025-10-22)</h1>
+            <h1>🚀 Anderson Homepage v2.2</h1>
         </div>
         <div class="header-search">
             <form id="searchForm" class="search-form">
@@ -37,6 +38,7 @@
                 <div class="clock-timezone">UTC</div>
             </div>
         </div>
+        <!-- IP Info Box will be inserted here by JavaScript (before hamburgerBtn) -->
         <div class="controls">
             <button class="hamburger-btn" id="hamburgerBtn" title="Menu">☰</button>
             <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
@@ -209,7 +211,7 @@
     </div>
 
     <!-- ================================================== -->
-    <!-- JavaScript Modules - Load in order (v2.0)         -->
+    <!-- JavaScript Modules - Load in order (v2.1)         -->
     <!-- ================================================== -->
     
     <!-- Core Managers: Data & Business Logic -->
@@ -220,6 +222,9 @@
     
     <!-- App Init: Bootstrap & Event Handling -->
     <script src="scripts/3-app-init.js"></script>
+    
+    <!-- IP Info: Public IP Display Module (NEW in v2.1) -->
+    <script src="scripts/4-ip-info.js"></script>
     
     <!-- ================================================== -->
     <!-- Specialized Scripts (Existing - Keep as-is)       -->

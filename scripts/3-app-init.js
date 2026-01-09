@@ -1,6 +1,6 @@
 // ==========================================
 // 3-APP-INIT.JS - Application Bootstrap
-// Anderson Homepage v2.0
+// Anderson Homepage v2.1
 //
 // Contents:
 // - App (main controller & initialization)
