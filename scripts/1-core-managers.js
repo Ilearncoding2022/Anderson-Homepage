@@ -1,6 +1,6 @@
 // ==========================================
 // 1-CORE-MANAGERS.JS - Data & State Management
-// Anderson Homepage v2.0
+// Anderson Homepage v2.1
 //
 // Contents:
 // - COLOR_PALETTE (configuration)

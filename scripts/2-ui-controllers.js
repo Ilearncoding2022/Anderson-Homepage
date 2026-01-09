@@ -1,6 +1,6 @@
 // ==========================================
 // 2-UI-CONTROLLERS.JS - UI & Visual Controls
-// Anderson Homepage v2.0
+// Anderson Homepage v2.1
 //
 // Contents:
 // - Theme (theme switching)
