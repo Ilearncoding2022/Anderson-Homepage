@@ -1,0 +1,237 @@
+/* ==========================================
+   5-IP-INFO.CSS - IP Information Display
+   Anderson Homepage v2.2
+   
+   Contents:
+   1. IP Info Box Container
+   2. IP Rows & Values
+   3. Location Row
+   4. Status Row (Pending/Matched/Issue)
+   5. Responsive Adjustments
+   ========================================== */
+
+/* ========================================
+   1. IP INFO BOX CONTAINER
+   ======================================== */
+
+.ip-info-box {
+    background: transparent;
+    border: none;
+    padding: 0 1rem;
+    font-size: 0.7rem;
+    line-height: 1.3;
+    min-width: 220px;
+    max-width: 260px;
+    border-left: 2px solid var(--border-color);
+    margin-left: -3px;
+}
+
+/* ========================================
+   2. IP ROWS & VALUES
+   ======================================== */
+
+.ip-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.1rem;
+    white-space: nowrap;
+}
+
+.ip-source {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.65rem;
+    min-width: 38px;
+    opacity: 0.7;
+}
+
+.ip-label {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    opacity: 0.7;
+}
+
+.ip-value {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    letter-spacing: 0.2px;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+}
+
+.ip-value.loading {
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-style: italic;
+    animation: ipLoadingPulse 1.5s infinite;
+}
+
+@keyframes ipLoadingPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.ip-value.error {
+    color: #d32f2f;
+}
+
+[data-theme="dark"] .ip-value.error {
+    color: #ff8a65;
+}
+
+/* ========================================
+   3. LOCATION ROW
+   ======================================== */
+
+.ip-location-row {
+    margin-top: 0.15rem;
+}
+
+.ip-location {
+    color: var(--text-secondary);
+    font-size: 0.6rem;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+/* ========================================
+   4. STATUS ROW (Pending/Matched/Issue)
+   ======================================== */
+
+.ip-status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.1rem;
+}
+
+.ip-match-status {
+    font-size: 0.55rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+}
+
+/* Pending state - slow pulsing yellow */
+.ip-match-status.pending {
+    color: #f57c00;
+    background: rgba(255, 193, 7, 0.15);
+    animation: pendingPulse 2s ease-in-out infinite;
+}
+
+@keyframes pendingPulse {
+    0%, 100% {
+        background: rgba(255, 193, 7, 0.1);
+        box-shadow: none;
+    }
+    50% {
+        background: rgba(255, 193, 7, 0.25);
+        box-shadow: 0 0 6px rgba(255, 193, 7, 0.4);
+    }
+}
+
+[data-theme="dark"] .ip-match-status.pending {
+    color: #ffb74d;
+    background: rgba(255, 193, 7, 0.2);
+}
+
+/* Matched state - green (US IP, matched) */
+.ip-match-status.matched {
+    color: #2e7d32;
+    background: rgba(76, 175, 80, 0.15);
+}
+
+[data-theme="dark"] .ip-match-status.matched {
+    color: #81c784;
+    background: rgba(76, 175, 80, 0.2);
+}
+
+/* Issue state - fast pulsing red */
+.ip-match-status.issue {
+    color: #c62828;
+    background: rgba(211, 47, 47, 0.15);
+    animation: issuePulse 0.8s ease-in-out infinite;
+}
+
+@keyframes issuePulse {
+    0%, 100% {
+        background: rgba(211, 47, 47, 0.1);
+        box-shadow: none;
+    }
+    50% {
+        background: rgba(211, 47, 47, 0.3);
+        box-shadow: 0 0 8px rgba(211, 47, 47, 0.5);
+    }
+}
+
+[data-theme="dark"] .ip-match-status.issue {
+    color: #ff8a65;
+    background: rgba(255, 87, 34, 0.2);
+    animation: issuePulseDark 0.8s ease-in-out infinite;
+}
+
+@keyframes issuePulseDark {
+    0%, 100% {
+        background: rgba(255, 87, 34, 0.15);
+        box-shadow: none;
+    }
+    50% {
+        background: rgba(255, 87, 34, 0.35);
+        box-shadow: 0 0 8px rgba(255, 87, 34, 0.5);
+    }
+}
+
+/* Timestamp */
+.ip-timestamp {
+    color: var(--text-secondary);
+    font-size: 0.55rem;
+    font-style: italic;
+    opacity: 0.6;
+    margin-left: auto;
+}
+
+/* ========================================
+   5. RESPONSIVE ADJUSTMENTS
+   ======================================== */
+
+@media (max-width: 1200px) {
+    .ip-info-box {
+        min-width: 200px;
+        font-size: 0.65rem;
+    }
+    
+    .ip-value {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .ip-info-box {
+        min-width: 180px;
+        padding: 0 0.75rem;
+    }
+    
+    .ip-source {
+        min-width: 35px;
+        font-size: 0.6rem;
+    }
+    
+    .ip-label {
+        font-size: 0.6rem;
+    }
+    
+    .ip-value {
+        font-size: 0.65rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .ip-info-box {
+        display: none; /* Hide on mobile - too cramped */
+    }
+}
