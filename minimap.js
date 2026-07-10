@@ -77,7 +77,7 @@ const Minimap = {
 
         // Calendar is always present
         const cv = vPos['__calendar__'] || {};
-        virtualGroups.push({ id: '__calendar__', name: 'Upcoming Events', color: 'rgba(76, 175, 80, 0.2)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true });
+        virtualGroups.push({ id: '__calendar__', name: 'Calendar', color: 'rgba(76, 175, 80, 0.2)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true });
 
         // To-Do is always present
         const tv = vPos['__todo__'] || {};

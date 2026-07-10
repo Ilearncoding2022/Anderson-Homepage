@@ -507,7 +507,7 @@ const UIRenderer = {
                 <div class="group-header">
                     <div class="group-title-container">
                         <div class="group-title">
-                            <a class="calendar-icon-link" href="https://calendar.google.com" title="Open Google Calendar">📅</a> Upcoming Events${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured && viewMode !== 'list' ? `<button class="calendar-timeline-toggle${cm.getTimelineMode() ? ' active' : ''}" onclick="CalendarManager.toggleTimelineMode()" role="switch" aria-checked="${cm.getTimelineMode() ? 'true' : 'false'}" title="Toggle hour-by-hour timeline" aria-label="Hour-by-hour timeline"><span class="calendar-group-toggle-icon" aria-hidden="true">◷</span>Timeline</button>` : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
+                            <a class="calendar-icon-link" href="https://calendar.google.com" title="Open Google Calendar">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured && viewMode !== 'list' ? `<button class="calendar-timeline-toggle${cm.getTimelineMode() ? ' active' : ''}" onclick="CalendarManager.toggleTimelineMode()" role="switch" aria-checked="${cm.getTimelineMode() ? 'true' : 'false'}" title="Toggle hour-by-hour timeline" aria-label="Hour-by-hour timeline"><span class="calendar-group-toggle-icon" aria-hidden="true">◷</span>Timeline</button>` : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
                         </div>
                         <div class="calendar-header-meta">
                             ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now">↻</button>` : ''}
@@ -1839,17 +1839,44 @@ const UIRenderer = {
         eventsContainer.style.maxHeight = maxH + 'px';
     },
 
-    // When one full sequence of ticker items already fits the visible width there
-    // is nothing to scroll, so drop into the static `no-scroll` layout (no
-    // animation, duplicate sequence hidden) — this avoids the gappy loop the
-    // translateX(-50%) technique produces when a sequence is narrower than the
-    // container (few / short items). Re-evaluated on every render and resize.
+    // Keep the ticker scrolling in every case. The translateX(-50%) marquee only
+    // tiles seamlessly when one sequence spans at least the visible width, so when
+    // there are few / short events we repeat the items (cloned, aria-hidden, not
+    // tab stops) until a sequence fills the container — avoiding both the static
+    // state and the blank-jump the raw technique shows for narrow content. Also
+    // sets a width-proportional duration for a steady speed. Runs on render+resize.
     _sizeUpcomingTicker(scope) {
         const ticker = (scope || document).querySelector('.cal-upcoming-ticker');
         if (!ticker) return;
-        const seq = ticker.querySelector('.cal-upcoming-seq');
-        if (!seq) return;
-        ticker.classList.toggle('no-scroll', seq.scrollWidth <= ticker.clientWidth);
+        const seqs = ticker.querySelectorAll('.cal-upcoming-seq');
+        if (!seqs.length) return;
+        // Drop clones from any previous sizing pass so we re-measure cleanly.
+        seqs.forEach(s => s.querySelectorAll('[data-cal-clone="1"]').forEach(n => n.remove()));
+        // Reduced motion: CSS shows a single scrollable row instead of a marquee,
+        // so there's nothing to fill or time.
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const container = ticker.clientWidth;
+        if (!container) return;
+        seqs.forEach(seq => {
+            const originals = [...seq.children];
+            if (!originals.length) return;
+            let guard = 0;
+            while (seq.scrollWidth < container && guard++ < 50) {
+                for (const el of originals) {
+                    const c = el.cloneNode(true);
+                    c.setAttribute('data-cal-clone', '1');
+                    c.setAttribute('aria-hidden', 'true');
+                    c.setAttribute('tabindex', '-1');
+                    seq.appendChild(c);
+                }
+            }
+        });
+        // Width-proportional duration → steady scroll speed regardless of count.
+        const track = ticker.querySelector('.cal-upcoming-track');
+        if (track) {
+            const seqW = seqs[0].scrollWidth;
+            track.style.setProperty('--cal-ticker-dur', Math.max(8, Math.round(seqW / 55)) + 's');
+        }
     },
 
     // ========================================

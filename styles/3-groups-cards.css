@@ -1369,17 +1369,6 @@
     to   { transform: translateX(-50%); }
 }
 
-/* When the items all fit the container (measured post-render), there's nothing
-   to scroll — show a single static sequence, no animation, no gappy loop. */
-.cal-upcoming-ticker.no-scroll .cal-upcoming-track {
-    animation: none;
-    width: 100%;
-}
-
-.cal-upcoming-ticker.no-scroll .cal-upcoming-seq[aria-hidden="true"] {
-    display: none;
-}
-
 /* Reduced motion: don't auto-scroll. Clip on the ticker (the actual overflow
    owner) and let the user scroll it horizontally; hide the duplicate sequence
    so items aren't shown twice. */

@@ -440,7 +440,11 @@
 const CalendarManager = {
     config: {
         defaultRefreshInterval: 5 * 60 * 1000, // 5 minutes
-        daysBack: 7, // must match the back-window in apps-script/Code.gs
+        // How many days of PAST events to fetch and allow paging back to in the
+        // day views. Sent to the proxy as &daysBack= (the proxy must be the
+        // redeployed apps-script/Code.gs that reads it; older deployments ignore
+        // it and fall back to their own 7-day window).
+        daysBack: 30,
         calendarColors: [
             { name: 'Blue', value: '#2196F3' },
             { name: 'Red', value: '#F44336' },
@@ -1046,7 +1050,8 @@ const CalendarManager = {
 
     async _fetchSingleCalendar(proxyUrl, token, icsUrl, attempt = 0) {
         const days = this.getDaysAhead();
-        const url = `${proxyUrl}?token=${encodeURIComponent(token)}&url=${encodeURIComponent(icsUrl)}&days=${days}`;
+        const daysBack = this.config.daysBack;
+        const url = `${proxyUrl}?token=${encodeURIComponent(token)}&url=${encodeURIComponent(icsUrl)}&days=${days}&daysBack=${daysBack}`;
 
         // Use JSONP (a <script> tag), NOT fetch(). The Apps Script /exec URL 302-redirects
         // to googleusercontent.com and that redirect returns no Access-Control-Allow-Origin

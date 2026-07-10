@@ -30,6 +30,7 @@ function doGet(e) {
     var icsUrl = e.parameter.url;
     if (!icsUrl) return _respond(e, { error: 'Missing url parameter' });
     var days = parseInt(e.parameter.days) || 7;
+    var daysBack = _daysBack(e);
 
     // ---- Route 1: Google secret iCal URL readable via the Calendar API ----
     // Richest result (Meet links, recurrence). On ANY failure (not subscribed,
@@ -38,7 +39,7 @@ function doGet(e) {
     var calId = _calIdFromIcs(icsUrl);
     if (calId) {
       try {
-        var viaApi = _eventsViaCalendarApi(calId, days);
+        var viaApi = _eventsViaCalendarApi(calId, days, daysBack);
         if (viaApi) return _respond(e, { events: viaApi });
       } catch (apiErr) { /* fall through to generic ICS fetch */ }
     }
@@ -52,22 +53,32 @@ function doGet(e) {
   }
 }
 
+// Days of past events to fetch. Client sends &daysBack=; default 7 for older
+// clients, clamped to a sane 0–90 so the range can't blow up.
+function _daysBack(e) {
+  var n = parseInt(e && e.parameter && e.parameter.daysBack);
+  if (isNaN(n)) n = 7;
+  return Math.min(90, Math.max(0, n));
+}
+
 // ---- Route 1 helper: Advanced Calendar Service (Calendar API v3) ------------
 
-function _eventsViaCalendarApi(calId, days) {
+function _eventsViaCalendarApi(calId, days, daysBack) {
+  if (daysBack == null) daysBack = 7;
   var now = new Date();
-  var rangeStart = new Date(now.getTime() - 7 * 86400000);       // 7-day back-window for day views
+  var rangeStart = new Date(now.getTime() - daysBack * 86400000);  // back-window for day views
   var rangeEnd = new Date(now.getTime() + days * 86400000);
 
   // Unlike CalendarApp, this returns the Google Meet link (hangoutLink /
-  // conferenceData) and expands recurrences for us.
+  // conferenceData) and expands recurrences for us. maxResults is high (and
+  // orderBy startTime) so a wider back-window can't truncate future events.
   var resp = Calendar.Events.list(calId, {
     timeMin: rangeStart.toISOString(),
     timeMax: rangeEnd.toISOString(),
     singleEvents: true,
     orderBy: 'startTime',
     showDeleted: false,
-    maxResults: 250
+    maxResults: 2500
   });
   var items = (resp && resp.items) || [];
 
@@ -143,7 +154,7 @@ function _fetchIcs(icsUrl) {
 
 function parseICS(e, icsText) {
   var now = new Date();
-  var rangeStart = new Date(now.getTime() - 7 * 86400000);   // 7-day back-window for day views
+  var rangeStart = new Date(now.getTime() - _daysBack(e) * 86400000);  // back-window for day views
   var rangeEnd = new Date(now);
   var days = parseInt(e.parameter.days) || 7;
   rangeEnd.setDate(rangeEnd.getDate() + days);
