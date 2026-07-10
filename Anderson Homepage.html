@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anderson Homepage v2.2 (2025-01-08)</title>
+    <title>Anderson Homepage v4.0 (2026-06-05)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
     
     <!-- CSS Modules - Load in order -->
@@ -11,19 +11,172 @@
     <link rel="stylesheet" href="styles/2-components.css">
     <link rel="stylesheet" href="styles/3-groups-cards.css">
     <link rel="stylesheet" href="styles/4-interactions.css">
-    <link rel="stylesheet" href="styles/5-ip-info.css">
+    <link rel="stylesheet" href="styles/5-pomodoro.css">
+    <link rel="stylesheet" href="styles/6-minimap.css">
+    <link rel="stylesheet" href="styles/7-todo.css">
 </head>
 <body>
     <div class="overlay"></div>
+
+    <!-- ============================================ -->
+    <!-- POMODORO CARD (v3.0)                         -->
+    <!-- Timer + time choice. Relocated into <main> at -->
+    <!-- runtime by PomodoroUI; sound/history panel    -->
+    <!-- (#pomodoroSettingsPanel) is moved into the    -->
+    <!-- Settings modal's Pomodoro tab.                -->
+    <!-- ============================================ -->
+    <div id="pomodoroScreen" class="pomodoro-card" style="display: none;">
+        <div class="pomodoro-container">
+
+            <!-- Right zone: Quick Timer title (with compact Custom Time on its right) over the presets grid -->
+            <div class="pomodoro-time-selection">
+                <div class="pomodoro-ts-header">
+                    <h3 class="pomodoro-section-title">Quick Timer</h3>
+                    <div class="pomodoro-custom-time">
+                        <input type="number" id="pomodoroCustomTime" class="pomodoro-time-input"
+                               min="1" max="120" value="25" placeholder="25">
+                        <span class="pomodoro-custom-unit">min</span>
+                        <input type="range" id="pomodoroTimeSlider" class="pomodoro-time-slider"
+                               min="1" max="120" value="25">
+                    </div>
+                </div>
+                <div class="pomodoro-presets">
+                    <button class="pomodoro-preset" data-minutes="1">1 min</button>
+                    <button class="pomodoro-preset" data-minutes="3">3 min</button>
+                    <button class="pomodoro-preset" data-minutes="5">5 min</button>
+                    <button class="pomodoro-preset" data-minutes="10">10 min</button>
+                    <button class="pomodoro-preset" data-minutes="15">15 min</button>
+                    <button class="pomodoro-preset active" data-minutes="25">25 min</button>
+                    <button class="pomodoro-preset" data-minutes="30">30 min</button>
+                    <button class="pomodoro-preset" data-minutes="45">45 min</button>
+                    <button class="pomodoro-preset" data-minutes="60">60 min</button>
+                    <button class="pomodoro-preset" data-minutes="90">90 min</button>
+                </div>
+            </div>
+
+            <!-- Clock + controls (controls sit to the right of the clock) -->
+            <div class="pomodoro-center">
+                <div class="pomodoro-timer" id="pomodoroTimer">
+                    <svg class="pomodoro-timer-svg" viewBox="0 0 340 340">
+                        <circle class="pomodoro-timer-bg" cx="170" cy="170" r="160"/>
+                        <circle id="pomodoroProgress" class="pomodoro-timer-progress"
+                                cx="170" cy="170" r="160"
+                                stroke-dasharray="1005.31"
+                                stroke-dashoffset="0"/>
+                        <!-- 10 dividers split the ring into equal arc segments
+                             (each = 1/10 of the timer length) as a visual cue. -->
+                        <g class="pomodoro-timer-ticks" aria-hidden="true">
+                            <line class="pomodoro-timer-tick" x1="324.00" y1="170.00" x2="336.00" y2="170.00"/>
+                            <line class="pomodoro-timer-tick" x1="294.59" y1="260.52" x2="304.30" y2="267.57"/>
+                            <line class="pomodoro-timer-tick" x1="217.59" y1="316.46" x2="221.30" y2="327.88"/>
+                            <line class="pomodoro-timer-tick" x1="122.41" y1="316.46" x2="118.70" y2="327.88"/>
+                            <line class="pomodoro-timer-tick" x1="45.41" y1="260.52" x2="35.70" y2="267.57"/>
+                            <line class="pomodoro-timer-tick" x1="16.00" y1="170.00" x2="4.00" y2="170.00"/>
+                            <line class="pomodoro-timer-tick" x1="45.41" y1="79.48" x2="35.70" y2="72.43"/>
+                            <line class="pomodoro-timer-tick" x1="122.41" y1="23.54" x2="118.70" y2="12.12"/>
+                            <line class="pomodoro-timer-tick" x1="217.59" y1="23.54" x2="221.30" y2="12.12"/>
+                            <line class="pomodoro-timer-tick" x1="294.59" y1="79.48" x2="304.30" y2="72.43"/>
+                        </g>
+                    </svg>
+                    <div class="pomodoro-timer-content">
+                        <div id="pomodoroTime" class="pomodoro-time-display">25:00</div>
+                        <div id="pomodoroLabel" class="pomodoro-label">POMODORO</div>
+                    </div>
+                </div>
+                
+                <!-- Control Buttons -->
+                <div class="pomodoro-controls">
+                    <button id="pomodoroStart" class="pomodoro-btn primary" aria-label="Start Timer">
+                        ▶ Start
+                    </button>
+                    <button id="pomodoroReset" class="pomodoro-btn" aria-label="Reset Timer">
+                        ⏹ Reset
+                    </button>
+                    <button id="pomodoroSkip" class="pomodoro-btn" aria-label="Skip Timer">
+                        ⏭ Skip
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Settings & History — relocated into the Settings modal at runtime -->
+            <div class="pomodoro-right-panel" id="pomodoroSettingsPanel">
+                <!-- Sound Settings -->
+                <div class="pomodoro-settings">
+                    <h3 class="pomodoro-section-title">Sound Settings</h3>
+                    <div class="pomodoro-sound-group">
+                        <div class="pomodoro-sound-item">
+                            <select id="pomodoroSound" class="pomodoro-sound-select" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\"white\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 20px; padding-right: 2.5rem;">
+                                <option value="0" style="background: #2d2d2d; color: white;">Bell</option>
+                                <option value="1" style="background: #2d2d2d; color: white;">Chime</option>
+                                <option value="2" style="background: #2d2d2d; color: white;">Ding</option>
+                                <option value="3" style="background: #2d2d2d; color: white;">Gong</option>
+                                <option value="4" style="background: #2d2d2d; color: white;">Simple</option>
+                            </select>
+                            <button class="pomodoro-test-sound" data-sound="-1" type="button">Test</button>
+                        </div>
+                        <div class="pomodoro-sound-item">
+                            <button class="pomodoro-test-sound" id="pomodoroAddSound" type="button">+ Add sound</button>
+                            <button class="pomodoro-test-sound" id="pomodoroRemoveSound" type="button">Remove</button>
+                            <input type="file" id="pomodoroSoundFile" accept="audio/*" style="display: none;">
+                        </div>
+                        <p class="settings-hint" style="margin: 0;">Add your own MP3s — they’re saved in the app and stay available across sessions.</p>
+                        <div class="pomodoro-sound-item">
+                            <label for="pomodoroSoundRepeat" style="color: white; font-size: 0.9rem; flex: 0 0 auto;">Repeat</label>
+                            <select id="pomodoroSoundRepeat" class="pomodoro-sound-select" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\"white\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M7 10l5 5 5-5z\"/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 20px; padding-right: 2.5rem;">
+                                <option value="0" style="background: #2d2d2d; color: white;">No repeat</option>
+                                <option value="3" style="background: #2d2d2d; color: white;">3 times</option>
+                                <option value="5" style="background: #2d2d2d; color: white;">5 times</option>
+                            </select>
+                        </div>
+                        <div class="pomodoro-sound-item">
+                            <label for="pomodoroNotify" style="display: flex; align-items: center; gap: 0.5rem; color: white; font-size: 0.9rem; cursor: pointer; flex: 1;">
+                                <input type="checkbox" id="pomodoroNotify" style="width: auto; flex: 0 0 auto; cursor: pointer; accent-color: #4CAF50;">
+                                <span>Show a browser notification when the timer ends</span>
+                            </label>
+                        </div>
+                        <p class="settings-hint" id="pomodoroNotifyHint" style="margin: 0;">Works while a tab stays open (even in the background). It can't alert you after every tab is closed.</p>
+                    </div>
+                    <div class="pomodoro-volume-group">
+                        <label style="color: white; font-size: 0.9rem;">Volume</label>
+                        <div class="pomodoro-volume-control">
+                            <input type="range" id="pomodoroVolume" class="pomodoro-volume-slider"
+                                   min="0" max="100" value="70">
+                            <span id="pomodoroVolumeLabel" class="pomodoro-volume-label">70%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Session History -->
+                <div class="pomodoro-history">
+                    <div class="pomodoro-history-header">
+                        <h3 class="pomodoro-section-title">Session History</h3>
+                        <button id="pomodoroClearHistory" class="pomodoro-clear-history" aria-label="Clear Session History">Clear</button>
+                    </div>
+                    <div id="pomodoroHistory" class="pomodoro-history-list">
+                        <div class="pomodoro-history-empty">No sessions yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ============================================ -->
+    <!-- ORIGINAL HOMEPAGE CONTENT                    -->
+    <!-- ============================================ -->
     
     <header class="header">
         <div class="header-left">
-            <h1>🚀 Anderson Homepage v2.2</h1>
+            <!-- Pomodoro toggle — shows/hides the pomodoro card.
+                 The mini countdown appears here when the timer runs with the card hidden. -->
+            <div id="pomodoroToolbar" class="pomodoro-toolbar">
+                <button id="pomodoroTimerBtn" class="pomodoro-toolbar-btn" title="Toggle Pomodoro Timer" aria-label="Toggle Pomodoro Timer" aria-expanded="false" aria-controls="pomodoroScreen"><img src="Pomodoro.png" alt="" class="pomodoro-btn-icon" draggable="false"></button>
+                <span id="pomodoroMiniTime" class="pomodoro-mini-time" role="timer" aria-label="Pomodoro time remaining" style="display: none;"></span>
+            </div>
         </div>
         <div class="header-search">
             <form id="searchForm" class="search-form">
                 <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." autocomplete="off" autofocus>
-                <button type="submit" class="search-button">🔍</button>
+                <button type="submit" class="search-button" aria-label="Search">🔍</button>
             </form>
         </div>
         <div class="header-center">
@@ -37,11 +190,15 @@
                 <div class="clock-time">--:--</div>
                 <div class="clock-timezone">UTC</div>
             </div>
+            <div id="clock3" class="digital-clock clock-secondary">
+                <div class="clock-date">Loading...</div>
+                <div class="clock-time">--:--</div>
+                <div class="clock-timezone">--</div>
+            </div>
         </div>
-        <!-- IP Info Box will be inserted here by JavaScript (before hamburgerBtn) -->
         <div class="controls">
-            <button class="hamburger-btn" id="hamburgerBtn" title="Menu">☰</button>
-            <button class="theme-toggle" id="themeToggle" title="Toggle Theme">🌙</button>
+            <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
+            <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="Toggle Theme">🌙</button>
         </div>
     </header>
 
@@ -49,32 +206,40 @@
     <!-- DROPDOWN MENU - UPDATED WITH SIZE LABEL -->
     <!-- ============================================ -->
     <div class="dropdown-menu" id="dropdownMenu">
+        <!-- Action Buttons (most-used actions first: Add Website, then Add Group) -->
+        <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
+        <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
+
+        <div class="dropdown-divider"></div>
+
         <!-- View Layout Section -->
         <div class="dropdown-section">
             <label class="dropdown-label">View Layout</label>
             <div class="view-toggle">
-                <button id="gridView" class="active" title="Grid View">⊞</button>
-                <button id="listView" title="List View">☰</button>
+                <button id="gridView" class="active" title="Grid View" aria-label="Grid View">⊞</button>
+                <button id="listView" title="List View" aria-label="List View">☰</button>
             </div>
         </div>
-        
+
         <!-- Icon Size Section - WITH LABEL -->
         <div class="dropdown-section">
-            <label class="dropdown-label">Icon Size</label>
-            
-            <!-- Slider Container with Label -->
-            <div class="size-slider-container">
-                <input type="range" 
-                       class="size-slider" 
-                       id="sizeSlider" 
-                       min="20" 
-                       max="100" 
-                       value="80" 
-                       step="5" 
-                       title="Adjust Icon Size">
+            <div class="size-slider-header">
+                <label class="dropdown-label" for="sizeSlider">Icon Size</label>
                 <span class="size-label" id="sizeLabel">80px</span>
             </div>
-            
+
+            <!-- Full-width slider -->
+            <div class="size-slider-container">
+                <input type="range"
+                       class="size-slider"
+                       id="sizeSlider"
+                       min="20"
+                       max="100"
+                       value="80"
+                       step="5"
+                       title="Adjust Icon Size">
+            </div>
+
             <!-- Reference Markers -->
             <div class="size-markers">
                 <span>20</span>
@@ -84,134 +249,360 @@
                 <span>100</span>
             </div>
         </div>
-        
+
         <div class="dropdown-divider"></div>
-        
-        <!-- Action Buttons -->
-        <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
-        <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
-        
-        <div class="dropdown-divider"></div>
-        
+
         <button class="dropdown-item" id="settingsBtn">⚙️ Settings</button>
+
+        <!-- App title / version / date / storage indicator (moved from the page footer) -->
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-appinfo">
+            <div class="dropdown-appinfo-title">
+                🚀 Anderson Homepage v4.4
+                <button type="button" class="appinfo-info-btn" id="changelogBtn"
+                        title="View changelog" aria-label="View changelog" aria-haspopup="dialog">i</button>
+            </div>
+            <div class="dropdown-appinfo-date">2026-06-11</div>
+            <div class="storage-meter" id="storageMeter" title="Browser localStorage usage (≈5 MB limit). Large items like the background image and website icons are stored separately and don't count here.">
+                <span class="storage-meter-text" id="storageMeterText">Storage: …</span>
+                <div class="storage-meter-bar"><div class="storage-meter-fill" id="storageMeterFill"></div></div>
+            </div>
+        </div>
     </div>
 
     <!-- Main Content Container -->
-    <div class="container">
+    <main class="container">
         <div class="empty-state" id="emptyState" style="display: none;">
             <h2>No websites added yet</h2>
             <p>Click "Add Website" or "Add Group" to get started!</p>
         </div>
         <div id="mainContainer"></div>
-    </div>
+    </main>
 
     <!-- Modal container for dynamically created modals -->
     <div id="modalContainer"></div>
 
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
+    <!-- Changelog Modal (opened from the (i) button by the app title in the menu) -->
+    <div class="modal" id="changelogModal" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
+        <div class="modal-content changelog-modal-content">
             <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="close-modal" id="closeSettings">×</button>
+                <h2 id="changelogTitle">📋 Changelog</h2>
+                <button class="close-modal" id="closeChangelog" aria-label="Close">×</button>
             </div>
-            <div class="form-group">
-                <label for="bgImage">Background Image</label>
-                <div class="file-input-wrapper">
-                    <input type="file" id="bgImage" accept="image/*">
-                    <label for="bgImage" class="file-input-label">
-                        Choose background image
-                    </label>
+            <div id="changelogBody" class="changelog-body"></div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h2 id="settingsModalTitle">Settings</h2>
+                <button class="close-modal" id="closeSettings" aria-label="Close">×</button>
+            </div>
+            <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+                <button class="settings-tab active" id="settingsTabBtnAppearance" data-tab="appearance" role="tab" aria-selected="true" aria-controls="settingsTabAppearance">Appearance</button>
+                <button class="settings-tab" id="settingsTabBtnClocks" data-tab="clocks" role="tab" aria-selected="false" aria-controls="settingsTabClocks">Clocks</button>
+                <button class="settings-tab" id="settingsTabBtnData" data-tab="data" role="tab" aria-selected="false" aria-controls="settingsTabData">Data</button>
+                <button class="settings-tab" id="settingsTabBtnCalendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="settingsTabCalendar">Calendar</button>
+                <button class="settings-tab" id="settingsTabBtnPomodoro" data-tab="pomodoro" role="tab" aria-selected="false" aria-controls="settingsTabPomodoro">Pomodoro</button>
+                <button class="settings-tab" id="settingsTabBtnTodo" data-tab="todo" role="tab" aria-selected="false" aria-controls="settingsTabTodo">To-Do</button>
+            </div>
+            <div class="settings-tab-content active" id="settingsTabAppearance" data-tab="appearance" role="tabpanel" aria-labelledby="settingsTabBtnAppearance">
+                <div class="form-group">
+                    <label for="bgImage">Background Image</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="bgImage" accept="image/*">
+                        <label for="bgImage" class="file-input-label">
+                            Choose background image
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="bgPosition">Background Position</label>
+                    <select id="bgPosition">
+                        <option value="cover" selected>Fill (Cover)</option>
+                        <option value="contain">Fit (Contain)</option>
+                        <option value="stretch">Stretch</option>
+                        <option value="stretch-horizontal">Stretch Horizontal</option>
+                        <option value="stretch-vertical">Stretch Vertical</option>
+                        <option value="center">Center (Original Size)</option>
+                        <option value="tile">Tile (Repeat)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="bgBlur">Background Blur Effect</label>
+                    <select id="bgBlur">
+                        <option value="no-blur">No Blur (Crisp)</option>
+                        <option value="light-blur">Light Blur</option>
+                        <option value="medium-blur" selected>Medium Blur (Default)</option>
+                        <option value="heavy-blur">Heavy Blur</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button id="clearBgImage">Clear Background Image</button>
+                </div>
+                <div class="form-group">
+                    <label for="columnLayout">Column Layout</label>
+                    <select id="columnLayout">
+                        <option value="1-9">1 : 9</option>
+                        <option value="2-8">2 : 8</option>
+                        <option value="3-7">3 : 7</option>
+                        <option value="4-6">4 : 6</option>
+                        <option value="5-5" selected>5 : 5</option>
+                        <option value="6-4">6 : 4</option>
+                        <option value="7-3">7 : 3</option>
+                        <option value="8-2">8 : 2</option>
+                        <option value="9-1">9 : 1</option>
+                    </select>
                 </div>
             </div>
-            <div class="form-group">
-                <label for="bgPosition">Background Position</label>
-                <select id="bgPosition">
-                    <option value="cover" selected>Fill (Cover)</option>
-                    <option value="contain">Fit (Contain)</option>
-                    <option value="stretch">Stretch</option>
-                    <option value="stretch-horizontal">Stretch Horizontal</option>
-                    <option value="stretch-vertical">Stretch Vertical</option>
-                    <option value="center">Center (Original Size)</option>
-                    <option value="tile">Tile (Repeat)</option>
-                </select>
+            <div class="settings-tab-content" id="settingsTabClocks" data-tab="clocks" role="tabpanel" aria-labelledby="settingsTabBtnClocks">
+                <div class="form-group">
+                    <label for="timezone1">Clock #1 Timezone</label>
+                    <select id="timezone1">
+                        <option value="local">Local Time (Auto-detect)</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">Eastern Time (New York)</option>
+                        <option value="America/Chicago">Central Time (Chicago)</option>
+                        <option value="America/Denver">Mountain Time (Denver)</option>
+                        <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                        <option value="America/Anchorage">Alaska Time</option>
+                        <option value="Pacific/Honolulu">Hawaii Time</option>
+                        <option value="Europe/London">London (GMT/BST)</option>
+                        <option value="Europe/Paris">Paris (CET/CEST)</option>
+                        <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                        <option value="Europe/Moscow">Moscow (MSK)</option>
+                        <option value="Asia/Dubai">Dubai (GST)</option>
+                        <option value="Asia/Kolkata">India (IST)</option>
+                        <option value="Asia/Shanghai">Shanghai (CST)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Asia/Seoul">Seoul (KST)</option>
+                        <option value="Asia/Singapore">Singapore (SGT)</option>
+                        <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                        <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                        <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                        <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="timezone2">Clock #2 Timezone</label>
+                    <select id="timezone2">
+                        <option value="local">Local Time (Auto-detect)</option>
+                        <option value="UTC" selected>UTC</option>
+                        <option value="America/New_York">Eastern Time (New York)</option>
+                        <option value="America/Chicago">Central Time (Chicago)</option>
+                        <option value="America/Denver">Mountain Time (Denver)</option>
+                        <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                        <option value="America/Anchorage">Alaska Time</option>
+                        <option value="Pacific/Honolulu">Hawaii Time</option>
+                        <option value="Europe/London">London (GMT/BST)</option>
+                        <option value="Europe/Paris">Paris (CET/CEST)</option>
+                        <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                        <option value="Europe/Moscow">Moscow (MSK)</option>
+                        <option value="Asia/Dubai">Dubai (GST)</option>
+                        <option value="Asia/Kolkata">India (IST)</option>
+                        <option value="Asia/Shanghai">Shanghai (CST)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Asia/Seoul">Seoul (KST)</option>
+                        <option value="Asia/Singapore">Singapore (SGT)</option>
+                        <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                        <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                        <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                        <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="timezone3">Clock #3 Timezone</label>
+                    <select id="timezone3">
+                        <option value="none" selected>Disabled</option>
+                        <option value="local">Local Time (Auto-detect)</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">Eastern Time (New York)</option>
+                        <option value="America/Chicago">Central Time (Chicago)</option>
+                        <option value="America/Denver">Mountain Time (Denver)</option>
+                        <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                        <option value="America/Anchorage">Alaska Time</option>
+                        <option value="Pacific/Honolulu">Hawaii Time</option>
+                        <option value="Europe/London">London (GMT/BST)</option>
+                        <option value="Europe/Paris">Paris (CET/CEST)</option>
+                        <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                        <option value="Europe/Moscow">Moscow (MSK)</option>
+                        <option value="Asia/Dubai">Dubai (GST)</option>
+                        <option value="Asia/Kolkata">India (IST)</option>
+                        <option value="Asia/Shanghai">Shanghai (CST)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Asia/Seoul">Seoul (KST)</option>
+                        <option value="Asia/Singapore">Singapore (SGT)</option>
+                        <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                        <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                        <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                        <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="bgBlur">Background Blur Effect</label>
-                <select id="bgBlur">
-                    <option value="no-blur">No Blur (Crisp)</option>
-                    <option value="light-blur">Light Blur</option>
-                    <option value="medium-blur" selected>Medium Blur (Default)</option>
-                    <option value="heavy-blur">Heavy Blur</option>
-                </select>
+            <div class="settings-tab-content" id="settingsTabData" data-tab="data" role="tabpanel" aria-labelledby="settingsTabBtnData">
+                <div class="form-group">
+                    <button id="exportData">Export Data</button>
+                    <button id="importData">Import Data</button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;">
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group db-section">
+                    <label>SQLite Database Backup</label>
+                    <div class="db-status" id="dbStatus">
+                        <span class="db-status-dot" id="dbStatusDot"></span>
+                        <span id="dbStatusText">Initializing...</span>
+                    </div>
+                    <div class="db-buttons">
+                        <button id="dbConnectBtn">Set Save Location</button>
+                        <button id="dbReconnectBtn" style="display: none;">Reconnect</button>
+                        <button id="dbDisconnectBtn" style="display: none;">Disconnect</button>
+                        <button id="dbRestoreBtn">Restore from File</button>
+                        <button id="dbDownloadBtn">Download Backup</button>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <button id="clearBgImage">Clear Background Image</button>
+            <div class="settings-tab-content" id="settingsTabCalendar" data-tab="calendar" role="tabpanel" aria-labelledby="settingsTabBtnCalendar">
+                <div class="form-group">
+                    <label for="calendarProxyUrl">Proxy URL (Google Apps Script)</label>
+                    <input type="url" id="calendarProxyUrl" placeholder="https://script.google.com/macros/s/.../exec">
+                </div>
+                <div class="form-group">
+                    <label for="calendarProxyToken">Proxy Secret Token</label>
+                    <input type="password" id="calendarProxyToken" placeholder="Your secret token">
+                </div>
+                <div class="form-group">
+                    <label for="calendarDaysAhead">Days to Display</label>
+                    <select id="calendarDaysAhead">
+                        <option value="1">1 day</option>
+                        <option value="3">3 days</option>
+                        <option value="5">5 days</option>
+                        <option value="7" selected>7 days</option>
+                        <option value="15">15 days</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="calendarRefreshInterval">Refresh Interval</label>
+                    <select id="calendarRefreshInterval">
+                        <option value="300000">5 minutes</option>
+                        <option value="600000">10 minutes</option>
+                        <option value="1800000">30 minutes</option>
+                        <option value="3600000">1 hour</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <div class="size-slider-header">
+                        <label for="calendarHeight">Card Height</label>
+                        <span class="size-label" id="calendarHeightLabel">Auto</span>
+                    </div>
+                    <div class="size-slider-container">
+                        <input type="range" class="size-slider" id="calendarHeight"
+                               min="0.5" max="10" step="0.5" value="0.5"
+                               title="Calendar card height (leftmost = Auto)">
+                    </div>
+                    <div class="size-markers">
+                        <span>Auto</span>
+                        <span>2×</span>
+                        <span>4×</span>
+                        <span>6×</span>
+                        <span>8×</span>
+                        <span>10×</span>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group">
+                    <label for="calendarCountdownPlacement">Countdown Timer Placement</label>
+                    <select id="calendarCountdownPlacement">
+                        <option value="pill">Right-aligned pill</option>
+                        <option value="time-column">Under time column</option>
+                        <option value="title">Below the title</option>
+                        <option value="right-column">Prominent right column</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="calendarCountdownWindow">Show Timer For Events Within</label>
+                    <select id="calendarCountdownWindow">
+                        <option value="24">24 hours</option>
+                        <option value="36">36 hours</option>
+                        <option value="48" selected>48 hours</option>
+                        <option value="72">72 hours</option>
+                        <option value="all">All events</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="calendarCountdownWarnMins">Turn Amber Within (minutes)</label>
+                    <input type="number" id="calendarCountdownWarnMins" min="1" max="180" step="1" value="60">
+                </div>
+                <div class="form-group">
+                    <label for="calendarCountdownUrgentMins">Pulse Red Within (minutes)</label>
+                    <input type="number" id="calendarCountdownUrgentMins" min="1" max="180" step="1" value="10">
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group">
+                    <label for="calendarUpcomingBarCount">Upcoming Bar — Events to Show</label>
+                    <select id="calendarUpcomingBarCount">
+                        <option value="0">Off</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                    <p class="settings-hint">A strip showing the next events and their time remaining, above the 3-Day / 5-Day / Week views.</p>
+                </div>
+                <div class="form-group">
+                    <label for="calendarUpcomingBarFormat">Upcoming Bar — Display Format</label>
+                    <select id="calendarUpcomingBarFormat">
+                        <option value="ticker" selected>Scrolling ticker</option>
+                        <option value="list">List</option>
+                    </select>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group">
+                    <label>Calendar Sources</label>
+                    <div id="calendarSourcesList"></div>
+                    <button type="button" id="addCalendarBtn" class="calendar-add-btn">+ Add Calendar</button>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group">
+                    <label>Calendar Card Fonts</label>
+                    <p class="settings-hint">Choose a font for all text in the Calendar card, and a size (in pixels) for each kind of text.</p>
+                    <div id="calendarFontSettings"></div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="timezone1">Clock #1 Timezone</label>
-                <select id="timezone1">
-                    <option value="local">Local Time (Auto-detect)</option>
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">Eastern Time (New York)</option>
-                    <option value="America/Chicago">Central Time (Chicago)</option>
-                    <option value="America/Denver">Mountain Time (Denver)</option>
-                    <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
-                    <option value="America/Anchorage">Alaska Time</option>
-                    <option value="Pacific/Honolulu">Hawaii Time</option>
-                    <option value="Europe/London">London (GMT/BST)</option>
-                    <option value="Europe/Paris">Paris (CET/CEST)</option>
-                    <option value="Europe/Berlin">Berlin (CET/CEST)</option>
-                    <option value="Europe/Moscow">Moscow (MSK)</option>
-                    <option value="Asia/Dubai">Dubai (GST)</option>
-                    <option value="Asia/Kolkata">India (IST)</option>
-                    <option value="Asia/Shanghai">Shanghai (CST)</option>
-                    <option value="Asia/Tokyo">Tokyo (JST)</option>
-                    <option value="Asia/Seoul">Seoul (KST)</option>
-                    <option value="Asia/Singapore">Singapore (SGT)</option>
-                    <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
-                    <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
-                    <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
-                    <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="timezone2">Clock #2 Timezone</label>
-                <select id="timezone2">
-                    <option value="local">Local Time (Auto-detect)</option>
-                    <option value="UTC" selected>UTC</option>
-                    <option value="America/New_York">Eastern Time (New York)</option>
-                    <option value="America/Chicago">Central Time (Chicago)</option>
-                    <option value="America/Denver">Mountain Time (Denver)</option>
-                    <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
-                    <option value="America/Anchorage">Alaska Time</option>
-                    <option value="Pacific/Honolulu">Hawaii Time</option>
-                    <option value="Europe/London">London (GMT/BST)</option>
-                    <option value="Europe/Paris">Paris (CET/CEST)</option>
-                    <option value="Europe/Berlin">Berlin (CET/CEST)</option>
-                    <option value="Europe/Moscow">Moscow (MSK)</option>
-                    <option value="Asia/Dubai">Dubai (GST)</option>
-                    <option value="Asia/Kolkata">India (IST)</option>
-                    <option value="Asia/Shanghai">Shanghai (CST)</option>
-                    <option value="Asia/Tokyo">Tokyo (JST)</option>
-                    <option value="Asia/Seoul">Seoul (KST)</option>
-                    <option value="Asia/Singapore">Singapore (SGT)</option>
-                    <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
-                    <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
-                    <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
-                    <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <button id="exportData">Export Data</button>
-                <button id="importData">Import Data</button>
-                <input type="file" id="importFile" accept=".json" style="display: none;">
+            <!-- Pomodoro sound settings + session history are moved here at runtime -->
+            <div class="settings-tab-content" id="settingsTabPomodoro" data-tab="pomodoro" role="tabpanel" aria-labelledby="settingsTabBtnPomodoro"></div>
+            <div class="settings-tab-content" id="settingsTabTodo" data-tab="todo" role="tabpanel" aria-labelledby="settingsTabBtnTodo">
+                <div class="form-group">
+                    <label>To-Do Card Fonts</label>
+                    <p class="settings-hint">Choose a font for all text in the To-Do card, and a size (in pixels) for each kind of text.</p>
+                    <div id="todoFontSettings"></div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <div class="form-group">
+                    <label>Deleted To-Do Archive</label>
+                    <p class="settings-hint">Deleted tasks and subtasks are kept here for 14 days, then removed automatically. A restored subtask returns to its original task (or becomes its own task if that task is gone).</p>
+                    <div id="todoArchiveSettings"></div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- To-Do Archive Modal (opened from the To-Do card header) -->
+    <div class="modal" id="todoArchiveModal" role="dialog" aria-modal="true" aria-labelledby="todoArchiveTitle">
+        <div class="modal-content todo-archive-modal-content">
+            <div class="modal-header">
+                <h2 id="todoArchiveTitle">🗄 Archived To-Dos</h2>
+                <button class="close-modal" id="closeTodoArchive" data-todo-arch-action="close" aria-label="Close">×</button>
+            </div>
+            <p class="settings-hint">Deleted tasks are kept for 14 days, then removed automatically.</p>
+            <div id="todoArchiveModalBody" class="todo-archive-body"></div>
+        </div>
+    </div>
+
     <!-- ================================================== -->
-    <!-- JavaScript Modules - Load in order (v2.1)         -->
+    <!-- JavaScript Modules - Load in order (v3.0)         -->
     <!-- ================================================== -->
     
     <!-- Core Managers: Data & Business Logic -->
@@ -220,11 +611,20 @@
     <!-- UI Controllers: Visual Controls & Presentation -->
     <script src="scripts/2-ui-controllers.js"></script>
     
+    <!-- Pomodoro Timer Module (v2.1) -->
+    <script src="scripts/4-pomodoro.js"></script>
+
+    <!-- Calendar Integration Module (v3.0) -->
+    <script src="scripts/5-calendar.js"></script>
+
+    <!-- To-Do List Module (v3.0) -->
+    <script src="scripts/6-todo.js"></script>
+
+    <!-- Card Font Customization (v4.1) -->
+    <script src="scripts/7-fonts.js"></script>
+
     <!-- App Init: Bootstrap & Event Handling -->
     <script src="scripts/3-app-init.js"></script>
-    
-    <!-- IP Info: Public IP Display Module (NEW in v2.1) -->
-    <script src="scripts/4-ip-info.js"></script>
     
     <!-- ================================================== -->
     <!-- Specialized Scripts (Existing - Keep as-is)       -->
@@ -232,5 +632,10 @@
     <script src="ui-renderer.js"></script>
     <script src="group-modal.js"></script>
     <script src="app-modal.js"></script>
+    <script src="minimap.js"></script>
+
+    <!-- SQLite Database Persistence (sql-wasm-binary.js is ~850 KB). These are
+         lazy-loaded by App.loadDbModule() after first paint so they don't block
+         the homepage from rendering — the DB backup is a background feature. -->
 </body>
 </html>

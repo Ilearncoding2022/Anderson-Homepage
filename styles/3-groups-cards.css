@@ -1,6 +1,6 @@
 /* ==========================================
    3-GROUPS-CARDS.CSS - Content Display
-   Anderson Homepage v2.1
+   Anderson Homepage v1.9
    
    Contents:
    1. Group Containers & Layouts
@@ -19,74 +19,35 @@
 
 .app-group {
     width: 100%;
-    margin-bottom: 0;
     border-radius: 16px;
-    padding: 1.5rem;
+    padding: 0.75rem;
     position: relative;
+    /* The group's colour is a translucent tint supplied via --card-tint. It is
+       painted as a layer here so a dark base can sit BEHIND it in light mode. */
+    background-image: linear-gradient(var(--card-tint, transparent), var(--card-tint, transparent));
     backdrop-filter: blur(10px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    transition: width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
     border: 2px solid transparent;
+    overflow: hidden;
 }
 
-.app-group.half-width {
-    width: calc(50% - 1rem);
+/* Cards are dark-native glass (white text). In dark mode the tint sits over the
+   dark page and reads fine. In light mode the page is white, so without a dark
+   base the white text would vanish — give every card a dark glass base so the
+   cards stay readable "dark glass" in light mode too. Dark mode is unchanged. */
+[data-theme="light"] .app-group {
+    background-color: rgba(20, 20, 24, 0.86);
 }
 
-.app-group.third-width {
-    width: calc(33.333% - 1.34rem);
-}
+/* Full-width groups render outside the two-column layout */
 
 .app-group:hover {
     box-shadow: 0 6px 30px rgba(0,0,0,0.15);
 }
 
 /* ========================================
-   2. PINNED GROUP STYLING
-   ======================================== */
-
-.app-group.pinned {
-    border: 2px solid rgba(255, 215, 0, 0.4);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1), 
-                0 0 20px rgba(255, 215, 0, 0.2);
-    margin-bottom: 2.5rem;
-}
-
-.app-group.pinned::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(45deg, 
-        rgba(255, 215, 0, 0.3), 
-        transparent, 
-        rgba(255, 215, 0, 0.3));
-    border-radius: 16px;
-    z-index: -1;
-    opacity: 0.5;
-}
-
-.pin-indicator {
-    font-size: 1.1rem;
-    margin-right: 0.3rem;
-    animation: pinPulse 2s infinite;
-}
-
-@keyframes pinPulse {
-    0%, 100% { 
-        transform: scale(1) rotate(0deg);
-        opacity: 1;
-    }
-    50% { 
-        transform: scale(1.1) rotate(-5deg);
-        opacity: 0.8;
-    }
-}
-
-/* ========================================
-   3. DEFAULT GROUP STYLING
+   2. DEFAULT GROUP STYLING
    ======================================== */
 
 .app-group.default-group {
@@ -121,9 +82,12 @@
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.4);
+    /* Floats above the card on the page, so it needs a dark enough chip to read
+       in both themes (the old pale-blue + 0.4 white vanished in light mode). */
+    color: rgba(255, 255, 255, 0.82);
     padding: 0.25rem 1rem;
-    background: rgba(100, 181, 246, 0.2);
+    background: rgba(26, 42, 66, 0.94);
+    border: 1px solid rgba(100, 181, 246, 0.5);
     border-radius: 12px;
 }
 
@@ -141,8 +105,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
     border-bottom: 2px solid rgba(255,255,255,0.2);
 }
 
@@ -200,37 +164,6 @@
     transform: scale(1.1);
 }
 
-.pin-btn {
-    transition: transform 0.2s, background-color 0.2s;
-}
-
-.pin-btn:hover {
-    transform: scale(1.15) rotate(15deg);
-}
-
-.app-group.pinned .pin-btn {
-    background-color: rgba(255, 215, 0, 0.3);
-}
-
-.width-toggle-btn {
-    background-color: rgba(255,255,255,0.2);
-    color: white;
-    border: 1px solid rgba(255,255,255,0.3);
-    padding: 0.4rem 0.8rem;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(5px);
-    white-space: nowrap;
-}
-
-.width-toggle-btn:hover {
-    background-color: rgba(255,255,255,0.3);
-    transform: scale(1.05);
-}
-
 .delete-group-btn:hover {
     background-color: rgba(244, 67, 54, 0.8) !important;
     transform: scale(1.15) !important;
@@ -252,24 +185,7 @@
    5. SECTION DIVIDERS
    ======================================== */
 
-.groups-container:has(.app-group.pinned) .app-group:not(.pinned):not(.default-group):first-of-type::before {
-    content: 'REGULAR GROUPS';
-    position: absolute;
-    top: -2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.3);
-    padding: 0.25rem 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-}
-
-.app-group:not(.pinned):not(.default-group):first-of-type {
-    position: relative;
-}
+/* Section dividers removed */
 
 /* ========================================
    6. WEBSITE CARDS
@@ -278,13 +194,13 @@
 .websites-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--card-size, 150px), 1fr));
-    gap: 1.5rem;
+    gap: var(--card-gap, 0.75rem);
 }
 
 .websites-list {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
 .website-card {
@@ -304,6 +220,7 @@
     gap: 0.5rem;
     animation: cardFadeIn 0.4s ease-out;
     pointer-events: auto;
+    max-width: var(--card-size, 150px);
 }
 
 .website-card * {
@@ -312,7 +229,8 @@
 
 .website-card .card-actions,
 .website-card .card-actions *,
-.website-card .new-tab-btn {
+.website-card .new-tab-btn,
+.website-card .favorite-btn {
     pointer-events: auto;
 }
 
@@ -409,7 +327,7 @@
     opacity: 1;
 }
 
-.edit-btn, .delete-btn {
+.edit-btn {
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -418,14 +336,45 @@
     align-items: center;
     justify-content: center;
     padding: 0;
-}
-
-.edit-btn {
     background-color: #2196F3;
 }
 
-.delete-btn {
-    background-color: #f44336;
+/* Right-click context menu on cards */
+.card-context-menu {
+    position: absolute;
+    z-index: 1000;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 4px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.card-context-item {
+    display: block;
+    width: 100%;
+    padding: 6px 16px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.card-context-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.card-context-item.delete {
+    color: #f44336;
+}
+
+.card-context-item.delete:hover {
+    background: rgba(244, 67, 54, 0.2);
 }
 
 .new-tab-btn {
@@ -456,4 +405,1554 @@
 .new-tab-btn:hover {
     background-color: var(--accent);
     color: white;
+}
+
+/* ========================================
+   9. VERSION AGE INDICATORS
+   ======================================== */
+
+.version-age-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.version-age-green { background-color: #4CAF50; }
+.version-age-yellow { background-color: #FFC107; }
+.version-age-red { background-color: #F44336; }
+
+.website-card.list-view .version-age-dot {
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+}
+
+/* ========================================
+   10. GROUP COLLAPSE/EXPAND
+   ======================================== */
+
+.collapse-btn {
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+    transition: transform 0.2s ease, background-color 0.2s;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+    opacity: 1;
+}
+
+.app-group.collapsed .group-header {
+    margin-bottom: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: none;
+}
+
+/* ========================================
+   11. FAVORITES & VIRTUAL GROUPS
+   ======================================== */
+
+.favorite-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.85);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.favorite-btn:hover {
+    color: #FFD700;
+    background-color: rgba(0, 0, 0, 0.45);
+    transform: scale(1.15);
+}
+
+.favorite-btn.is-favorite {
+    color: #FFD700;
+    background-color: rgba(0, 0, 0, 0.4);
+    text-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+
+/* The star button sits on the white website card in light mode, where its
+   translucent-black fill turns pale and the white/gold star fades — darken the
+   fill in light mode so the star stays legible. Dark mode is unchanged. */
+[data-theme="light"] .favorite-btn { background-color: rgba(0, 0, 0, 0.66); }
+[data-theme="light"] .favorite-btn:hover { background-color: rgba(0, 0, 0, 0.72); }
+[data-theme="light"] .favorite-btn.is-favorite { background-color: rgba(0, 0, 0, 0.7); }
+
+.virtual-group {
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    margin-bottom: 1rem;
+}
+
+.virtual-group .group-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+}
+
+/* ========================================
+   12. CALENDAR EVENTS
+   ======================================== */
+
+.calendar-group {
+    border: 2px solid rgba(76, 175, 80, 0.3);
+    font-family: var(--cal-font-family, inherit);
+}
+
+/* Inputs/buttons don't inherit font-family by default — force the card font. */
+.calendar-group input,
+.calendar-group button {
+    font-family: inherit;
+}
+
+.calendar-group .group-title {
+    font-size: 1.3rem;
+    white-space: nowrap;
+}
+
+.calendar-icon-link {
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.calendar-icon-link:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+.calendar-events-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 38vh; /* fallback; overridden dynamically by matchCalendarHeight() */
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) rgba(255,255,255,0.05);
+    padding-right: 0.25rem;
+}
+
+.calendar-events-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.calendar-events-container::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+}
+
+.calendar-events-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+
+.calendar-events-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+/* Legend swatch, reused inside the (i) popover list (see cal-legend-pop-item) */
+.calendar-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.calendar-day-header {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0.5rem 0 0.25rem;
+}
+
+.calendar-day-header:first-child {
+    padding-top: 0;
+}
+
+.calendar-event-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #4CAF50;
+    transition: background 0.2s;
+}
+
+.calendar-event-item:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.calendar-event-item.all-day {
+    border-left-color: #66BB6A;
+}
+
+/* Stacked per-timezone date + time rows */
+.calendar-event-times {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: 187px;
+    flex-shrink: 0;
+}
+
+.calendar-event-tz {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    /* One size control scales the whole row; label/time keep their ratio via em. */
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+}
+
+.tz-label {
+    flex-shrink: 0;
+    width: 3.2em;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 0.1rem 0.2rem;
+}
+
+.tz-when {
+    font-size: 1em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.3;
+}
+
+.calendar-event-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.calendar-event-title {
+    font-size: var(--cal-fs-event, 0.85rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
+}
+
+/* Today's already-finished events stay listed but struck through (title only). */
+.calendar-event-item.is-passed .calendar-event-title {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.calendar-event-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: white;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    opacity: 0.85;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.calendar-event-location {
+    font-size: var(--cal-fs-details, 0.75rem);
+    zoom: var(--cal-z-details, 1);
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 0.15rem;
+}
+
+/* ---- Per-event countdown timers ---- */
+.event-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1.2;
+    /* Keep tier colours legible over the user's chosen background */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.event-countdown .ec-icon {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+/* Placement: right-aligned pill (top-right edge of the card) */
+.ec-pill {
+    margin-left: auto;
+    align-self: flex-start;
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Placement: extra row beneath the per-timezone times */
+.ec-time-column {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+/* Placement: line beneath the event title */
+.ec-title {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+/* Placement: prominent block on the far right, divided from the details.
+   Stacks a muted "In" label over the larger ticking time value. */
+.ec-right-column {
+    margin-left: auto;
+    align-self: stretch;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.05rem;
+    min-width: 58px;
+    padding-left: 0.6rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.ec-right-column .ec-prefix {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+    line-height: 1;
+}
+
+.ec-right-column .ec-text {
+    line-height: 1.1;
+}
+
+.ec-right-column .ec-prefix[hidden] {
+    display: none;
+}
+
+/* Urgency tiers (colour applies to every placement) */
+.event-countdown.tier-neutral {
+    color: #BCE6BD;
+}
+
+.event-countdown.tier-warning {
+    color: #FFD699;
+}
+
+.event-countdown.tier-urgent {
+    color: #FFA39C;
+    animation: ec-pulse 1.1s ease-in-out infinite;
+}
+
+.ec-pill.tier-neutral {
+    background: rgba(76, 175, 80, 0.18);
+}
+
+.ec-pill.tier-warning {
+    background: rgba(255, 167, 38, 0.20);
+}
+
+.ec-pill.tier-urgent {
+    background: rgba(244, 67, 54, 0.22);
+}
+
+@keyframes ec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .event-countdown.tier-urgent {
+        animation: none;
+    }
+}
+
+/* Calendar header controls */
+.calendar-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+    /* Inset from the card's right edge so the trailing warning badge has room and
+       the refresh button + sync-time sit a bit further left. */
+    margin-right: 0.4rem;
+    flex-shrink: 0;
+}
+
+.calendar-last-updated {
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.calendar-error-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(244, 67, 54, 0.7);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.calendar-refresh-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.2s;
+}
+
+.calendar-refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    transform: rotate(90deg);
+}
+
+.calendar-group-toggle,
+.calendar-view-toggle,
+.calendar-timeline-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+    height: 22px;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.calendar-group-toggle:hover,
+.calendar-view-toggle:hover,
+.calendar-timeline-toggle:hover {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+/* Timeline toggle "on" state: a filled accent pill. */
+.calendar-timeline-toggle.active {
+    background: rgba(129, 199, 132, 0.35);
+    border-color: rgba(129, 199, 132, 0.6);
+    color: #fff;
+}
+
+.calendar-timeline-toggle:focus-visible,
+.calendar-view-toggle:focus-visible,
+.calendar-group-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+.calendar-group-toggle-icon {
+    font-size: 0.8rem;
+    line-height: 1;
+}
+
+/* ---- View dropdown (3-Day / 5-Day / Week / List) ---- */
+.calendar-view-dd {
+    position: relative;
+    display: inline-flex;
+}
+
+.calendar-view-caret {
+    font-size: 0.6rem;
+    opacity: 0.7;
+    margin-left: 0.1rem;
+}
+
+.calendar-view-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 60;
+    min-width: 7rem;
+    flex-direction: column;
+    padding: 0.25rem;
+    background: rgba(25, 27, 32, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.calendar-view-dd.open .calendar-view-menu {
+    display: flex;
+}
+
+.calendar-view-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.calendar-view-menu-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.calendar-view-menu-item:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: -1px;
+}
+
+/* Checkmark on the active view. */
+.calendar-view-menu-item[aria-checked="true"] {
+    color: #fff;
+}
+
+.calendar-view-menu-item[aria-checked="true"]::before {
+    content: '✓';
+    font-size: 0.7rem;
+    width: 0.8rem;
+}
+
+.calendar-view-menu-item[aria-checked="false"]::before {
+    content: '';
+    width: 0.8rem;
+}
+
+/* Setup / empty / error states */
+.calendar-setup-prompt {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.calendar-setup-prompt p {
+    margin: 0 0 0.75rem;
+}
+
+.calendar-setup-prompt ol {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.calendar-setup-prompt li {
+    margin-bottom: 0.4rem;
+}
+
+.calendar-empty-state,
+.calendar-error-state {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.calendar-error-state {
+    color: rgba(244, 67, 54, 0.8);
+}
+
+/* Calendar settings - source entries */
+.calendar-source-entry {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.cal-src-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+/* Override .form-group input { width: 100% } for calendar source entries */
+.calendar-source-entry input,
+.calendar-source-entry select {
+    width: auto;
+}
+
+.cal-src-name {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.cal-src-color-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.cal-src-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.cal-src-color {
+    width: 80px;
+    padding: 0.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.cal-src-url {
+    width: 100% !important;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.cal-src-embed-warning {
+    font-size: 0.75rem;
+    color: #FF9800;
+    margin-top: 0.3rem;
+    line-height: 1.3;
+}
+
+.cal-src-remove {
+    background: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.cal-src-remove:hover {
+    background: rgba(244, 67, 54, 0.4);
+}
+
+.calendar-add-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+    border: 1px dashed rgba(76, 175, 80, 0.4);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.calendar-add-btn:hover {
+    background: rgba(76, 175, 80, 0.25);
+}
+
+/* ---- (i) legend popover ---- */
+.cal-legend-wrap {
+    position: relative;
+    display: inline-block;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+
+.cal-legend-btn {
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.75);
+    font: italic 700 0.65rem/1 serif;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cal-legend-btn:hover,
+.cal-legend-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.cal-legend-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 60;
+    min-width: 180px;
+    max-width: 260px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: rgba(25, 27, 32, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    font-family: var(--cal-font-family, inherit);
+}
+
+/* Hover is a mouse-only visual convenience. Keyboard/touch users open the popover
+   via the button (Enter/Space/tap), which pins it AND sets aria-expanded="true" —
+   so we deliberately do NOT reveal on :focus-within, which would show the popover
+   while aria-expanded still read "false" (a state desync for screen readers). */
+.cal-legend-wrap:hover .cal-legend-popover,
+.cal-legend-wrap.pinned .cal-legend-popover {
+    display: block;
+}
+
+.cal-legend-pop-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.cal-legend-pop-item {
+    display: flex;
+    align-items: center;
+    font-size: var(--cal-fs-details, 0.75rem);
+    zoom: var(--cal-z-details, 1);
+    white-space: nowrap;
+}
+
+/* Each legend row is a switch that hides/shows that calendar's events. */
+.cal-legend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.15rem 0.25rem;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.85);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.cal-legend-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.cal-legend-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+/* Hidden calendar: dimmed + struck through, dot hollowed out. */
+.cal-legend-toggle.is-hidden {
+    opacity: 0.5;
+}
+
+.cal-legend-toggle.is-hidden .cal-legend-name {
+    text-decoration: line-through;
+}
+
+.cal-legend-toggle.is-hidden .calendar-legend-dot {
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
+.cal-legend-name {
+    flex: 1;
+}
+
+/* ---- Day-view nav bar (sticky inside the scrolling events container) ---- */
+.calendar-dayview-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-shrink: 0;   /* stay full height above the (internally scrolling) timeline */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.15rem 0 0.35rem;
+    /* Solid-ish dark backdrop (matches the card's own light-mode glass base) so
+       chips scrolled underneath the sticky bar don't show through it. */
+    background: rgba(20, 20, 24, 0.92);
+    backdrop-filter: blur(6px);
+}
+
+.cal-nav-btn,
+.cal-nav-today {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    line-height: 1.4;
+}
+
+.cal-nav-btn:hover:not(:disabled),
+.cal-nav-today:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.cal-nav-btn:disabled,
+.cal-nav-today:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.cal-nav-btn:focus-visible,
+.cal-nav-today:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+.cal-nav-range {
+    flex: 1;
+    text-align: center;
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ---- Upcoming-event bar (above the day-view nav) ---- */
+.cal-upcoming-bar {
+    flex-shrink: 0;
+    margin-bottom: 0.35rem;
+    border-radius: 8px;
+    background: rgba(76, 175, 80, 0.10);
+    border: 1px solid rgba(76, 175, 80, 0.22);
+}
+
+.cal-upcoming-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cal-upcoming-name {
+    font-size: var(--cal-fs-event, 0.82rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.cal-upcoming-time {
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: #BCE6BD;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* Ticker (scrolling) variant */
+.cal-upcoming-ticker {
+    overflow: hidden;
+    position: relative;
+}
+
+.cal-upcoming-track {
+    display: flex;
+    width: max-content;
+    animation: cal-upcoming-scroll var(--cal-ticker-dur, 30s) linear infinite;
+}
+
+.cal-upcoming-ticker:hover .cal-upcoming-track,
+.cal-upcoming-ticker:focus-within .cal-upcoming-track {
+    animation-play-state: paused;
+}
+
+.cal-upcoming-seq {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.cal-upcoming-tick {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cal-upcoming-tick:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+@keyframes cal-upcoming-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+/* When the items all fit the container (measured post-render), there's nothing
+   to scroll — show a single static sequence, no animation, no gappy loop. */
+.cal-upcoming-ticker.no-scroll .cal-upcoming-track {
+    animation: none;
+    width: 100%;
+}
+
+.cal-upcoming-ticker.no-scroll .cal-upcoming-seq[aria-hidden="true"] {
+    display: none;
+}
+
+/* Reduced motion: don't auto-scroll. Clip on the ticker (the actual overflow
+   owner) and let the user scroll it horizontally; hide the duplicate sequence
+   so items aren't shown twice. */
+@media (prefers-reduced-motion: reduce) {
+    .cal-upcoming-ticker {
+        overflow-x: auto;
+    }
+    .cal-upcoming-track {
+        animation: none;
+    }
+    .cal-upcoming-ticker .cal-upcoming-seq[aria-hidden="true"] {
+        display: none;
+    }
+}
+
+/* List variant */
+.cal-upcoming-list {
+    display: flex;
+    flex-direction: column;
+    padding: 0.25rem;
+    gap: 0.2rem;
+}
+
+.cal-upcoming-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.cal-upcoming-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.cal-upcoming-row:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: -1px;
+}
+
+.cal-upcoming-row .cal-upcoming-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-upcoming-row .cal-upcoming-when {
+    font-size: var(--cal-fs-tz, 0.72rem);
+    zoom: var(--cal-z-tz, 1);
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+}
+
+/* ---- Day columns ---- */
+.calendar-day-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cal-days, 3), minmax(110px, 1fr));
+    gap: 0.4rem;
+    overflow-x: auto;
+    align-items: stretch;
+}
+
+.calendar-day-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    padding: 0.3rem;
+}
+
+.calendar-day-col.is-today {
+    background: rgba(76, 175, 80, 0.12);
+    outline: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.calendar-day-col-header {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+    padding-bottom: 0.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.calendar-day-col.is-today .calendar-day-col-header {
+    color: #A5D6A7;
+}
+
+.calendar-day-col-events {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.calendar-day-chip {
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 3px solid #4CAF50;
+    border-radius: 6px;
+    padding: 0.3rem 0.4rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.calendar-day-chip:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.calendar-day-chip:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: 1px;
+}
+
+.calendar-day-chip.all-day {
+    border-left-color: #66BB6A;
+}
+
+.calendar-chip-time {
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    white-space: nowrap;
+}
+
+.calendar-chip-title {
+    font-size: var(--cal-fs-event, 0.85rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
+}
+
+.calendar-day-empty {
+    font-size: var(--cal-fs-details, 0.7rem);
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 0.75rem 0;
+}
+
+/* ---- Hour-by-hour timeline (3/5-day/week views) ---- */
+/* One grid, three row-groups (day headers, all-day band, hour grid) sharing the
+   same column template and a single horizontal scroll so everything stays aligned:
+   column 1 is the hour-axis gutter, columns 2..N+1 are the days. */
+.calendar-timeline {
+    display: grid;
+    grid-template-columns: 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
+    column-gap: 0.3rem;
+    row-gap: 0.35rem;
+    /* align-items:start keeps each cell at its own height; align-content:start
+       keeps the rows packed at the top so the hour row is never stretched taller
+       than gridH (which would push %-free, px-positioned events off the gridlines). */
+    align-items: start;
+    align-content: start;
+    /* Scroll internally (both axes) so the per-day header row can stick to the top
+       while the hours scroll under it. min-height:0 lets this flex child shrink
+       below its content height inside the capped events container. */
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
+}
+
+/* Row 1: per-day headers, mirroring the chip day view's column headers. They
+   stick to the top of the timeline's scroll viewport so the dates stay visible
+   when scrolling down to later hours. */
+.cal-tl-corner,
+.cal-tl-dayhead {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: rgba(20, 20, 24, 0.92);
+    backdrop-filter: blur(6px);
+}
+
+.cal-tl-dayhead {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+    padding: 0.25rem 0 0.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    min-width: 0;
+}
+
+.cal-tl-dayhead.is-today {
+    color: #A5D6A7;
+}
+
+/* Row 2: all-day band (label in the gutter column, chips per day). */
+.cal-tl-allday-label {
+    font-size: var(--cal-fs-tz, 0.6rem);
+    zoom: var(--cal-z-tz, 1);
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    align-self: center;
+    text-align: right;
+    padding-right: 0.25rem;
+}
+
+.cal-tl-allday-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+    border-radius: 6px;
+    padding: 0.15rem;
+}
+
+.cal-tl-allday-cell.is-today {
+    background: rgba(76, 175, 80, 0.12);
+}
+
+/* Row 3, column 1: left hour axis. Labels are absolutely positioned at their
+   hour offset. */
+.cal-tl-gutter {
+    position: relative;
+    min-width: 2.6rem;
+}
+
+.cal-tl-hour {
+    position: absolute;
+    right: 0.25rem;
+    transform: translateY(-50%);
+    font-size: var(--cal-fs-tz, 0.65rem);
+    /* NO `zoom` here. This label is absolutely positioned by `top` (px off gridH,
+       matching the event blocks and hour gridlines). `zoom` scales an element's
+       `top` too, so a sub-1 --cal-z-tz (set when the Time-zone-row font is below
+       the browser's minimum size) would compress the whole hour axis upward and
+       pull the labels off the events/gridlines. Font-size alone is safe. */
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+}
+
+/* Each day column: a positioned canvas for the event blocks. Hour gridlines are
+   inline background-image layers set by the renderer — merged free stretches
+   collapse to sub-hour rows, so line positions follow the compressed hour
+   mapping and a fixed repeating gradient would drift below the first gap.
+   background-color (not the background shorthand) so those inline image layers
+   stack on top of it. */
+.cal-tl-col {
+    position: relative;
+    min-width: 0;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.cal-tl-col.is-today {
+    background-color: rgba(76, 175, 80, 0.1);
+    outline: 1px solid rgba(76, 175, 80, 0.35);
+}
+
+.cal-tl-event {
+    position: absolute;
+    overflow: hidden;
+    box-sizing: border-box;
+    min-height: 14px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    color: #fff;
+    /* Calendar colors are user/feed data and may be light; a shadow keeps the
+       white label legible on pale backgrounds. */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    line-height: 1.15;
+}
+
+.cal-tl-event:hover {
+    filter: brightness(1.12);
+}
+
+.cal-tl-event:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 1px;
+    z-index: 3;
+}
+
+.cal-tl-event-time {
+    display: block;
+    font-size: var(--cal-fs-tz, 0.6rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-tl-event-title {
+    display: block;
+    font-size: var(--cal-fs-event, 0.72rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Current-time indicator on the today column. */
+.cal-tl-now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #ff5252;
+    box-shadow: 0 0 4px rgba(255, 82, 82, 0.7);
+    z-index: 2;
+}
+
+.cal-tl-now::before {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ff5252;
+}
+
+/* Merged free-time bands: when 2+ consecutive hour slots are event-free across
+   every visible day, one greyed band spans all day columns. Placed after the
+   day columns in the DOM so it paints over their backgrounds; events never
+   overlap it (gaps are event-free by construction) and .cal-tl-now (z-index:2)
+   stays visible through it. pointer-events:none keeps the grid inert. */
+.cal-tl-gaps {
+    grid-column: 2 / -1;
+    position: relative;
+    align-self: start;
+    pointer-events: none;
+}
+
+.cal-tl-gap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(158, 158, 168, 0.12);
+    border-radius: 6px;
+}
+
+.cal-tl-gap > span {
+    font-style: italic;
+    font-size: var(--cal-fs-tz, 0.65rem);
+    zoom: var(--cal-z-tz, 1);
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.3px;
+}
+
+/* ========================================
+   13. CALENDAR EVENT DETAIL MODAL
+   ======================================== */
+
+.cal-event-detail-content {
+    max-width: 500px;
+    width: 90vw;
+}
+
+.cal-detail-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.cal-detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.cal-detail-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.cal-detail-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.cal-detail-tz {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.cal-detail-tz-label {
+    flex-shrink: 0;
+    width: 3.2em;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 0.1rem 0.2rem;
+}
+
+.cal-detail-tz-when {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+}
+
+.cal-detail-loc,
+.cal-detail-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.cal-detail-gcal {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.cal-detail-gcal-link {
+    color: #81C784;
+    font-size: 0.85rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: color 0.2s;
+}
+
+.cal-detail-gcal-link:hover {
+    color: #A5D6A7;
+    text-decoration: underline;
+}
+
+/* Links inside the description (Meet link and any other URLs). */
+.cal-detail-link {
+    color: #90CAF9;
+    word-break: break-all;
+}
+.cal-detail-link:hover { color: #BBDEFB; }
+
+/* Prominent "Join video call" button at the top of the detail popup. */
+.cal-detail-join {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+.cal-detail-join-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(46, 125, 50, 0.55);
+    border: 1px solid rgba(129, 199, 132, 0.7);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.cal-detail-join-link:hover { background: rgba(46, 125, 50, 0.8); }
+
+/* Compact "🎥 Join" link shown on an event row when it has a video-call link. */
+.calendar-event-join {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #A5D6A7;
+    text-decoration: none;
+    width: fit-content;
+    padding: 0.05rem 0.4rem 0.05rem 0;
+    border-radius: 6px;
+}
+.calendar-event-join:hover { color: #C8E6C9; text-decoration: underline; }
+
+.calendar-event-join:focus-visible,
+.cal-detail-join-link:focus-visible {
+    outline: 2px solid rgba(129, 199, 132, 0.95);
+    outline-offset: 2px;
+}
+
+/* Focus-visible ring on clickable event rows */
+.calendar-event-item:focus-visible {
+    outline: 2px solid rgba(100, 181, 246, 0.7);
+    outline-offset: 1px;
+}
+
+/* ========================================
+   14. CALENDAR STALE / ERROR BADGE (item 10)
+   ======================================== */
+
+.calendar-stale-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 167, 38, 0.6);
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 0.65rem;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+/* ========================================
+   15. LIVE SEARCH FILTER (item 11)
+   ======================================== */
+
+/* Cards hidden by the search filter */
+.website-card.filtered-hidden {
+    display: none !important;
+}
+
+/* Groups with no visible cards (all children filtered out) */
+.app-group.filtered-group-hidden {
+    display: none !important;
+}
+
+/* "No matches" hint that appears below the groups */
+.search-no-matches {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.95rem;
+    font-style: italic;
+}
+
+/* ========================================
+   16. ICON SIZE CSS VARIABLE (item 6)
+   Ensures icons read from --icon-size and
+   cards read from --card-size / --card-gap
+   without requiring a JS-driven DOM rebuild.
+   ======================================== */
+
+/* Icons already receive inline width/height from createWebsiteCard(), but
+   the transition is declared here so resizing feels smooth. */
+.website-icon {
+    transition: width 0.15s ease, height 0.15s ease;
+}
+
+/* Grid columns reflow automatically because they use var(--card-size) */
+.websites-grid {
+    transition: grid-template-columns 0.15s ease;
 }

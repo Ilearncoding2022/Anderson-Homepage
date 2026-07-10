@@ -1,6 +1,6 @@
 // ==========================================
 // 4-IP-INFO.JS - Public IP Display Module
-// Anderson Homepage v2.2
+// Anderson Homepage v3.0
 //
 // Features:
 // - Dual API verification (ipify + ip-api)
@@ -20,7 +20,7 @@ const IPInfo = {
         ipifyUrl: 'https://api.ipify.org?format=json',
         // ip-api.com is free, has CORS support, and works with file:// origins
         // Note: Free tier is HTTP only (not HTTPS), but works well for local use
-        ipapiUrl: 'http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query'
+        ipapiUrl: 'https://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query'
     },
 
     // State
@@ -30,6 +30,7 @@ const IPInfo = {
         location: null,
         lastChecked: null,
         intervalId: null,
+        timestampIntervalId: null,
         pendingTimeoutId: null,
         fetchStartTime: null,
         ipifyError: false,
@@ -341,9 +342,13 @@ const IPInfo = {
         console.log('[IPInfo] Auto-refresh started (every 5 minutes)');
     },
 
-    // Start timestamp updater (updates every 10 seconds)
+    // Start timestamp updater (updates every 10 seconds).
+    // Clears any previous interval first so re-initialization doesn't accumulate timers.
     startTimestampUpdater() {
-        setInterval(() => {
+        if (this.state.timestampIntervalId) {
+            clearInterval(this.state.timestampIntervalId);
+        }
+        this.state.timestampIntervalId = setInterval(() => {
             this.updateTimestamp();
         }, 10000); // Update every 10 seconds
     },

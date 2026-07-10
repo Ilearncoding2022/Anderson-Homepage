@@ -1,0 +1,7 @@
+{
+  "files": [
+    { "name": "Bell", "file": "bell.mp3" },
+    { "name": "Chime", "file": "chime.mp3" },
+    { "name": "Notification", "file": "notification.mp3" }
+  ]
+}

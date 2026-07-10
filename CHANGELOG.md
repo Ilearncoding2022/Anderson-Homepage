@@ -1,0 +1,231 @@
+# Changelog
+
+All notable changes to **Anderson Homepage** are documented here.
+This project does not use a build pipeline or git history, so dates are based on
+the development timeline; some earlier entries are reconstructed from the codebase
+and file timestamps (see the note under v3.0).
+
+## [v4.4] — 2026-06-11
+
+### To-Do — recurring tasks, an ASAP level, and drag-to-reorder
+- **Recurring tasks (new):** click a task's **date** to open a compact **Schedule**
+  popover where the due date and a repeat cadence — *Daily / Weekly / Monthly* — are
+  set together. Completing a repeating task rolls its due date forward to the next
+  occurrence instead of crossing it off, so standing chores reappear on their own
+  (month rollovers clamp sensibly, e.g. Jan 31 → Feb 28). Each row now shows just
+  the date and a small ⟳ when it repeats, keeping the list uncluttered.
+- **ASAP urgency (new):** a dark-purple **ASAP** level now sits above Urgent as the
+  highest priority, with a stronger pulse. The urgency badge cycles
+  TBD → Trivial → Medium → Urgent → ASAP.
+- **Drag to reorder (new):** drag the ⠿ grip to reorder tasks and subtasks — a task
+  carries its subtasks with it, and a subtask stays within its parent. Keyboard
+  users can focus a grip and press **↑ / ↓**.
+- **Live multi-tab sync:** editing the To-Do card in one tab now updates every other
+  open tab immediately (adds, edits, reorders, deletes, urgency, and due dates).
+
+### Calendar
+- **Clickable events (new):** click an event to open a detail view with its full
+  per-timezone times, location, and description, plus an **Open in Google Calendar**
+  link.
+- **Accurate "upcoming":** events that already **ended earlier today** no longer
+  linger in the list — an event drops off once it's over, while ongoing and future
+  events still show.
+- **Stale-data warning:** if a refresh fails, a ⚠ badge appears in the card header
+  showing when the data was last updated, so you know it may be out of date.
+- **Cleaner "time remaining":** the right-hand countdown stacks the label over the
+  value — **In** above **2h 51m**.
+
+### Find your own sites from the search box
+- Typing in the top search box now **filters your website cards and groups** as you
+  type; press **Esc** to clear. Pressing **Enter** still runs a web search as before.
+
+### Data safety
+- **Complete backups:** **Export Data** now captures *every* setting — todos and
+  their archive, groups and sites (with icons), calendar, Pomodoro, fonts, the
+  minimap, and countdown preferences — in a single versioned file. **Import**
+  validates the file and restores everything; older backups still import.
+- **Storage-blocked warning:** if the browser blocks or fills local storage (e.g.
+  private-browsing windows), a one-time banner now warns that changes won't be
+  saved.
+
+### Performance & under-the-hood
+- **Smoother updates:** the To-Do and Calendar cards now refresh **in place**
+  instead of rebuilding the whole page, so a background calendar refresh or a quick
+  edit no longer steals focus, jumps the scroll position, or flickers the other
+  cards.
+- **Lighter interactions:** the icon-size slider resizes live via CSS, card dragging
+  does far less layout work, the layout minimap only rebuilds when the layout
+  actually changes, and background timers are tracked so they can't pile up over a
+  long-open session.
+
+## [v4.3] — 2026-06-05
+
+### To-Do — aligned urgency badges
+- Every task's urgency badge is now pinned **380px from the left edge of its row**,
+  so all task badges line up in one column and all subtask badges line up in their
+  own (more deeply indented) column. The badge label stays centred in its pill, and
+  the alignment holds even when badge text is shrunk below the browser's minimum
+  font size (the offset is corrected for the zoom used to render those small sizes).
+- Subtask rows are indented a little further for clearer hierarchy.
+- The badge **font-size control is now split** into **Task badge** and **Subtask
+  badge**, so each can be sized independently in Settings → To-Do.
+
+### Pomodoro
+- The Pomodoro toggle button now uses **Pomodoro.png** instead of the ⏰ emoji.
+- The timer ring is **divided into 10 equal arc segments** as a visual cue — each
+  segment is 1/10 of the chosen length (6 s for a 1-minute timer, 60 s for a
+  10-minute one).
+- **Fixed:** the chosen alarm sound (and volume) now persist across reloads — the
+  sound dropdown no longer resets to the first option on load.
+- New **Repeat** option for the completion alarm: play it once (no repeat),
+  **3 times**, or **5 times**.
+- New **browser-notification** option: once the browser's notification permission
+  is granted, a system notification fires whenever a timer ends — e.g. *"⏰
+  Pomodoro finished — Your 25 minutes of Pomodoro has just run out."* It stays on
+  screen until dismissed, and shows whether or not the app tab is focused.
+  Enabling it shows a sample so you can confirm it works; the app toggle now only
+  needs to be left on (it suppresses notifications only if you switch it off). It
+  works while a tab stays open — a page can't run after every tab is closed — and
+  needs a secure context (`http://localhost`, e.g. `serve.bat`; `file://` may
+  block notifications).
+
+## [v4.2] — 2026-06-05
+
+### Light/dark contrast — text is now readable everywhere
+A pass over both themes fixed many places where text was invisible or low-contrast
+(WCAG AA: 4.5:1 normal, 3:1 large). Dark mode is unchanged; the fixes target light
+mode, where dark-native components previously sat on light surfaces.
+- **Modals are a consistently dark surface in both themes.** Settings, changelog,
+  the To-Do archive, the new font controls, calendar sources, and the group/app
+  editors are full of white-on-dark content that was invisible on the white
+  light-mode card (≈1.0–1.8:1). They now render dark in both themes (13.8:1).
+- **Homepage cards stay "dark glass" in light mode.** Groups, To-Do, and Calendar
+  cards carry their colour as a translucent tint over a dark base, so their white
+  text reads in light mode too (was ≈1.2:1, now 6–10:1). The Pomodoro card and the
+  layout minimap got the same dark-glass base.
+- **Page chrome:** the favourite ⭐ button, the UNCATEGORIZED group tag, the
+  storage-meter warning/danger readouts, and several faint header/menu labels were
+  darkened or strengthened so they clear AA in light mode.
+
+## [v4.1] — 2026-06-05
+
+### To-Do — subtasks are now archived too
+- Deleting a **subtask** now moves it to the archive (kept 14 days) instead of
+  removing it permanently. Restoring a subtask returns it to its original task,
+  or — if that task no longer exists — brings it back as its own top-level task.
+  Archived subtasks show which task they came from.
+
+### Card fonts (new)
+- **Settings → To-Do** and **Settings → Calendar** each gained a **Fonts**
+  section: pick a **font type** (applied to all text in that card) from a list of
+  offline-safe fonts, and set a **font size** (px, with +/− steppers) per text
+  group.
+  - *To-Do:* item · subtask · urgency badge · due date.
+  - *Calendar:* group date · time-zone row · event name · event details.
+- Sizes default to each card's original values until changed, and the settings
+  are persisted to localStorage and included in export / import / SQLite backup.
+
+## [v4.0] — 2026-06-05
+
+### To-Do list (new)
+- A movable **📝 To-Do card** on the homepage, repositioned via the minimap like
+  the Calendar card. Tasks support **one level of subtasks**, each with a
+  checkbox, inline-editable text, a **due date**, and an **urgency badge**
+  (TBD / Trivial / Medium / Urgent, click to cycle).
+- **Check cascade**: checking a task checks all its subtasks; unchecking any
+  subtask unchecks the parent; a parent is "done" only when every subtask is.
+- The add-subtask field is revealed by a **＋ button** (left of the delete button);
+  overdue, incomplete items flag their due date in red.
+- **Delete = archive.** Deleting a task asks for confirmation and moves it to an
+  archive kept for **14 days**, split into *Done & deleted* and *Not done &
+  deleted*, with Restore / Delete-forever actions. The archive is reachable from
+  a **🗄 button in the card header** and from a new **Settings → To-Do** tab.
+  Subtasks are deleted permanently; expired archive entries are auto-pruned.
+- Persisted to localStorage and included in export / import / SQLite backup.
+
+### Performance — faster load
+- The **SQLite engine (~850 KB WASM + the `.db` read) is now lazy-loaded after
+  first paint**, so it no longer blocks the homepage from rendering.
+- **Website icons and the background image moved to IndexedDB** (out of
+  localStorage). This slims the load-time JSON parse, frees the ~5 MB quota, and
+  fixes a bug where new data (e.g. to-do items) could silently fail to save when
+  a large background image filled localStorage. Both migrate automatically and
+  remain in export / import; icons hydrate onto the cards just after first paint.
+
+### Pomodoro — layout redesign
+- Quick-timer presets now **scale to fit at any zoom** instead of overflowing.
+- **Larger timer** sitting closer to the card's curved left edge, with the
+  Start / Reset / Skip buttons reshaped to nest against the circle.
+- **Custom Time** is now a compact control beside a larger **Quick Timer** title.
+- Dark mode: softened the toolbar (⏰) icon border so it blends with the header.
+
+### Upcoming Events — countdown
+- Countdown now reads **"In [time]"** (was "[time] left") and shows **"Ongoing"**
+  for events in progress instead of nothing.
+- **All-day events** show a countdown to local midnight of their date.
+
+### Storage indicator & menu
+- New **localStorage capacity meter** (MB / 5 MB / %) that warns as it approaches
+  the quota. The app title, version date, and this meter now live at the bottom
+  of the **Menu (☰) dropdown** rather than a page footer.
+
+## [v3.0] — 2026-06-02
+
+### Upcoming Events — dual/triple timezone display
+- Each event now shows its **date *and* time in multiple timezones** at once, as
+  stacked, labeled rows (e.g. `VN`, `ET`, `PDT`). Zones are taken from the
+  **Clock #1, #2, and #3** settings; a third row appears only when Clock #3 is
+  enabled, and duplicate zones are de-duplicated.
+- Per-zone labels are resolved with friendly names where known
+  (`Asia/Ho_Chi_Minh → VN`, `America/New_York → ET`), otherwise a DST-aware
+  abbreviation (`EST`/`EDT`/`PDT`/…), otherwise the zone's path tail.
+- Every row carries its **own date indicator** — `Today` / `Tomorrow` /
+  `Yesterday` / `Mon Jun 1` — computed independently in that zone, so a single
+  instant correctly shows as (for example) *Jun 1* in VN and *May 31* in ET.
+  All-day, overnight, and multi-day spans are handled per zone.
+
+### Upcoming Events — grouping
+- New **3-way grouping toggle** in the card header that cycles
+  **Group by Clock #1 → Group by Clock #2 → No grouping**. The button shows the
+  active grouping label, and the preference is persisted.
+- When grouped by a timezone, that zone's row is shown **first** within each
+  event, and the day headers (Today / Tomorrow / date) are anchored to it.
+- "No grouping" renders a flat, chronological list. All three modes still show
+  every event's full per-timezone date + time.
+
+### Upcoming Events — other
+- The **📅 calendar icon** in the card header is now a link that opens
+  [Google Calendar](https://calendar.google.com) in the same tab.
+- New **Card Height** control in Calendar settings — a slider (replacing the
+  initial dropdown) with **Auto (fit column)** at the leftmost stop and
+  **1× – 10× row height** in 0.5 steps, applied live as you drag.
+- Layout fixes: widened the timezone-label chip so 3-character abbreviations
+  (e.g. `PDT`) fit, and widened the time column ~10% so long date+time strings
+  no longer wrap to a second line.
+
+### Settings & persistence
+- `calendarGrouping` and `calendarHeight` are included in settings export,
+  import (with validation), and the SQLite backup key list.
+
+### Notes on earlier work since v2.2 (inferred — approximate)
+> The following were added between **2026-03-13** and this release. They are
+> reconstructed from the codebase and file timestamps and may be incomplete.
+- **SQLite-based persistence** (`lib/sql-wasm*`, `db-manager.js`): three backup
+  layers — IndexedDB, File System Access auto-save to a `.db` file, and manual
+  download/restore. _(~2026-03-24)_
+- **Layout Minimap panel** (`minimap.js`, `styles/6-minimap.css`): visual
+  overview of the group layout with drag-to-reorder and width cycling.
+  _(~2026-03-18)_
+- **Modular refactor**: JavaScript and CSS split into ordered modules under
+  `scripts/` and `styles/`. _(~2026-03-14 – 2026-03-25)_
+
+## [v2.2] — 2026-03-13
+- Baseline release: homepage with website/app cards and groups, multi-timezone
+  clocks, Pomodoro timer, public IP / location display, background and icon-size
+  controls, and Google Calendar (Upcoming Events) integration via an Apps Script
+  ICS proxy.
+
+[v4.4]: #v44--2026-06-11
+[v4.0]: #v40--2026-06-05
+[v3.0]: #v30--2026-06-02
+[v2.2]: #v22--2026-03-13

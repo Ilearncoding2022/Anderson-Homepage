@@ -1,0 +1,207 @@
+/* ==========================================
+   6-MINIMAP.CSS - Layout Minimap Panel
+   Anderson Homepage v2.3
+
+   Contents:
+   1. Panel & Toggle
+   2. Block Container & Blocks
+   3. Block Labels & Badges
+   4. Drag States
+   5. Responsive
+   ========================================== */
+
+/* ========================================
+   1. PANEL & TOGGLE
+   ======================================== */
+
+.minimap-panel {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateX(100%) translateY(-50%);
+    width: 286px;
+    max-height: 80vh;
+    z-index: 100;
+    transition: transform 0.3s ease;
+    overflow: visible;
+}
+
+.minimap-content {
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(12px);
+    border-radius: 12px 0 0 12px;
+    padding: 1rem;
+    max-height: 80vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.minimap-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.minimap-content::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+}
+
+.minimap-panel.open {
+    transform: translateX(0) translateY(-50%);
+}
+
+.minimap-toggle {
+    position: absolute;
+    left: -36px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 64px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(12px);
+    border: none;
+    border-radius: 8px 0 0 8px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+    padding: 0;
+}
+
+.minimap-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    transform: translateY(-50%);
+}
+
+.minimap-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.minimap-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* ========================================
+   2. BLOCK CONTAINER & BLOCKS
+   ======================================== */
+
+.minimap-blocks {
+    display: flex;
+    gap: 5px;
+    align-items: flex-start;
+}
+
+.minimap-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.minimap-full-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.minimap-full-section:empty {
+    margin-top: 0;
+}
+
+.minimap-block {
+    border-radius: 4px;
+    cursor: grab;
+    transition: opacity 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+    min-height: 34px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    user-select: none;
+    touch-action: none;
+}
+
+.minimap-block:hover {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.minimap-block:active {
+    cursor: grabbing;
+}
+
+/* Full-width blocks span the full minimap width */
+.minimap-block.mm-full {
+    width: 100%;
+}
+
+/* Collapsed indicator */
+.minimap-block.mm-collapsed {
+    min-height: 21px;
+    opacity: 0.5;
+}
+
+/* ========================================
+   3. BLOCK LABELS & BADGES
+   ======================================== */
+
+.minimap-block-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.minimap-block-count {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1;
+}
+
+/* ========================================
+   4. DRAG STATES
+   ======================================== */
+
+.minimap-block.mm-dragging {
+    opacity: 0.4;
+    box-shadow: none;
+}
+
+.minimap-drop-indicator {
+    height: 3px;
+    background: rgba(100, 181, 246, 0.8);
+    border-radius: 2px;
+    transition: opacity 0.15s;
+}
+
+/* ========================================
+   5. RESPONSIVE
+   ======================================== */
+
+@media (max-width: 768px) {
+    .minimap-panel {
+        display: none;
+    }
+}

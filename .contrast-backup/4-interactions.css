@@ -210,18 +210,6 @@
 }
 
 .modal-content {
-    /* Modals are a consistently dark surface in BOTH themes. Their content is
-       designed dark-native (white text, dark translucent input fills), so in
-       light mode that content was invisible on a white card. Re-scoping the
-       theme variables to their dark values here makes every modal-internal
-       element — themed chrome AND the dark-native components — render with
-       correct contrast in both light and dark mode. */
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --bg-card: #2d2d2d;
-    --text-primary: #ffffff;
-    --text-secondary: #b0b0b0;
-    --border-color: #404040;
     background-color: var(--bg-card);
     padding: 2rem;
     border-radius: 12px;

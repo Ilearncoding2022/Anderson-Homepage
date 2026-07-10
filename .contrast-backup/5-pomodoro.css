@@ -56,18 +56,6 @@
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(5px);
-    padding: 5px;            /* inset the icon image from the round edge */
-}
-
-/* Pomodoro.png used as the toggle button's icon */
-.pomodoro-btn-icon {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: center;
-    display: block;
-    pointer-events: none;
-    user-select: none;
 }
 
 .pomodoro-toolbar-btn:hover {
@@ -108,36 +96,33 @@
 }
 
 .header-left .pomodoro-toolbar-btn {
-    /* Enlarged ~3× — the single, primary control, shown as a clean Pomodoro.png
-       icon with NO button chrome at rest (transparent background + border). */
+    /* Enlarged ~3× — this is now the single, primary control */
     width: 64px;
     height: 64px;
-    background: transparent;
-    border: 1px solid transparent;
+    font-size: 40px;
+    line-height: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     backdrop-filter: none;
 }
 
 .header-left .pomodoro-toolbar-btn:hover {
-    background: rgba(127, 127, 127, 0.18);
-    border-color: transparent;
-    transform: scale(1.08);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    transform: scale(1.05);
 }
 
-/* The legacy floating-toolbar styles (near the end of this file) add a dark
-   container box and a grey button disc in dark mode; cancel them so the header
-   icon shows on its own. Higher specificity wins over those [data-theme] rules. */
-[data-theme="dark"] .header-left .pomodoro-toolbar {
-    background: none;
-}
-
+/* In dark mode the default --border-color (#404040) is lighter than the
+   button's own background, making a hard ring. Soften it to a faint edge
+   that blends with the dark surroundings. */
 [data-theme="dark"] .header-left .pomodoro-toolbar-btn {
-    background: transparent;
-    border-color: transparent;
+    border-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .header-left .pomodoro-toolbar-btn:hover {
-    background: rgba(255, 255, 255, 0.14);
-    border-color: transparent;
+    border-color: var(--accent);
 }
 
 /* Live countdown shown beside the icon while the timer runs with the card hidden.
@@ -232,14 +217,6 @@
 
 .pomodoro-timer-progress.warning {
     stroke: #ff6b6b;
-}
-
-/* 10 equal dividers cut the ring into arc segments (each = 1/10 of the timer
-   length) as a visual cue. Drawn over both rings so the segmentation always
-   shows; a dark, mostly-opaque stroke notches the bright progress arc. */
-.pomodoro-timer-tick {
-    stroke: rgba(18, 18, 22, 0.9);
-    stroke-width: 4;
 }
 
 .pomodoro-timer-content {
@@ -965,13 +942,6 @@
     justify-content: center;
 }
 
-/* The timer card is dark-native (white text). On the white light-mode page its
-   translucent-black fill turns pale grey and the text disappears — give it a
-   dark glass base in light mode so it stays readable. Dark mode is unchanged. */
-[data-theme="light"] .pomodoro-card {
-    background: rgba(20, 20, 24, 0.86);
-}
-
 /* Two zones: [clock + controls]  |  [Quick Timer over Custom Time] */
 .pomodoro-card .pomodoro-container {
     width: 100%;
@@ -1033,9 +1003,8 @@
 .pomodoro-card .pomodoro-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 20px;   /* vertical spacing between Start / Reset / Skip */
+    gap: 0.5rem;
     flex-wrap: nowrap;
-    margin-left: -5px;          /* bring the button trio 5px closer to the clock */
 }
 
 .pomodoro-card .pomodoro-btn {

@@ -1,0 +1,36 @@
+# ==========================================================================
+# Personal data & secrets — NEVER commit these.
+# ==========================================================================
+
+# SQLite backup mirrors of localStorage: contain the live calendar proxy token,
+# the Apps Script deployment URL, secret ICS feed URLs, and all personal data.
+*.db
+
+# JSON data exports: proxy token is nulled, but these still hold secret ICS feed
+# URLs and all personal app data (websites, to-dos, pomodoro history).
+anderson-homepage-backup-*.json
+
+# Claude Code tooling & local settings. settings.json currently embeds a secret
+# ICS feed URL in its permission allowlist, and both settings files hold
+# machine-specific absolute paths.
+.claude/
+
+# ==========================================================================
+# Machine-specific / OS cruft
+# ==========================================================================
+*.lnk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+._*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Dependencies / temp (none used today, but guard against future tooling)
+node_modules/
+*.log

@@ -1,0 +1,549 @@
+/* ==========================================
+   7-TODO.CSS - To-Do List Card (v3.0)
+   A movable virtual-group card. Each task has a checkbox, inline-editable
+   text, an urgency badge, and a due date; tasks support one level of subtasks.
+   ========================================== */
+
+.todo-group {
+    border: 2px solid rgba(156, 39, 176, 0.35);
+    font-family: var(--todo-font-family, inherit);
+}
+
+/* Inputs and buttons don't inherit font-family by default, so the chosen card
+   font reaches every piece of text (task fields, badges, the date picker). */
+.todo-group input,
+.todo-group button,
+.todo-group .group-title {
+    font-family: inherit;
+}
+
+.todo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.todo-empty {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+}
+
+.todo-row {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- A single task / subtask row ---- */
+
+.todo-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.4rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.todo-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.todo-item.todo-sub {
+    margin-left: 1.6rem;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.25rem 0.4rem;
+}
+
+.todo-item.done .todo-text {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+/* Checkbox */
+.todo-check {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    accent-color: #ab47bc;
+    cursor: pointer;
+}
+
+.todo-item.todo-sub .todo-check {
+    width: 15px;
+    height: 15px;
+}
+
+/* Editable text — looks like plain text, behaves like an input */
+.todo-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: var(--todo-fs-item, 0.95rem);
+    padding: 0.2rem 0.35rem;
+}
+
+.todo-item.todo-sub .todo-text {
+    font-size: var(--todo-fs-sub, 0.88rem);
+}
+
+.todo-text:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.todo-text:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(171, 71, 188, 0.8);
+}
+
+.todo-text::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* ---- Urgency badge (cycles TBD → Trivial → Medium → Urgent) ---- */
+.todo-urgency {
+    flex: 0 0 auto;
+    font-size: var(--todo-fs-badge, 0.65rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    color: #fff;
+    white-space: nowrap;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.todo-urgency:hover { filter: brightness(1.15); }
+.todo-urgency:active { transform: scale(0.94); }
+
+/* Visible keyboard focus for the card's buttons and checkboxes */
+.todo-check:focus-visible,
+.todo-urgency:focus-visible,
+.todo-del:focus-visible {
+    outline: 2px solid rgba(206, 147, 216, 0.95);
+    outline-offset: 2px;
+}
+
+.todo-urgency.urg-tbd {
+    background: rgba(120, 144, 156, 0.35);
+    border-color: rgba(176, 190, 197, 0.5);
+    color: rgba(255, 255, 255, 0.85);
+}
+.todo-urgency.urg-trivial {
+    background: rgba(76, 175, 80, 0.4);
+    border-color: rgba(129, 199, 132, 0.6);
+}
+.todo-urgency.urg-medium {
+    background: rgba(255, 152, 0, 0.45);
+    border-color: rgba(255, 183, 77, 0.7);
+}
+.todo-urgency.urg-urgent {
+    background: rgba(244, 67, 54, 0.5);
+    border-color: rgba(239, 83, 80, 0.85);
+    animation: todo-urgent-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes todo-urgent-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+    50% { box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.35); }
+}
+
+/* ---- Due date ---- */
+.todo-date {
+    flex: 0 0 auto;
+    width: 8.4rem;
+    max-width: 36vw;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: var(--todo-fs-date, 0.78rem);
+    padding: 0.15rem 0.35rem;
+    color-scheme: dark; /* native picker uses a dark palette */
+}
+
+.todo-date:focus {
+    outline: none;
+    border-color: rgba(171, 71, 188, 0.8);
+}
+
+.todo-date.overdue {
+    border-color: rgba(244, 67, 54, 0.85);
+    background: rgba(244, 67, 54, 0.18);
+    color: #ffcdd2;
+}
+
+/* ---- Add-subtask (+) and delete (×) buttons ---- */
+.todo-addsub-btn,
+.todo-del {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    /* Center the +/× glyph precisely instead of relying on text baseline */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 1.1rem;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.todo-addsub-btn {
+    font-size: 1.25rem;
+}
+
+.todo-addsub-btn:hover {
+    background: rgba(171, 71, 188, 0.4);
+    color: #fff;
+}
+
+.todo-addsub-btn[aria-expanded="true"] {
+    background: rgba(171, 71, 188, 0.35);
+    color: #fff;
+}
+
+.todo-del:hover {
+    background: rgba(244, 67, 54, 0.3);
+    color: #fff;
+}
+
+/* The header archive button mirrors other group-action buttons */
+.todo-archive-btn {
+    font-size: 1rem;
+}
+
+/* ---- Add task / add subtask inputs ---- */
+.todo-add,
+.todo-subadd {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    padding: 0.4rem 0.55rem;
+    width: 100%;
+}
+
+.todo-add {
+    margin-top: 0.25rem;
+}
+
+.todo-subadd {
+    margin-left: 1.6rem;
+    width: calc(100% - 1.6rem);
+    font-size: 0.82rem;
+    padding: 0.3rem 0.5rem;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.todo-add:focus,
+.todo-subadd:focus {
+    outline: none;
+    border-style: solid;
+    border-color: rgba(171, 71, 188, 0.8);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.todo-add::placeholder,
+.todo-subadd::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.todo-subs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+/* Narrow cards: let text wrap the controls to a second line gracefully */
+@media (max-width: 640px) {
+    .todo-item {
+        flex-wrap: wrap;
+    }
+    .todo-text {
+        flex-basis: 100%;
+        order: 3;
+    }
+}
+
+/* ==========================================
+   ARCHIVE (deleted-item) views — shared by the header modal and Settings tab
+   ========================================== */
+
+.todo-archive-modal-content {
+    max-width: 640px;
+}
+
+.settings-hint {
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+    line-height: 1.4;
+}
+
+/* ==========================================
+   CARD FONT CONTROLS — Settings → To-Do / Calendar tabs
+   ========================================== */
+
+.font-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.font-family-field {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.font-family-label {
+    flex: 0 0 auto;
+    margin: 0;
+    font-weight: 600;
+}
+
+.font-family-select {
+    flex: 1 1 12rem;
+    min-width: 9rem;
+    background: rgba(0, 0, 0, 0.25);
+    color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.9rem;
+    color-scheme: dark;
+}
+
+.font-size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.font-size-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.font-size-label {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.88rem;
+}
+
+.font-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+
+.font-step-btn {
+    width: 1.6rem;
+    height: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.font-step-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.font-step-btn:active {
+    transform: scale(0.92);
+}
+
+.font-size-input {
+    width: 3.2rem;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.25);
+    color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.25rem 0.3rem;
+    font-size: 0.9rem;
+    color-scheme: dark;
+}
+
+.font-size-unit {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.8rem;
+}
+
+.font-reset-btn {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.font-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.font-step-btn:focus-visible,
+.font-size-input:focus-visible,
+.font-family-select:focus-visible,
+.font-reset-btn:focus-visible {
+    outline: 2px solid rgba(206, 147, 216, 0.95);
+    outline-offset: 2px;
+}
+
+.todo-archive-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.todo-archive-section {
+    margin-bottom: 1.25rem;
+}
+
+.todo-archive-heading {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin: 0 0 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.todo-archive-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.12);
+    margin-bottom: 0.4rem;
+}
+
+.todo-archive-main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.todo-archive-title {
+    color: var(--text-primary, #fff);
+    font-size: 0.95rem;
+    word-break: break-word;
+}
+
+.todo-archive-item.done .todo-archive-title {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.todo-archive-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+/* The badge is informational (not a control) in the archive */
+.todo-archive-meta .todo-urgency {
+    cursor: default;
+}
+
+.todo-archive-purge {
+    font-style: italic;
+}
+
+.todo-archive-parent {
+    padding: 0.05rem 0.4rem;
+    border-radius: 0.5rem;
+    background: rgba(156, 39, 176, 0.22);
+}
+
+.todo-archive-subs {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.todo-archive-subs li.done {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.todo-archive-actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.todo-archive-action {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.todo-archive-action.restore {
+    background: rgba(76, 175, 80, 0.35);
+    border-color: rgba(129, 199, 132, 0.6);
+    color: #fff;
+}
+
+.todo-archive-action.restore:hover {
+    background: rgba(76, 175, 80, 0.55);
+}
+
+.todo-archive-action.del-forever {
+    background: rgba(244, 67, 54, 0.25);
+    border-color: rgba(239, 83, 80, 0.6);
+    color: #fff;
+}
+
+.todo-archive-action.del-forever:hover {
+    background: rgba(244, 67, 54, 0.5);
+}
+
+.todo-archive-action:focus-visible {
+    outline: 2px solid rgba(206, 147, 216, 0.95);
+    outline-offset: 2px;
+}
