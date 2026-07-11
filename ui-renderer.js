@@ -799,7 +799,7 @@ const UIRenderer = {
         if (format === 'list') {
             const rows = events.map(ev => {
                 const title = Utils.sanitizeHTML(ev.title || 'Untitled');
-                const when = Utils.sanitizeHTML(cm._formatWhen(ev, tz));
+                const when = Utils.sanitizeHTML(cm._formatWhen(ev, tz, true));
                 const t = Utils.sanitizeHTML(timeText(ev));
                 const start = new Date(ev.start).getTime();
                 return `
@@ -1106,7 +1106,7 @@ const UIRenderer = {
                 const evObj = { title, description: desc.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'"),
                     location: loc.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'"),
                     start, end, allDay };
-                const zones = cm.formatEventTimeZones(evObj);
+                const zones = cm.formatEventTimeZones(evObj, true);
                 timesHTML = zones.map(z => `
                     <div class="cal-detail-tz">
                         <span class="cal-detail-tz-label">${Utils.sanitizeHTML(z.label)}</span>

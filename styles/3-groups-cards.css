@@ -614,7 +614,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    width: 187px;
+    width: 215px;   /* widened 15% from 187px; .calendar-event-details (flex:1) absorbs it */
     flex-shrink: 0;
 }
 
@@ -740,7 +740,10 @@
     align-items: flex-end;
     justify-content: center;
     gap: 0.05rem;
-    min-width: 58px;
+    /* Fixed width so every row's countdown column aligns, sized to fit the
+       widest value line ("##h ##m") without wrapping. */
+    width: 84px;
+    box-sizing: border-box;
     padding-left: 0.6rem;
     border-left: 1px solid rgba(255, 255, 255, 0.12);
     font-size: 0.95rem;

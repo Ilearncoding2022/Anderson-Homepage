@@ -1601,22 +1601,29 @@ const CalendarManager = {
     },
 
     // Build the per-zone "date + time" lines for one event: [{ label, when }, ...].
-    // When grouped by a zone, that zone's row is shown first.
-    formatEventTimeZones(ev) {
+    // When grouped by a zone, that zone's row is shown first. `withDate` appends
+    // the weekday/calendar date to relative (Today/Tomorrow) days.
+    formatEventTimeZones(ev, withDate = false) {
         const zones = this._displayTimezones();
         const groupId = this.getGroupingTimezone();
         if (groupId) {
             const idx = zones.findIndex(z => z.id === groupId);
             if (idx > 0) zones.unshift(zones.splice(idx, 1)[0]);
         }
+        // Relative labels (Today/Yesterday/Tomorrow) are anchored to ONE reference
+        // zone — the grouping/anchor zone — so a single event reads coherently
+        // across rows (grouped by VN: VN "Today", an earlier PDT date "Yesterday")
+        // instead of every row saying "Today" against its own local date.
+        const refTz = this.getAnchorTimezone();
         return zones.map(z => ({
             label: z.label,
-            when: this._formatWhen(ev, z.id)
+            when: this._formatWhen(ev, z.id, withDate, refTz)
         }));
     },
 
-    // Date + time indicator for a single event in a single zone.
-    _formatWhen(ev, tz) {
+    // Date + time indicator for a single event in a single zone. `refTz` is the
+    // zone whose "today" the relative labels are measured against (defaults to tz).
+    _formatWhen(ev, tz, withDate = false, refTz = tz) {
         const start = new Date(ev.start);
         const end = ev.end ? new Date(ev.end) : start;
 
@@ -1624,35 +1631,42 @@ const CalendarManager = {
             // ICS all-day end is exclusive, so the last visible day is end - 1 day.
             const lastDay = new Date(end.getTime() - 86400000);
             if (end <= start || this._dateOnly(start, tz) === this._dateOnly(lastDay, tz)) {
-                return `${this._dayIndicator(start, tz)} (All)`;
+                return `${this._dayIndicator(start, tz, withDate, refTz)} (All)`;
             }
-            return `${this._dayIndicator(start, tz)} → ${this._dayIndicator(lastDay, tz)} (All)`;
+            return `${this._dayIndicator(start, tz, withDate, refTz)} → ${this._dayIndicator(lastDay, tz, withDate, refTz)} (All)`;
         }
 
         const startTime = this._timeStr(start, tz);
         const endTime = this._timeStr(end, tz);
         if (this._dateOnly(start, tz) === this._dateOnly(end, tz)) {
-            return `${this._dayIndicator(start, tz)} · ${startTime}–${endTime}`;
+            return `${this._dayIndicator(start, tz, withDate, refTz)} · ${startTime}–${endTime}`;
         }
         // Crosses midnight in this zone
-        return `${this._dayIndicator(start, tz)} ${startTime} → ${this._dayIndicator(end, tz)} ${endTime}`;
+        return `${this._dayIndicator(start, tz, withDate, refTz)} ${startTime} → ${this._dayIndicator(end, tz, withDate, refTz)} ${endTime}`;
     },
 
-    // 'Today' | 'Tomorrow' | 'Yesterday' | 'Mon Jun 1', computed in the given zone.
-    _dayIndicator(date, tz) {
+    // Non-relative: 'Mon, Jun 1'. Relative days: 'Today' (compact) or, when
+    // withDate is set, 'Today · Mon, Jun 1'. Computed in the given zone, so the
+    // date is correct per timezone. List-view rows stay compact (withDate false);
+    // the detail modal and day-view date fields pass withDate true.
+    _dayIndicator(date, tz, withDate = false, refTz = tz) {
         const now = new Date();
-        const dStr = this._dateOnly(date, tz);
-        const rel = (offset) => {
-            const d = new Date(now);
-            d.setDate(now.getDate() + offset);
-            return this._dateOnly(d, tz);
-        };
-        if (dStr === this._dateOnly(now, tz)) return 'Today';
-        if (dStr === rel(1)) return 'Tomorrow';
-        if (dStr === rel(-1)) return 'Yesterday';
+        const dStr = this._dateOnly(date, tz);            // event's calendar date in the row zone
+        // "Today" is measured against refTz's current date, so every row of one
+        // event shares a single reference day. Yesterday/Tomorrow via UTC
+        // date-string arithmetic off that reference (DST-immune).
+        const todayStr = this._dateOnly(now, refTz);
+        const [ry, rm, rd] = todayStr.split('-').map(Number);
+        const shift = (n) => this._dateOnly(new Date(Date.UTC(ry, rm - 1, rd + n)), 'UTC');
         const opts = { weekday: 'short', month: 'short', day: 'numeric' };
         if (tz) opts.timeZone = tz;
-        return date.toLocaleDateString('en-US', opts);
+        const abs = date.toLocaleDateString('en-US', opts);
+        let label = null;
+        if (dStr === todayStr) label = 'Today';
+        else if (dStr === shift(1)) label = 'Tomorrow';
+        else if (dStr === shift(-1)) label = 'Yesterday';
+        if (!label) return abs;
+        return withDate ? `${label} · ${abs}` : label;
     },
 
     _dateOnly(date, tz) {
