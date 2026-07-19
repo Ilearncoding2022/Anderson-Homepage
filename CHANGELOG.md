@@ -1,9 +1,51 @@
 # Changelog
 
 All notable changes to **Anderson Homepage** are documented here.
-This project does not use a build pipeline or git history, so dates are based on
-the development timeline; some earlier entries are reconstructed from the codebase
-and file timestamps (see the note under v3.0).
+  There is no build pipeline, and the earliest entries predate this project's git
+  history — their dates come from the development timeline and file timestamps,
+  and some are reconstructed from the codebase (see the note under v3.0).
+
+## [v4.5] — 2026-07-19
+
+### Calendar — a current-time line you can trust
+- **Honest "now" marker (fix):** in the hour-grid timeline, long stretches with
+  nothing booked collapse into a single **no events** band so the day stays
+  readable. The current-time line was being squeezed inside that band — at 17:56
+  with nothing until 19:00, the marker sat a few pixels above the 19:00 events, as
+  though they were minutes away when a full hour still remained. The hour you are
+  currently in now always keeps its full height, so the distance from the line down
+  to the next event reflects the time actually left.
+- **Easier to pick out:** the marker is now a blinking black-and-white bar under a
+  red glow with a ringed dot, so it reads as a live indicator rather than one more
+  coloured rule among the event blocks. It holds still if your system asks for
+  reduced motion.
+- **Keeps your place:** scrolling the timeline is no longer undone by the automatic
+  background refresh. When you haven't scrolled it yourself, the view still settles
+  on the current time.
+
+### Calendar — clearer dates across time zones
+- **Weekday and date on event times (new):** relative days now carry the real
+  weekday and date — **Today · Sat, Jul 11 · 11:00–12:00** — in the event detail
+  view and the upcoming-events bar. List rows stay compact (**Today · 11:00–12:00**).
+- **Correct Today / Yesterday per zone (fix):** the relative label is measured
+  against the grouping zone's current day, so one event reads coherently down the
+  rows — grouped by Vietnam time it can show VN **Today** beside an earlier Pacific
+  date as **Yesterday** — instead of every row claiming **Today** against its own
+  zone. The underlying day maths is now immune to daylight-saving shifts.
+- **Roomier list columns:** the time-zone and date column is 15% wider, and the
+  countdown column is sized so **##h ##m** never wraps.
+
+### Calendar — renamed, with a month of history
+- **Renamed to "Calendar":** the card and its minimap label no longer say
+  "Upcoming Events", since the day and timeline views show past days too.
+- **30 days of past events (new):** those views page back through a month of
+  history instead of a single week.
+- **The ticker always scrolls:** when only a few events were upcoming the marquee
+  used to sit still; it now repeats them so it scrolls smoothly at a steady speed
+  whatever the content. Reduced-motion settings still get a static row.
+
+> The 30-day look-back also needs the Apps Script proxy redeployed
+> (`apps-script/Code.gs`) to take effect; until then the window stays at 7 days.
 
 ## [v4.4] — 2026-06-11
 
