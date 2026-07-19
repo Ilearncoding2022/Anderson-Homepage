@@ -1380,15 +1380,37 @@ const CalendarManager = {
             rangeEndMin = Math.min(1440, Math.ceil(maxEnd / 60) * 60);
             if (rangeEndMin - rangeStartMin < 60) rangeEndMin = Math.min(1440, rangeStartMin + 60);
         }
+        // One "now" reading shared by the gap exclusion below and the now-line
+        // position further down — two Date.now() calls could straddle a minute
+        // boundary and disagree about which hour slot to keep uncollapsed.
+        const nowMs = Date.now();
+        // Today comes from the window's own isToday flag rather than a 24h span
+        // off dayStart: a spring-forward day is 23h long, so [dayStart, +24h)
+        // overlaps the NEXT day's first hour and a find() over those spans puts
+        // the dial on yesterday's column between 00:00 and 01:00. isToday is
+        // computed from _dateOnly(now, tz) in getDayViewWindow, so it is exact.
+        const nowDay = perDay.find(pd => pd.day.isToday);
+        const nowMin = nowDay ? (nowMs - nowDay.dayStart) / 60000 : null;
+        const nowSlot = (nowMin != null && nowMin >= rangeStartMin && nowMin <= rangeEndMin)
+            ? Math.floor(nowMin / 60) * 60
+            : null;
+
         // Merged free stretches: 2+ consecutive hour slots with no timed event on
         // ANY visible day. Detected BEFORE positioning because each stretch is
         // COLLAPSED to a single reduced-height row in the display, which warps
         // the minutes→pixels mapping for everything positioned below it.
+        //
+        // The slot holding `now` is force-excluded: inside a collapsed band a
+        // 7-hour free stretch is only ~43px tall, so 17:56 would land a few
+        // pixels above the 19:00 events and misread as "next event imminent".
+        // Keeping that one hour full-height puts the dial at its true position.
+        // Free runs left over on either side still collapse if they are >= 2h.
         const GAP_ROW_MIN = 39;   // a merged gap renders at 65% of an hour-row
         const rawGaps = [];
         let runStart = null;
         for (let m = rangeStartMin; m <= rangeEndMin; m += 60) {
             const free = m < rangeEndMin
+                && m !== nowSlot
                 && !perDay.some(pd => pd.timed.some(t => t.startMin < m + 60 && t.endMin > m));
             if (free) { if (runStart === null) runStart = m; continue; }
             if (runStart !== null && m - runStart >= 120) {
@@ -1425,7 +1447,6 @@ const CalendarManager = {
             hours.push({ min: m, label: String(Math.floor(m / 60)).padStart(2, '0'), topPct: pct(m) });
         }
 
-        const nowMs = Date.now();
         const days2 = perDay.map(pd => {
             // Lane-pack overlapping timed events. Events are already sorted by start
             // (bucketEventsForDayView). We first split the day into connected overlap
@@ -1461,9 +1482,8 @@ const CalendarManager = {
             flush();
             // Current-time indicator on the day the wall-clock now falls in.
             let nowTopPct = null;
-            if (nowMs >= pd.dayStart && nowMs < pd.dayStart + DAY_MS) {
-                const nm = (nowMs - pd.dayStart) / 60000;
-                if (nm >= rangeStartMin && nm <= rangeEndMin) nowTopPct = pct(nm);
+            if (pd === nowDay && nowMin >= rangeStartMin && nowMin <= rangeEndMin) {
+                nowTopPct = pct(nowMin);
             }
             return { day: pd.day, allDay: pd.allDay, timed: positioned, nowTopPct };
         });

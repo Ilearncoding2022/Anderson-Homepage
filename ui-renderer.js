@@ -62,6 +62,7 @@ const UIRenderer = {
         // A full re-render also detaches the calendar card, so clear any open
         // legend/view-menu document listeners here too (not just renderCalendarCard).
         this._teardownCalendarMenus();
+        const tlScroll = this._readTimelineScroll();
 
         // Commit any in-progress To-Do text edit before we replace the DOM. A
         // re-render triggered while a field is focused (e.g. an async calendar
@@ -205,6 +206,8 @@ const UIRenderer = {
 
         // Size the upcoming-event ticker (render() doesn't run matchCalendarHeight).
         this._sizeUpcomingTicker();
+
+        this._applyTimelineScroll(tlScroll);
     },
 
     // ---- Scoped update: regenerate only the To-Do card in place ----
@@ -280,6 +283,7 @@ const UIRenderer = {
         // that capture soon-to-be-detached card nodes. Tear them down before
         // replacing the card so no orphaned handler survives a re-render.
         this._teardownCalendarMenus();
+        const tlScroll = this._readTimelineScroll();
 
         const html = this.createCalendarSection();
         const tpl = document.createElement('div');
@@ -291,6 +295,7 @@ const UIRenderer = {
 
         // Height must be re-evaluated now that the content changed.
         this.matchCalendarHeight();
+        this._applyTimelineScroll(tlScroll);
         // No Minimap.render() — the calendar block's position hasn't moved.
     },
 
@@ -546,6 +551,7 @@ const UIRenderer = {
     refreshCalendarEventsAndLegend(focusIndex) {
         const card = document.querySelector('.calendar-group');
         if (!card) { this.renderCalendarCard(); return; }
+        const tlScroll = this._readTimelineScroll();
         const container = card.querySelector('.calendar-events-container');
         if (container) container.innerHTML = this._calendarContentHTML();
         const list = card.querySelector('.cal-legend-pop-list');
@@ -557,6 +563,7 @@ const UIRenderer = {
             if (focusIndex != null) list.querySelectorAll('.cal-legend-toggle')[focusIndex]?.focus();
         }
         this.matchCalendarHeight();
+        this._applyTimelineScroll(tlScroll);
     },
 
     // View picker: a menu-button dropdown (3-Day / 5-Day / Week / List). Replaces
@@ -1837,6 +1844,55 @@ const UIRenderer = {
         const minH = heightSetting === 'auto' ? 150 : 60;
         const maxH = Math.max(minH, targetHeight - overhead);
         eventsContainer.style.maxHeight = maxH + 'px';
+    },
+
+    // ---- Timeline scroll position -------------------------------------------
+    // The hour-grid timeline scrolls internally, and every calendar re-render
+    // (including the periodic background fetch) rebuilds it from scratch. Read
+    // the outgoing scrollTop BEFORE the rebuild and hand it back to
+    // _applyTimelineScroll afterwards, so a refresh never yanks the view out
+    // from under someone who scrolled somewhere deliberately.
+    _readTimelineScroll() {
+        const tl = document.querySelector('.calendar-group .calendar-timeline');
+        return tl ? tl.scrollTop : null;
+    },
+
+    // Anchor the viewport on the current-time line when the outgoing timeline was
+    // still sitting exactly where we last anchored it (i.e. the user never
+    // scrolled it) or when there was no timeline at all — the first render of the
+    // session, or the timeline having just been switched on. The now-line is
+    // placed from the calendar's configured timezone, so the landing spot follows
+    // that timezone. Otherwise the user's own position wins.
+    //
+    // Re-anchoring rather than replaying the pixel value matters on the refresh
+    // after the first fetch: the event data changes the compressed hour mapping,
+    // so the old pixel offset no longer points at the same hour. The mapping is
+    // also time-dependent — the hour holding "now" is kept uncollapsed, so the
+    // grid re-flows whenever the clock crosses an hour into or out of a gap.
+    //
+    // Runs in rAF — the timeline needs its final height (matchCalendarHeight) and
+    // layout before scrollTop means anything.
+    _applyTimelineScroll(prev) {
+        const userMoved = prev != null
+            && (this._calTlAnchoredTop == null || Math.abs(prev - this._calTlAnchoredTop) > 1);
+
+        requestAnimationFrame(() => {
+            const tl = document.querySelector('.calendar-group .calendar-timeline');
+            if (!tl) return;
+            if (userMoved) { tl.scrollTop = prev; return; }
+
+            const now = tl.querySelector('.cal-tl-now');
+            if (!now) return;   // "now" isn't inside the rendered window — leave it at the top
+
+            // Distance from the scroll box's top edge to the now-line, in its
+            // current scroll state. Landing it ~35% down the viewport keeps the
+            // preceding hour visible and clears the sticky day headers.
+            const delta = now.getBoundingClientRect().top - tl.getBoundingClientRect().top;
+            tl.scrollTop += delta - tl.clientHeight * 0.35;
+            // Record where it actually landed (the browser clamps to the scroll
+            // range) so the next render can tell our scroll from the user's.
+            this._calTlAnchoredTop = tl.scrollTop;
+        });
     },
 
     // Keep the ticker scrolling in every case. The translateX(-50%) marquee only

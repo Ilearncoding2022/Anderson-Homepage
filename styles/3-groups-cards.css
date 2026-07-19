@@ -1682,26 +1682,54 @@
     white-space: nowrap;
 }
 
-/* Current-time indicator on the today column. */
+/* Current-time indicator on the today column: a two-stripe black/white bar under
+   a red glow. The stripes swap twice a second, so it reads as a blinking marker
+   rather than just another coloured rule among the event blocks; the black/white
+   pair also separates it from the green event blocks it sits against. */
 .cal-tl-now {
     position: absolute;
     left: 0;
     right: 0;
-    height: 2px;
-    background: #ff5252;
-    box-shadow: 0 0 4px rgba(255, 82, 82, 0.7);
+    height: 4px;
+    background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%);
+    box-shadow: 0 0 6px 1px rgba(255, 23, 68, 0.85);
     z-index: 2;
+    animation: cal-now-blink 1s steps(1, end) infinite;
+    pointer-events: none;
 }
 
 .cal-tl-now::before {
     content: '';
     position: absolute;
-    left: -3px;
-    top: -2px;
-    width: 6px;
-    height: 6px;
+    left: -5px;
+    top: -3px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: #ff5252;
+    background: #000;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    box-shadow: 0 0 6px 1px rgba(255, 23, 68, 0.85);
+    animation: cal-now-dot-blink 1s steps(1, end) infinite;
+}
+
+/* Hard swap (steps(1)) rather than a cross-fade — the alternation is what makes
+   it read as blinking. The red glow stays lit throughout. */
+@keyframes cal-now-blink {
+    0% { background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%); }
+    50% { background: linear-gradient(to bottom, #fff 0 50%, #000 50% 100%); }
+}
+
+@keyframes cal-now-dot-blink {
+    0% { background: #000; border-color: #fff; }
+    50% { background: #fff; border-color: #000; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cal-tl-now,
+    .cal-tl-now::before {
+        animation: none;
+    }
 }
 
 /* Merged free-time bands: when 2+ consecutive hour slots are event-free across
