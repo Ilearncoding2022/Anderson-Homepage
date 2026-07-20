@@ -350,6 +350,9 @@ const UI = {
 
         const toast = document.createElement('div');
         toast.className = 'toast';
+        // Without a live region a toast is invisible to screen readers, so
+        // every confirmation in the app went unannounced.
+        toast.setAttribute('role', 'status');
         toast.textContent = message;
         document.body.appendChild(toast);
 

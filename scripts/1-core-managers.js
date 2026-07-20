@@ -538,12 +538,28 @@ const Storage = {
         }
 
         // ---- Virtual group positions ----
+        // Rebuilt field by field rather than stored as given: this record is
+        // read straight into layout decisions and into rendered markup, and an
+        // imported file is untrusted input like any other.
         if (data.virtualGroupPositions) {
             const vgp = typeof data.virtualGroupPositions === 'string'
                 ? Utils.safeJSONParse(data.virtualGroupPositions, null)
                 : data.virtualGroupPositions;
             if (vgp && typeof vgp === 'object' && !Array.isArray(vgp)) {
-                Utils.safeLocalStorageSet('virtualGroupPositions', JSON.stringify(vgp));
+                const clean = {};
+                for (const [key, val] of Object.entries(vgp)) {
+                    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+                    if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+                    const entry = {};
+                    const pos = Number(val.position);
+                    if (Number.isFinite(pos)) entry.position = pos;
+                    entry.column = Number(val.column) === 2 ? 2 : 1;
+                    if (val.width === 'full') entry.width = 'full';
+                    const h = Number(val.height);
+                    if (Number.isFinite(h) && h > 0) entry.height = Math.min(5000, Math.round(h));
+                    clean[key] = entry;
+                }
+                Utils.safeLocalStorageSet('virtualGroupPositions', JSON.stringify(clean));
             }
         }
 

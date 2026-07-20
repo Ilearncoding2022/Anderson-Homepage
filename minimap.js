@@ -30,6 +30,7 @@ const Minimap = {
                 <div class="minimap-header">
                     <span class="minimap-title">Layout</span>
                 </div>
+                <div class="minimap-full-section minimap-full-top"></div>
                 <div class="minimap-blocks">
                     <div class="minimap-col" data-col="1"></div>
                     <div class="minimap-col" data-col="2"></div>
@@ -43,7 +44,8 @@ const Minimap = {
         this._blocksContainer = panel.querySelector('.minimap-blocks');
         this._col1 = panel.querySelector('.minimap-col[data-col="1"]');
         this._col2 = panel.querySelector('.minimap-col[data-col="2"]');
-        this._fullSection = panel.querySelector('.minimap-full-section');
+        this._fullTopSection = panel.querySelector('.minimap-full-top');
+        this._fullSection = panel.querySelector('.minimap-full-section:not(.minimap-full-top)');
 
         panel.querySelector('.minimap-toggle').addEventListener('click', () => this.toggle());
     },
@@ -77,11 +79,11 @@ const Minimap = {
 
         // Calendar is always present
         const cv = vPos['__calendar__'] || {};
-        virtualGroups.push({ id: '__calendar__', name: 'Calendar', color: 'rgba(76, 175, 80, 0.2)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true });
+        virtualGroups.push({ id: '__calendar__', name: 'Calendar', color: 'rgba(76, 175, 80, 0.2)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true, _full: cv.width === 'full' });
 
         // To-Do is always present
         const tv = vPos['__todo__'] || {};
-        virtualGroups.push({ id: '__todo__', name: 'To-Do', color: 'rgba(156, 39, 176, 0.18)', position: tv.position ?? -1, column: tv.column ?? 1, _virtual: true });
+        virtualGroups.push({ id: '__todo__', name: 'To-Do', color: 'rgba(156, 39, 176, 0.18)', position: tv.position ?? -1, column: tv.column ?? 1, _virtual: true, _full: tv.width === 'full' });
 
         const allGroups = [...virtualGroups, ...AppState.groups];
         const sortedGroups = [...allGroups].sort((a, b) => {
@@ -92,12 +94,16 @@ const Minimap = {
 
         this._col1.innerHTML = '';
         this._col2.innerHTML = '';
+        this._fullTopSection.innerHTML = '';
         this._fullSection.innerHTML = '';
 
         sortedGroups.forEach(group => {
             const block = this._createBlock(group);
             if (group.id === 'ungrouped') {
                 this._fullSection.appendChild(block);
+            } else if (group._full) {
+                // Mirrors the page: full-width special cards band above the grid.
+                this._fullTopSection.appendChild(block);
             } else if (group.column === 2) {
                 this._col2.appendChild(block);
             } else {
@@ -115,7 +121,7 @@ const Minimap = {
         block.dataset.groupId = group.id;
 
         // Column class
-        if (group.id === 'ungrouped') {
+        if (group.id === 'ungrouped' || group._full) {
             block.classList.add('mm-full');
         } else if (group.column === 2) {
             block.classList.add('mm-half', 'mm-col-2');
@@ -171,7 +177,7 @@ const Minimap = {
         const heights = [];
         blocks.forEach(block => {
             const groupId = block.dataset.groupId;
-            const groupEl = document.querySelector(`.app-group[data-group-id="${groupId}"]`);
+            const groupEl = document.querySelector(`.app-group[data-group-id="${CSS.escape(groupId)}"]`);
             const h = groupEl ? groupEl.offsetHeight : 100;
             heights.push({ block, h, groupId });
         });
@@ -186,7 +192,14 @@ const Minimap = {
             const col2g2 = col2Blocks[1].dataset.groupId;
             const h1 = heights.find(x => x.groupId === col2g1)?.h || 100;
             const h2 = heights.find(x => x.groupId === col2g2)?.h || 100;
-            const calEntry = heights.find(x => x.groupId === '__calendar__');
+            // Only meaningful while the calendar is actually sharing the right
+            // column and letting 'auto' size it. Once it is full-width or
+            // carries a hand-dragged height, its measured height is the truth.
+            const calLayout = window.UIRenderer?._getCardLayout?.('__calendar__') || {};
+            const calAutoSized = calLayout.width !== 'full'
+                && calLayout.height == null
+                && (window.CalendarManager?.getHeight?.() || 'auto') === 'auto';
+            const calEntry = calAutoSized ? heights.find(x => x.groupId === '__calendar__') : null;
             if (calEntry) {
                 // Use the actual combined height of the 2 right-column groups
                 const columns = document.querySelectorAll('.groups-column');
@@ -377,20 +390,10 @@ const Minimap = {
         }
     },
 
-    _collectOrder() {
-        // Collect order from both columns + full section
-        const order = [];
-        const collect = (container) => {
-            for (const child of container.children) {
-                if (child.classList.contains('minimap-block') && child.dataset.groupId) {
-                    order.push(child.dataset.groupId);
-                }
-            }
-        };
-        collect(this._col1);
-        collect(this._col2);
-        collect(this._fullSection);
-        return order;
+    // Re-measure block heights against the live cards without rebuilding the
+    // blocks. Used after a card resize, where only the proportions changed.
+    syncHeights() {
+        if (this._panel) this._measureGroupHeights();
     },
 
     _reorderGroups() {
@@ -411,6 +414,12 @@ const Minimap = {
                 if (id.startsWith('__')) {
                     const existing = vPos[id] || {};
                     vPos[id] = { ...existing, position: pos, column: effectiveCol };
+                    // Landing in a column IS the gesture for leaving the
+                    // full-width band — otherwise the drop indicator tracks the
+                    // pointer, the toast says "Layout updated", and the card
+                    // doesn't move. Only for the card actually dragged: every
+                    // other virtual group here was already in a column.
+                    if (id === draggedId) vPos[id].width = 'column';
                 } else {
                     const group = GroupManager.getById(id);
                     if (group) {
@@ -447,6 +456,23 @@ const Minimap = {
             assignFromContainer(this._col2, 2);
         }
 
+        // Full-width special cards band above the grid, so they keep positions
+        // low — which also lands them near the top of a column if their width
+        // is later toggled back.
+        let topPos = -100;
+        for (const child of this._fullTopSection.children) {
+            if (!child.classList.contains('minimap-block')) continue;
+            const id = child.dataset.groupId;
+            if (!id || !id.startsWith('__')) continue;
+            // A block being dragged out of the band is still parented here
+            // (it's floated with position:fixed, not reparented). Skip it, or
+            // this loop would undo the column assignment made above.
+            if (id === draggedId) continue;
+            const existing = vPos[id] || {};
+            vPos[id] = { ...existing, position: topPos };
+            topPos++;
+        }
+
         // Full-width groups keep their positions high
         let fullPos = 100;
         for (const child of this._fullSection.children) {
@@ -472,7 +498,7 @@ const Minimap = {
     },
 
     _scrollToGroup(groupId) {
-        const groupEl = document.querySelector(`.app-group[data-group-id="${groupId}"]`);
+        const groupEl = document.querySelector(`.app-group[data-group-id="${CSS.escape(groupId)}"]`);
         if (groupEl) {
             groupEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             // Brief highlight

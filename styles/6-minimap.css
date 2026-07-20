@@ -136,6 +136,16 @@
     margin-top: 0;
 }
 
+/* The band above the columns (full-width Calendar / To-Do) spaces downward. */
+.minimap-full-top {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.minimap-full-top:empty {
+    margin-bottom: 0;
+}
+
 .minimap-block {
     border-radius: 4px;
     cursor: grab;

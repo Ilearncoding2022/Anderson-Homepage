@@ -13,8 +13,13 @@ const UIRenderer = {
     _getVirtualPositions() {
         const saved = localStorage.getItem('virtualGroupPositions');
         const raw = saved ? (Utils.safeJSONParse(saved, {}) || {}) : {};
-        const result = {};
+        // Null-prototype result, and skip the keys that would hit an
+        // Object.prototype setter instead of defining an own property: this
+        // record is user-editable and can also arrive from an imported
+        // settings file, so "__proto__" is reachable here.
+        const result = Object.create(null);
         for (const [id, val] of Object.entries(raw)) {
+            if (id === '__proto__' || id === 'constructor' || id === 'prototype') continue;
             if (typeof val === 'number') {
                 result[id] = { position: val, column: 1 };
             } else if (val && typeof val === 'object') {
@@ -26,6 +31,117 @@ const UIRenderer = {
 
     _saveVirtualPositions(positions) {
         Utils.safeLocalStorageSet('virtualGroupPositions', JSON.stringify(positions));
+    },
+
+    // ---- Special-card layout (Calendar / To-Do) -----------------------------
+    // These two cards can step out of the two-column grid ('full' width, drawn
+    // as a band above the columns) and can carry a hand-dragged pixel height
+    // that overrides whatever automatic sizing they would otherwise get. Both
+    // live in the same virtualGroupPositions record as position/column, so they
+    // ride along with export/import, the SQLite backup and minimap drags for
+    // free (every writer there merges with a spread rather than replacing).
+    SPECIAL_CARD_IDS: ['__calendar__', '__todo__'],
+    MIN_CARD_HEIGHT: 140,
+
+    // Both fields are normalised on the way out, so every consumer gets either a
+    // usable value or a clean null — nothing downstream has to re-validate.
+    _getCardLayout(id) {
+        const v = this._getVirtualPositions()[id] || {};
+        const h = Number(v.height);
+        return {
+            width: v.width === 'full' ? 'full' : 'column',
+            height: Number.isFinite(h) && h > 0 ? this._clampCardHeight(h) : null
+        };
+    },
+
+    // Validates on the way in as well: this record is reachable from a settings
+    // import, and a bad value written here would persist across sessions.
+    _setCardLayout(id, patch) {
+        if (!this.SPECIAL_CARD_IDS.includes(id)) return;
+        const all = this._getVirtualPositions();
+        const entry = { ...(all[id] || {}) };
+
+        if ('width' in patch) entry.width = patch.width === 'full' ? 'full' : 'column';
+        if ('height' in patch) {
+            const h = Number(patch.height);
+            // null / NaN / nonsense all mean "back to automatic". Removing the
+            // key rather than storing null keeps the record clean.
+            if (Number.isFinite(h) && h > 0) entry.height = this._clampCardHeight(h);
+            else delete entry.height;
+        }
+
+        all[id] = entry;
+        this._saveVirtualPositions(all);
+    },
+
+    // Tallest a card may be dragged. A card taller than the viewport can never
+    // be seen at once and its resize grip runs off the bottom of the screen.
+    _maxCardHeight() {
+        return Math.max(this.MIN_CARD_HEIGHT, Math.round(window.innerHeight * 0.9));
+    },
+
+    _clampCardHeight(px) {
+        return Math.min(this._maxCardHeight(), Math.max(this.MIN_CARD_HEIGHT, Math.round(px)));
+    },
+
+    // The scrollable inner region each special card sizes when its height changes.
+    _cardScrollRegion(cardEl) {
+        return cardEl?.querySelector('.calendar-events-container, .todo-list') || null;
+    },
+
+    // Everything in the card that isn't the scrollable region: header, vertical
+    // padding, borders — and the margins and gaps between them. Stored heights
+    // are OUTER card heights, so this comes off the top before the inner region
+    // is sized, which keeps a stored height meaning the same thing even when the
+    // header wraps to two lines at a different card width.
+    //
+    // Measured as "card minus region" rather than summed from its parts:
+    // offsetHeight excludes margins, so summing silently loses the header's
+    // margin-bottom and any future spacing, leaving the card several pixels off
+    // the size the user actually dragged. Zero when the card isn't laid out
+    // (hidden or detached) — nothing is on screen to size in that case anyway.
+    _cardOverhead(cardEl) {
+        const region = this._cardScrollRegion(cardEl);
+        const measured = region ? cardEl.offsetHeight - region.offsetHeight : 0;
+        return measured > 0 ? measured : 0;
+    },
+
+    // Size a card's scroll region so the card as a whole lands on `px` tall.
+    // This sets `height`, not just `max-height`: a max only ever caps a box, so
+    // on its own it could shrink a card but never let one be dragged taller
+    // than its own content. `max-height: none` goes with it so the stylesheet's
+    // default cap (38vh / 60vh) can't quietly win. Overflow stays `auto`, so
+    // content taller than the chosen size still scrolls.
+    _applyCardHeightPx(cardEl, px) {
+        const region = this._cardScrollRegion(cardEl);
+        if (!region) return;
+        const inner = this._clampCardHeight(px) - this._cardOverhead(cardEl);
+        region.style.height = Math.max(60, inner) + 'px';
+        region.style.maxHeight = 'none';
+        this._syncResizeHandleValue(cardEl);
+    },
+
+    // Drop an applied manual height, handing the region back to the stylesheet
+    // (or to the calendar's automatic sizing, which sets max-height itself).
+    _clearCardHeightPx(region) {
+        if (!region) return;
+        region.style.height = '';
+        region.style.maxHeight = '';
+    },
+
+    // The grip reports the card's height to assistive tech as a separator's
+    // value. It has to come from the laid-out card rather than the stored
+    // setting, because in automatic mode there is no stored number at all.
+    _syncResizeHandleValue(cardEl) {
+        const grip = cardEl?.querySelector('[data-card-action="resize"]');
+        if (!grip) return;
+        const px = Math.round(cardEl.offsetHeight);
+        grip.setAttribute('aria-valuenow', String(px));
+        grip.setAttribute('aria-valuemax', String(this._maxCardHeight()));
+        // valuetext carries the unit, and is the only place "automatic" is
+        // exposed as a state — a bare number would announce as just "304".
+        const isManual = this._getCardLayout(grip.dataset.cardId).height != null;
+        grip.setAttribute('aria-valuetext', isManual ? `${px} pixels` : `${px} pixels, automatic`);
     },
 
     // ---- Focus-restore helper shared by render() and renderTodoCard() ----
@@ -90,7 +206,7 @@ const UIRenderer = {
         const favorites = AppState.websites.filter(w => w.favorite);
         if (favorites.length > 0) {
             const fv = vPos['__favorites__'] || {};
-            const favGroup = { id: '__favorites__', name: '★ Favorites', color: 'rgba(255, 193, 7, 0.2)', position: fv.position ?? -3, column: fv.column ?? 1, collapsed: false, _virtual: true };
+            const favGroup = { id: '__favorites__', name: '★ Favorites', color: 'rgba(255, 193, 7, 0.2)', position: Number(fv.position) || -3, column: fv.column ?? 1, collapsed: false, _virtual: true };
             allEntries.push({ group: favGroup, websites: favorites, type: 'standard' });
         }
 
@@ -101,18 +217,18 @@ const UIRenderer = {
             .slice(0, 3);
         if (recentlyOpened.length > 0) {
             const rv = vPos['__recent__'] || {};
-            const recentGroup = { id: '__recent__', name: '🕐 Recently Opened', color: 'rgba(33, 150, 243, 0.2)', position: rv.position ?? -2, column: rv.column ?? 1, collapsed: false, _virtual: true };
+            const recentGroup = { id: '__recent__', name: '🕐 Recently Opened', color: 'rgba(33, 150, 243, 0.2)', position: Number(rv.position) || -2, column: rv.column ?? 1, collapsed: false, _virtual: true };
             allEntries.push({ group: recentGroup, websites: recentlyOpened, type: 'standard' });
         }
 
         // Calendar virtual group
         const cv = vPos['__calendar__'] || {};
-        const calGroup = { id: '__calendar__', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true };
+        const calGroup = { id: '__calendar__', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true, _full: cv.width === 'full' };
         allEntries.push({ group: calGroup, type: 'calendar' });
 
         // To-Do virtual group
         const tv = vPos['__todo__'] || {};
-        const todoGroup = { id: '__todo__', position: tv.position ?? -1, column: tv.column ?? 1, _virtual: true };
+        const todoGroup = { id: '__todo__', position: tv.position ?? -1, column: tv.column ?? 1, _virtual: true, _full: tv.width === 'full' };
         allEntries.push({ group: todoGroup, type: 'todo' });
 
         // Regular groups
@@ -134,7 +250,12 @@ const UIRenderer = {
             return (a.group.position || 0) - (b.group.position || 0);
         });
 
-        // Split entries into column 1, column 2, and full-width
+        // Split entries into the top full-width band, column 1, column 2, and
+        // the bottom full-width band. Calendar/To-Do opted into full width form
+        // the top band (a banner above the grid); Uncategorized keeps the
+        // bottom slot it has always had. Within the top band the cards keep
+        // their relative position order from the sort above.
+        const fullTopEntries = [];
         const col1Entries = [];
         const col2Entries = [];
         const fullEntries = [];
@@ -143,6 +264,8 @@ const UIRenderer = {
             const g = entry.group;
             if (g.id === 'ungrouped') {
                 fullEntries.push(entry);
+            } else if (g._full) {
+                fullTopEntries.push(entry);
             } else if (g.column === 2) {
                 col2Entries.push(entry);
             } else {
@@ -160,6 +283,7 @@ const UIRenderer = {
             return this.createGroupSection(entry.group, entry.websites);
         };
 
+        const fullTopHTML = fullTopEntries.map(renderEntry).join('');
         const col1HTML = col1Entries.map(renderEntry).join('');
         const col2HTML = col2Entries.map(renderEntry).join('');
         const fullHTML = fullEntries.map(renderEntry).join('');
@@ -173,6 +297,7 @@ const UIRenderer = {
 
         container.innerHTML = `
             <div class="groups-container">
+                ${fullTopHTML ? `<div class="groups-full-top">${fullTopHTML}</div>` : ''}
                 <div class="groups-columns" style="--col-left:${colLeft};--col-right:${colRight};">
                     <div class="groups-column">${col1HTML}</div>
                     <div class="groups-column">${col2HTML}</div>
@@ -190,10 +315,21 @@ const UIRenderer = {
         if (!this._delegationAttached) {
             this._attachDelegatedHandlers(container);
             this._attachTodoHandlers(container);
+            this._attachCardLayoutHandlers(container);
+            // A debounced height must not be lost to a reload or tab switch.
+            window.addEventListener('pagehide', () => this._flushCardHeightPersist());
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') this._flushCardHeightPersist();
+            });
             let resizeDebounce = null;
             window.addEventListener('resize', () => {
                 clearTimeout(resizeDebounce);
-                resizeDebounce = setTimeout(() => this.matchCalendarHeight(), 150);
+                resizeDebounce = setTimeout(() => {
+                    // Re-clamp both cards: the viewport ceiling on a manual
+                    // height moves with the window.
+                    this.matchCalendarHeight();
+                    this.matchTodoHeight();
+                }, 150);
             });
             this._delegationAttached = true;
         }
@@ -207,6 +343,13 @@ const UIRenderer = {
         // Size the upcoming-event ticker (render() doesn't run matchCalendarHeight).
         this._sizeUpcomingTicker();
 
+        // Re-apply both cards' heights. render() replaced their DOM, so any
+        // manual height (and the calendar's automatic sizing) has to be put
+        // back here — most callers of render() don't follow it with anything
+        // else, and without this a dragged height silently reverts.
+        this.matchCalendarHeight();
+        this.matchTodoHeight();
+
         this._applyTimelineScroll(tlScroll);
     },
 
@@ -219,6 +362,10 @@ const UIRenderer = {
     renderTodoCard() {
         const container = document.getElementById('mainContainer');
         if (!container) { this.render(); return; }
+
+        // Replacing the card mid-drag would tear out the grip the pointer is
+        // captured on. Defer until the gesture ends.
+        if (this._cardDragActive()) { this._deferCardRender('__todo__'); return; }
 
         const existing = container.querySelector('.todo-group');
         if (!existing) { this.render(); return; }
@@ -237,6 +384,9 @@ const UIRenderer = {
         if (!newCard) { this.render(); return; }
 
         existing.replaceWith(newCard);
+
+        // The replacement card is fresh DOM — re-apply any manual height.
+        this.matchTodoHeight();
 
         // Restore focus inside the new card DOM
         this._restoreTodoFocus(newCard);
@@ -275,6 +425,11 @@ const UIRenderer = {
     renderCalendarCard() {
         const container = document.getElementById('mainContainer');
         if (!container) { this.render(); return; }
+
+        // A background refresh must not replace the card mid-drag — that would
+        // tear out the grip the pointer is captured on. Defer until the
+        // gesture ends; _flushDeferredRender picks it up.
+        if (this._cardDragActive()) { this._deferCardRender('__calendar__'); return; }
 
         const existing = container.querySelector('.calendar-group');
         if (!existing) { this.render(); return; }
@@ -381,7 +536,7 @@ const UIRenderer = {
         return `
             <div class="app-group ${collapsedClass} ${defaultClass} ${virtualClass}"
                  data-group-id="${safeId}"
-                 data-position="${group.position}"
+                 data-position="${Number(group.position) || 0}"
                  style="--card-tint: ${safeColor};">
                 <div class="group-header">
                     <div class="group-title-container">
@@ -472,6 +627,55 @@ const UIRenderer = {
     // CALENDAR SECTION
     // ========================================
 
+    // ---- Shared chrome for the two special cards ----------------------------
+    // Width toggle lives in .group-actions (revealed on hover/focus like the
+    // other group buttons); the resize grip sits in the card's bottom-right
+    // corner. The grip is a real <button> so it is reachable by keyboard —
+    // ↑/↓ resize it and Home clears back to automatic height.
+    // The accessible name stays fixed and aria-pressed carries the state, so a
+    // screen reader says "Full width, toggle button, pressed" rather than
+    // announcing the state twice (once inverted, as a state-dependent name and
+    // aria-pressed together would).
+    // Human label for each special card, used to tell the two otherwise
+    // identical sets of controls apart in the accessibility tree.
+    CARD_LABELS: { '__calendar__': 'Calendar', '__todo__': 'To-Do' },
+
+    _cardWidthButton(id) {
+        if (!this.SPECIAL_CARD_IDS.includes(id)) return '';
+        const isFull = this._getCardLayout(id).width === 'full';
+        const title = isFull ? 'Return card to column width' : 'Expand card to full width';
+        // Name stays fixed and aria-pressed carries the state, so the state
+        // isn't announced twice (once inverted). The card name is included
+        // because both cards render an identical control.
+        return `<button type="button" class="group-action-btn card-width-btn${isFull ? ' is-full' : ''}"
+                        data-card-action="toggle-width" data-card-id="${id}"
+                        aria-pressed="${isFull}" title="${title}"
+                        aria-label="Full width — ${this.CARD_LABELS[id]}"><span aria-hidden="true">⇔</span></button>`;
+    },
+
+    // A separator rather than a button: this is the WAI-ARIA window-splitter
+    // pattern, which is what a resize grip actually is. A <button> would be
+    // wrong here — it advertises Enter/Space activation that a resize grip has
+    // no meaning for, and it can't report its current size.
+    //
+    // The name is kept short; the key instructions live in a description node
+    // so they aren't re-read in full on every focus and every value change.
+    _cardResizeHandle(id) {
+        if (!this.SPECIAL_CARD_IDS.includes(id)) return '';
+        const stored = this._getCardLayout(id).height;
+        const descId = `card-resize-help-${id.replace(/_/g, '')}`;
+        return `<div class="card-resize-handle" role="separator" tabindex="0"
+                     data-card-action="resize" data-card-id="${id}"
+                     aria-orientation="horizontal"
+                     aria-valuenow="${stored ?? this.MIN_CARD_HEIGHT}"
+                     aria-valuetext="${stored ? `${stored} pixels` : 'Automatic height'}"
+                     aria-valuemin="${this.MIN_CARD_HEIGHT}" aria-valuemax="${this._maxCardHeight()}"
+                     aria-label="${this.CARD_LABELS[id]} card height"
+                     aria-describedby="${descId}"
+                     title="Drag to set card height — ↑/↓ adjust, double-click or Home for automatic"><span aria-hidden="true">◢</span></div>
+                <span id="${descId}" class="sr-only">Arrow keys adjust the height, Page Up and Page Down move in larger steps, End is the tallest that fits, Home restores automatic height.</span>`;
+    },
+
     createCalendarSection(column) {
         const cm = window.CalendarManager;
         const isConfigured = cm?.state.isConfigured;
@@ -505,9 +709,12 @@ const UIRenderer = {
         // Build calendar legend from configured calendars
         const calendars = cm?.getCalendars() || [];
 
+        const calLayout = this._getCardLayout('__calendar__');
+
         return `
             <div class="app-group virtual-group calendar-group"
                  data-group-id="__calendar__"
+                 data-card-width="${calLayout.width}"
                  style="--card-tint: rgba(76, 175, 80, 0.2);">
                 <div class="group-header">
                     <div class="group-title-container">
@@ -521,10 +728,14 @@ const UIRenderer = {
                             ${fetchError ? `<span class="calendar-error-dot" title="${Utils.sanitizeHTML(fetchError)}">!</span>` : ''}
                         </div>
                     </div>
+                    <div class="group-actions">
+                        ${this._cardWidthButton('__calendar__')}
+                    </div>
                 </div>
                 <div class="calendar-events-container">
                     ${contentHTML}
                 </div>
+                ${this._cardResizeHandle('__calendar__')}
             </div>
         `;
     },
@@ -911,7 +1122,7 @@ const UIRenderer = {
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
-        const HOUR_H = 66;   // px per hour row
+        const HOUR_H = 46;   // px per hour row
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
         // one reduced-height row each, not their real length.
         const spanHours = model.displaySpanMin / 60;
@@ -1228,15 +1439,19 @@ const UIRenderer = {
             ? '<div class="todo-empty">No tasks yet — add one below.</div>'
             : '';
 
+        const todoLayout = this._getCardLayout('__todo__');
+
         return `
             <div class="app-group virtual-group todo-group"
                  data-group-id="__todo__"
+                 data-card-width="${todoLayout.width}"
                  style="--card-tint: rgba(156, 39, 176, 0.18);">
                 <div class="group-header">
                     <div class="group-title-container">
                         <div class="group-title">📝 To-Do <span class="group-count">(${remaining})</span></div>
                     </div>
                     <div class="group-actions">
+                        ${this._cardWidthButton('__todo__')}
                         <button type="button" class="group-action-btn todo-archive-btn" data-todo-action="open-archive"
                                 title="View deleted-item archive" aria-label="View deleted-item archive">🗄</button>
                     </div>
@@ -1247,6 +1462,7 @@ const UIRenderer = {
                     <input type="text" class="todo-add" data-todo-action="add-task"
                            placeholder="+ Add a task" aria-label="Add a task">
                 </div>
+                ${this._cardResizeHandle('__todo__')}
             </div>
         `;
     },
@@ -1798,22 +2014,58 @@ const UIRenderer = {
         this.matchCalendarHeight();
     },
 
-    // Dynamically set calendar events container height. In 'auto' mode it aligns
-    // with the first 2 groups in the right column; otherwise the user-selected
-    // multiplier sets the card height to that many single-row card heights.
+    // Dynamically set calendar events container height. A hand-dragged height
+    // wins outright; otherwise 'auto' mode aligns with the first 2 groups in the
+    // right column, and any other setting is a multiplier that sets the card
+    // height to that many single-row card heights.
     matchCalendarHeight() {
         const calendarGroup = document.querySelector('.calendar-group');
         const eventsContainer = calendarGroup?.querySelector('.calendar-events-container');
         if (!calendarGroup || !eventsContainer) return;
 
+        // Never fight an in-flight drag: the stored height is still the
+        // pre-drag value, so applying it here would snap the card back out
+        // from under the pointer. Checked before anything else so a drag really
+        // is a no-op here, ticker measurement included.
+        if (this._cardDragActive() && this._cardResize.id === '__calendar__') return;
+
         // Size the upcoming-event ticker here too — this runs on every card render
         // path and on the debounced window resize.
         this._sizeUpcomingTicker(calendarGroup);
+
+        this._applyCalendarHeight(calendarGroup, eventsContainer);
+
+        // Sized once here rather than at each return below: several of those
+        // exits are early (too few columns to measure against), and skipping
+        // the sync there left the grip reporting a stale height to assistive
+        // tech — it claimed the card was at its minimum when it wasn't.
+        this._syncResizeHandleValue(calendarGroup);
+    },
+
+    // The height ladder itself: manual > 'auto' (match the two cards alongside)
+    // > multiplier. Split out so every exit path gets the sync above.
+    _applyCalendarHeight(calendarGroup, eventsContainer) {
+        // A height dragged onto the card overrides both 'auto' and the
+        // multiplier. Clearing it (Home on the grip, or moving the settings
+        // slider) hands control back to the branches below.
+        const manual = this._getCardLayout('__calendar__').height;
+        if (manual != null) {
+            this._applyCardHeightPx(calendarGroup, manual);
+            return;
+        }
+
+        // No manual height in play — drop anything a previous drag left behind
+        // so the automatic sizing below is what actually takes effect.
+        this._clearCardHeightPx(eventsContainer);
 
         const heightSetting = window.CalendarManager?.getHeight?.() || 'auto';
 
         let targetHeight;
         if (heightSetting === 'auto') {
+            // 'Auto' means "as tall as the two cards beside me", which has no
+            // meaning once the calendar is a full-width band outside the grid —
+            // let the stylesheet's default height stand instead.
+            if (calendarGroup.dataset.cardWidth === 'full') return;
             // Measure combined height of first 2 right-column groups + gap between them
             const columns = document.querySelectorAll('.groups-column');
             if (columns.length < 2) return;
@@ -1832,18 +2084,26 @@ const UIRenderer = {
         }
 
         // Subtract the calendar group's non-scrollable parts (header, padding, border)
-        const calendarStyle = getComputedStyle(calendarGroup);
-        const calendarHeader = calendarGroup.querySelector('.group-header');
-        const headerHeight = calendarHeader ? calendarHeader.offsetHeight : 0;
-        const paddingTop = parseFloat(calendarStyle.paddingTop) || 0;
-        const paddingBottom = parseFloat(calendarStyle.paddingBottom) || 0;
-        const borderTop = parseFloat(calendarStyle.borderTopWidth) || 0;
-        const borderBottom = parseFloat(calendarStyle.borderBottomWidth) || 0;
-        const overhead = headerHeight + paddingTop + paddingBottom + borderTop + borderBottom;
-
         const minH = heightSetting === 'auto' ? 150 : 60;
-        const maxH = Math.max(minH, targetHeight - overhead);
+        const maxH = Math.max(minH, targetHeight - this._cardOverhead(calendarGroup));
         eventsContainer.style.maxHeight = maxH + 'px';
+    },
+
+    // To-Do has no automatic sizing mode — it is either the stylesheet default
+    // (max-height: 60vh) or a height the user dragged onto it.
+    matchTodoHeight() {
+        const todoGroup = document.querySelector('.todo-group');
+        const list = todoGroup?.querySelector('.todo-list');
+        if (!todoGroup || !list) return;
+        if (this._cardDragActive() && this._cardResize.id === '__todo__') return;
+
+        const manual = this._getCardLayout('__todo__').height;
+        if (manual == null) {
+            this._clearCardHeightPx(list);
+            this._syncResizeHandleValue(todoGroup);
+            return;
+        }
+        this._applyCardHeightPx(todoGroup, manual);
     },
 
     // ---- Timeline scroll position -------------------------------------------
@@ -1938,6 +2198,253 @@ const UIRenderer = {
     // ========================================
     // EVENT DELEGATION - attached once, never re-attached
     // ========================================
+
+    // Re-measure things that depend on a card's box after its height changed.
+    _afterCardResize(id) {
+        if (id === '__calendar__') this._sizeUpcomingTicker();
+        window.Minimap?.syncHeights?.();
+    },
+
+    // Re-apply whatever height a card should currently have, reading from
+    // storage: a manual height if one is set, otherwise the calendar's
+    // automatic sizing or the To-Do stylesheet default. Callers that want to
+    // clear a manual height must write that first — this only re-applies.
+    _reapplyCardHeight(id) {
+        if (id === '__calendar__') this.matchCalendarHeight();
+        else if (id === '__todo__') this.matchTodoHeight();
+        window.Minimap?.syncHeights?.();
+    },
+
+    // Clear a card's manual height and hand it back to automatic sizing.
+    _clearManualCardHeight(id) {
+        this._setCardLayout(id, { height: null });
+        this._reapplyCardHeight(id);
+        UI.showToast('Card height set to automatic');
+    },
+
+    // Key-repeat fires many times a second. Applying the height each keystroke
+    // is cheap, but writing localStorage and re-measuring every minimap block
+    // is not — so the commit trails the gesture instead of riding along with
+    // it. Nothing reads the stored value mid-gesture (each step measures the
+    // live card), so the delay can't cause drift.
+    //
+    // Timers are per card: a single shared timer would let a keystroke on one
+    // card cancel the other card's pending write, applying a height on screen
+    // that is never saved and reverts at the next render.
+    _queueCardHeightPersist(id, height) {
+        const timers = this._cardPersistTimers ||= {};
+        clearTimeout(timers[id]);
+        this._pendingCardHeights ||= {};
+        this._pendingCardHeights[id] = height;
+        timers[id] = setTimeout(() => this._flushCardHeightPersist(id), 150);
+    },
+
+    // Commit a pending height immediately. Called by the debounce timer, and on
+    // page hide so a resize made in the last moments before a reload isn't lost.
+    _flushCardHeightPersist(id) {
+        const pending = this._pendingCardHeights;
+        if (!pending) return;
+        const ids = id ? [id] : Object.keys(pending);
+        for (const key of ids) {
+            if (pending[key] == null) continue;
+            clearTimeout(this._cardPersistTimers?.[key]);
+            this._setCardLayout(key, { height: pending[key] });
+            delete pending[key];
+            this._afterCardResize(key);
+        }
+    },
+
+    // ---- Width toggle + height drag for the Calendar / To-Do cards ----------
+    // Delegated on the container so the handlers survive the frequent scoped
+    // re-renders of both cards (the calendar rebuilds on every background
+    // fetch). While a drag is in flight those scoped re-renders are suppressed
+    // — see renderCalendarCard/renderTodoCard — so the grip the pointer is
+    // captured on stays in the document for the life of the gesture.
+    _attachCardLayoutHandlers(container) {
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-card-action="toggle-width"]');
+            if (!btn) return;
+            e.preventDefault();
+            // Immediate: render() below detaches e.target mid-dispatch, so any
+            // later listener on this event would run against a dead node.
+            e.stopImmediatePropagation();
+
+            const id = btn.dataset.cardId;
+            if (!this.SPECIAL_CARD_IDS.includes(id)) return;
+
+            const next = this._getCardLayout(id).width === 'full' ? 'column' : 'full';
+            this._setCardLayout(id, { width: next });
+
+            // Full re-render: the card moves between the column grid and the
+            // full-width band, so nothing narrower than render() will do. It
+            // re-applies both cards' heights on the way out.
+            this.render();
+
+            // render() replaced the button that was just clicked — move focus to
+            // its replacement so keyboard users aren't dropped onto <body>.
+            document.querySelector(`[data-card-action="toggle-width"][data-card-id="${CSS.escape(id)}"]`)?.focus();
+            UI.showToast(next === 'full' ? 'Card expanded to full width' : 'Card returned to column width');
+        });
+
+        // Keyboard path for the resize grip — a drag-only control would be
+        // unreachable without a pointer. Steps are measured off the live card
+        // rather than the stored value: the two diverge whenever a clamp bites,
+        // and stepping from a stale base makes the first keypress a no-op.
+        container.addEventListener('keydown', (e) => {
+            const grip = e.target.closest('[data-card-action="resize"]');
+            if (!grip) return;
+            const id = grip.dataset.cardId;
+            const card = grip.closest('.app-group');
+            if (!card || !this.SPECIAL_CARD_IDS.includes(id)) return;
+
+            const base = card.offsetHeight;
+            let next;
+            switch (e.key) {
+                case 'ArrowUp':   next = base - (e.shiftKey ? 60 : 20); break;
+                case 'ArrowDown': next = base + (e.shiftKey ? 60 : 20); break;
+                // Page steps are deliberately larger than Shift+Arrow (60), or
+                // the grip's own description would be telling a fib.
+                case 'PageUp':    next = base - 120; break;
+                case 'PageDown':  next = base + 120; break;
+                case 'End':       next = this._maxCardHeight(); break;
+                case 'Home':
+                    e.preventDefault();
+                    this._clearManualCardHeight(id);
+                    return;
+                default: return;
+            }
+            e.preventDefault();
+            const height = this._clampCardHeight(next);
+            this._applyCardHeightPx(card, height);
+            this._queueCardHeightPersist(id, height);
+        });
+
+        // Double-click the grip to go back to automatic height — the
+        // conventional affordance, and a discoverable partner to Home.
+        container.addEventListener('dblclick', (e) => {
+            const grip = e.target.closest('[data-card-action="resize"]');
+            if (!grip) return;
+            const id = grip.dataset.cardId;
+            if (!this.SPECIAL_CARD_IDS.includes(id)) return;
+            e.preventDefault();
+            this._clearManualCardHeight(id);
+        });
+
+        container.addEventListener('pointerdown', (e) => {
+            const grip = e.target.closest('[data-card-action="resize"]');
+            if (!grip || e.button !== 0) return;
+            const id = grip.dataset.cardId;
+            const card = grip.closest('.app-group');
+            if (!card || !this.SPECIAL_CARD_IDS.includes(id)) return;
+            // One drag at a time. Touch pointers all report button 0, so
+            // without this a second finger starts a rival gesture on the same
+            // card and the two fight over its height.
+            if (this._cardDragActive()) return;
+
+            e.preventDefault();
+            grip.focus();
+
+            const state = { id, pointerId: e.pointerId, startY: e.clientY, startHeight: card.offsetHeight, moved: false, startedAt: Date.now() };
+            this._cardResize = state;
+            document.body.classList.add('card-resizing');
+            // Capture so a release outside the window still reaches us —
+            // without it an abandoned drag leaves the listeners attached and
+            // every later pointer move keeps resizing the card.
+            try { grip.setPointerCapture(state.pointerId); } catch { /* capture is best-effort */ }
+
+            const liveCard = () => document.querySelector(`.app-group[data-group-id="${CSS.escape(id)}"]`);
+
+            const onMove = (ev) => {
+                if (ev.pointerId !== state.pointerId || this._cardResize !== state) return;
+                const dy = ev.clientY - state.startY;
+                // Matches the minimap's drag threshold. Anything smaller and
+                // ordinary click jitter would pin a manual height.
+                if (!state.moved && Math.abs(dy) < 5) return;
+                state.moved = true;
+                const el = liveCard();
+                if (el) this._applyCardHeightPx(el, state.startHeight + dy);
+            };
+
+            const finish = (ev, commit) => {
+                if (this._cardResize !== state) return;
+                if (ev && ev.pointerId !== state.pointerId) return;
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onCancel);
+                document.removeEventListener('lostpointercapture', onCancel);
+                document.body.classList.remove('card-resizing');
+                this._cardResize = null;
+
+                // A click that never moved must not silently freeze the card at
+                // whatever height it happened to be showing.
+                if (!state.moved) { this._flushDeferredRender(); return; }
+
+                if (!commit) {
+                    // Browser-cancelled gesture: put the card back where it was
+                    // rather than committing a size the user didn't finish.
+                    this._reapplyCardHeight(id);
+                    this._flushDeferredRender();
+                    return;
+                }
+
+                const height = this._clampCardHeight(state.startHeight + (ev.clientY - state.startY));
+                this._setCardLayout(id, { height });
+                const el = liveCard();
+                if (el) this._applyCardHeightPx(el, height);
+                this._afterCardResize(id);
+                this._flushDeferredRender();
+            };
+            const onUp = (ev) => finish(ev, true);
+            const onCancel = (ev) => finish(ev, false);
+
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+            document.addEventListener('pointercancel', onCancel);
+            // On document, not on the grip: lostpointercapture bubbles, but a
+            // listener bound to the grip is on a detached node the moment the
+            // card is re-rendered — exactly when it would be needed. pointerup
+            // does the real work; this only covers capture lost mid-gesture.
+            document.addEventListener('lostpointercapture', onCancel);
+        });
+    },
+
+    // Card re-renders deferred because a drag was in flight (see
+    // renderCalendarCard / renderTodoCard) run once the gesture ends, so a
+    // background calendar refresh isn't lost until the next poll. A set, not a
+    // single id: one drag can outlast requests for both cards, and keeping only
+    // the newest would strand the other.
+    _flushDeferredRender() {
+        const pending = this._deferredCardRender;
+        this._deferredCardRender = null;
+        if (!pending) return;
+        if (pending.has('__calendar__')) this.renderCalendarCard();
+        if (pending.has('__todo__')) this.renderTodoCard();
+    },
+
+    _deferCardRender(id) {
+        (this._deferredCardRender ||= new Set()).add(id);
+    },
+
+    // How long a drag may plausibly last. Past this, treat the state as dead.
+    CARD_DRAG_STALE_MS: 30000,
+
+    // True while a genuine drag is in flight. Deferring re-renders during a
+    // drag means a `_cardResize` that never gets cleared would silently freeze
+    // both cards' contents — added tasks wouldn't appear, calendar refreshes
+    // would be swallowed — with nothing to bound it. Pointer capture plus the
+    // document-level pointerup/pointercancel should always clear it, but if a
+    // path ever escapes all three, this caps the damage at a few seconds
+    // instead of the rest of the session.
+    _cardDragActive() {
+        const st = this._cardResize;
+        if (!st) return false;
+        if (Date.now() - st.startedAt > this.CARD_DRAG_STALE_MS) {
+            this._cardResize = null;
+            document.body.classList.remove('card-resizing');
+            return false;
+        }
+        return true;
+    },
 
     _attachDelegatedHandlers(container) {
         // Click delegation for cards, new-tab buttons

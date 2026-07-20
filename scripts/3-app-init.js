@@ -167,7 +167,12 @@ const App = {
             const val = raw < 1 ? 'auto' : String(raw); // below 1× = Auto
             CalendarManager.setHeight(val);
             if (heightLabel) heightLabel.textContent = val === 'auto' ? 'Auto' : `${val}×`;
-            if (window.UIRenderer) UIRenderer.matchCalendarHeight();
+            // A height dragged onto the card outranks this slider, so the slider
+            // would look dead while one is set — moving it takes control back.
+            if (window.UIRenderer) {
+                UIRenderer._setCardLayout('__calendar__', { height: null });
+                UIRenderer.matchCalendarHeight();
+            }
         });
 
         // Add calendar button

@@ -140,7 +140,10 @@
     transition: opacity 0.2s;
 }
 
-.app-group:hover .group-actions {
+/* focus-within keeps these buttons usable by keyboard — without it they are
+   focusable but invisible, so tabbing lands on a control nobody can see. */
+.app-group:hover .group-actions,
+.app-group:focus-within .group-actions {
     opacity: 1;
 }
 
@@ -167,6 +170,109 @@
 .delete-group-btn:hover {
     background-color: rgba(244, 67, 54, 0.8) !important;
     transform: scale(1.15) !important;
+}
+
+/* ---- Special-card chrome: full-width toggle + height grip ----------------
+   Only the Calendar and To-Do cards carry these. */
+
+/* Pressed state for the width toggle, so the current mode is readable without
+   hovering for the tooltip. A background shift alone only reaches ~1.9:1
+   against the card fills, so the state also carries an inset ring — that keeps
+   it identifiable at the 3:1 the spec asks for, and survives forced-colors
+   where background-color is overridden. */
+.card-width-btn.is-full {
+    background-color: rgba(255,255,255,0.45);
+    border-color: rgba(255,255,255,0.95);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.95);
+}
+
+@media (forced-colors: active) {
+    .card-width-btn.is-full {
+        border-style: double;
+        border-width: 3px;
+    }
+}
+
+.card-resize-handle {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    /* 24x24 hit area to meet the minimum target size; the glyph itself stays
+       small, sitting in the corner via the padding below. */
+    width: 24px;
+    height: 24px;
+    padding: 0 2px 2px 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    /* 4.6:1 against the card tints — the grip is a control, so it has to meet
+       non-text contrast on its own rather than relying on the hover state. */
+    color: rgba(255,255,255,0.72);
+    font-size: 0.7rem;
+    line-height: 1;
+    cursor: ns-resize;
+    opacity: 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    /* The grip owns the gesture, so a touch-drag resizes rather than scrolling. */
+    touch-action: none;
+}
+
+.app-group:hover .card-resize-handle,
+.app-group:focus-within .card-resize-handle {
+    opacity: 1;
+}
+
+.card-resize-handle:hover {
+    color: rgba(255,255,255,0.95);
+    opacity: 1;
+}
+
+/* Keyboard focus needs a visible ring of its own: the grip is a bare glyph in
+   a corner, so a colour shift alone is too easy to miss. */
+.card-resize-handle:focus-visible {
+    color: rgba(255,255,255,0.95);
+    opacity: 1;
+    outline: 2px solid rgba(255,255,255,0.9);
+    outline-offset: 1px;
+}
+
+/* The drag is a pointer convenience, not the only way in — the grip is
+   keyboard-operable — so motion-sensitive users lose nothing by damping it. */
+@media (prefers-reduced-motion: reduce) {
+    .card-resize-handle {
+        transition: none;
+    }
+}
+
+/* Clearance so the grip's 24px target never overlaps the last row of card
+   content — an overlapping target fails the spacing exception outright. */
+.calendar-group,
+.todo-group {
+    padding-bottom: 1.75rem;
+}
+
+/* Touch devices have no hover to reveal the grip, which would leave an
+   invisible 24px control sitting over the card's last row and swallowing
+   drags. Show it there instead. */
+@media (hover: none) {
+    .card-resize-handle {
+        opacity: 1;
+    }
+}
+
+/* While a drag is in flight the card must track the pointer exactly, and the
+   pointer must not select text as it sweeps over the page. */
+body.card-resizing {
+    user-select: none;
+    cursor: ns-resize;
+}
+
+body.card-resizing .app-group {
+    transition: none;
 }
 
 .group-drop-zone {
@@ -1538,6 +1644,10 @@
        below its content height inside the capped events container. */
     min-height: 0;
     overflow: auto;
+    /* Grow to fill a card that's been dragged taller than the grid's natural
+       height, so the extra room shows more of the day instead of becoming dead
+       air beneath it. No effect when the container is sized by its content. */
+    flex: 1 1 auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
 }

@@ -5,6 +5,34 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.6] — 2026-07-20
+
+### Calendar and To-Do cards you can size yourself
+- **Full-width mode (new):** the Calendar and To-Do cards each gained a **⇔**
+  button in their header. It lifts the card out of the two-column grid and
+  stretches it across the page as a banner above the other groups, which suits
+  the calendar's day and timeline views in particular. Press it again to send the
+  card back to the column it came from. Either card can be full width, or both at
+  once, and the choice is remembered between sessions.
+- **Drag to set height (new):** a grip in each card's bottom-right corner sets the
+  card's height directly. Drag it, or focus it and use the arrow keys, with Page
+  Up and Page Down for bigger steps and End for the tallest the window allows.
+- **Automatic height is still there:** a height set by hand overrides the
+  Calendar's automatic sizing. Press Home, double-click the grip, or move the Card
+  Height slider in Settings to hand control back.
+- **The minimap follows:** a card switched to full width shows as a full-width
+  block in its own band at the top of the minimap, matching where it sits on the
+  page. Dragging that block into a column returns the card to column width.
+
+### Fixes and hardening
+- **Imported layouts are validated (fix):** the record holding card positions and
+  sizes was previously stored exactly as a settings file supplied it. It is now
+  rebuilt field by field, so a malformed or hostile backup can no longer inject
+  markup through a stored position or leave unusable sizes behind.
+- **Card header buttons reachable by keyboard (fix):** the buttons in a card's
+  header could be focused but stayed invisible until the mouse hovered the card.
+  They now appear whenever anything inside the card takes focus.
+
 ## [v4.5] — 2026-07-19
 
 ### Calendar — a current-time line you can trust
