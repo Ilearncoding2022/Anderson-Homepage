@@ -1942,11 +1942,15 @@ const UIRenderer = {
             this._archiveFocusTrap = Utils.trapFocus(modal);
         }
         const settingsBody = document.getElementById('todoArchiveSettings');
-        if (settingsBody) this.renderTodoArchive(settingsBody);
+        if (settingsBody) this.renderTodoArchive(settingsBody, 'h4');
     },
 
-    renderTodoArchive(container) {
+    // headingLevel: the archive renders both in its own modal (under that
+    // modal's h2) and inside Settings → To-Do (under the "Deleted-task
+    // archive" h3), so the caller picks the level that keeps the outline flat.
+    renderTodoArchive(container, headingLevel = 'h3') {
         if (!container) return;
+        const tag = headingLevel === 'h4' ? 'h4' : 'h3';
         const tm = window.TodoManager;
         const archive = tm?.getArchive() || [];
         const ttl = tm?.ARCHIVE_TTL_DAYS ?? 14;
@@ -1958,7 +1962,7 @@ const UIRenderer = {
 
         const section = (title, items) => items.length === 0 ? '' : `
             <div class="todo-archive-section">
-                <h3 class="todo-archive-heading">${title} <span class="group-count">(${items.length})</span></h3>
+                <${tag} class="todo-archive-heading">${title} <span class="group-count">(${items.length})</span></${tag}>
                 ${items.map(a => this._renderArchiveItem(a)).join('')}
             </div>`;
 

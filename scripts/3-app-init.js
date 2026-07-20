@@ -15,7 +15,22 @@
 const App = {
     _clockIntervalId: null,
 
+    // Stamps APP_VERSION / APP_RELEASE_DATE into the three places they surface,
+    // so a release only ever edits the constants in 1-core-managers.js. Uses
+    // textContent throughout — these strings are never parsed as markup.
+    applyVersionStamp() {
+        document.title = `Anderson Homepage ${APP_VERSION} (${APP_RELEASE_DATE})`;
+
+        const menuItem = document.getElementById('changelogBtn');
+        if (menuItem) menuItem.textContent = `📋 What's new (${APP_VERSION})`;
+
+        const meta = document.querySelector('.changelog-meta');
+        if (meta) meta.textContent = `Anderson Homepage ${APP_VERSION} · ${APP_RELEASE_DATE}`;
+    },
+
     init() {
+        this.applyVersionStamp();
+
         Storage.load();
         Theme.load();
         Background.load();
@@ -400,7 +415,7 @@ const App = {
         });
         document.getElementById('closeSettings')?.addEventListener('click', () => this.closeSettings());
 
-        // Changelog modal (opened from the (i) button by the app title in the menu)
+        // Changelog modal (opened from "What's new" in the dropdown menu)
         document.getElementById('changelogBtn')?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.openChangelog();
@@ -427,7 +442,7 @@ const App = {
         // ui-renderer.js (UIRenderer._attachTodoHandlers), alongside the code that
         // opens it, so it shares the same lifecycle and never depends on this file.
 
-        // Settings tab switching (Appearance / Clocks / Data / Calendar / Pomodoro / To-Do)
+        // Settings tab switching (Appearance / Calendar / To-Do / Pomodoro / Data)
         document.querySelectorAll('.settings-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const targetTab = tab.dataset.tab;
@@ -606,7 +621,7 @@ const App = {
             if (layoutSelect) layoutSelect.value = columnLayout;
 
             if (window.UIRenderer) {
-                UIRenderer.renderTodoArchive(document.getElementById('todoArchiveSettings'));
+                UIRenderer.renderTodoArchive(document.getElementById('todoArchiveSettings'), 'h4');
             }
 
             modal.classList.add('show');
@@ -728,7 +743,9 @@ const App = {
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')  // bold first (may wrap italics)
             .replace(/\*([^*]+?)\*/g, '<em>$1</em>')           // then single-* italics
             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, url) => {
-                const safe = /^(https?:|#|mailto:)/.test(url) ? url : '#';
+                // esc() upstream leaves quotes intact, so escape them here or a
+                // URL containing one could break out of the href attribute.
+                const safe = (/^(https?:|#|mailto:)/.test(url) ? url : '#').replace(/"/g, '&quot;');
                 return `<a href="${safe}" target="_blank" rel="noopener">${t}</a>`;
             });
     },
@@ -739,8 +756,11 @@ const App = {
         const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
         // Re-join lines that are indented continuations of the previous line.
+        // Split on \r?\n: CHANGELOG.md is CRLF on Windows, and a \r left at the
+        // end of a joined line silently truncated every wrapped bullet, because
+        // the bullet/heading captures below use `.`, which does not match \r.
         const logical = [];
-        for (const raw of md.split('\n')) {
+        for (const raw of md.split(/\r?\n/)) {
             const isContinuation = /^\s+\S/.test(raw) && !/^\s*[-*>#]/.test(raw)
                 && logical.length && logical[logical.length - 1].trim() !== '';
             if (isContinuation) logical[logical.length - 1] += ' ' + raw.trim();

@@ -5,6 +5,48 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.7] — 2026-07-20
+
+### Settings and the menu, reorganized
+- **Settings reads as named sections (new):** each tab is now split into labeled
+  blocks — Background, Layout and Clocks under Appearance; Connection, Sync,
+  Card, Card fonts, Countdown timer, Upcoming bar and Calendar sources under
+  Calendar; Fonts and Deleted-task archive under To-Do; Backup & restore and
+  Automatic backup under Data. The unlabeled dividing lines that used to break
+  these tabs up are gone, so a tab can be skimmed rather than read end to end.
+- **Five tabs instead of six (change):** the Clocks tab held three settings, so
+  it is now a section inside Appearance. The tabs are ordered by how often they
+  are reached for: Appearance, Calendar, To-Do, Pomodoro, Data.
+- **Shorter labels:** settings whose names repeated the section above them were
+  trimmed, so "Upcoming Bar — Events to Show" is simply "Events to Show".
+- **The menu does two jobs now (change):** it lists the actions you can take and
+  the two places you can go next. The app title, version and date block at the
+  foot of the menu is gone, replaced by a **What's new** item that opens the
+  changelog. The layout switch and icon-size slider now sit together under a
+  single **View** heading instead of carrying a heading each.
+- **The changelog names your version:** the version and release date that used
+  to sit in the menu now head the changelog window, and the tiny circular **i**
+  button that used to open it has been replaced by the full-width menu item.
+- **Storage gauge moved to a footer:** the localStorage reading is still at the
+  foot of the menu, restyled as quiet status rather than competing with the
+  buttons above it.
+
+### Fixes
+- **The changelog was hiding most of itself (fix):** every entry whose text
+  wrapped onto a second line was cut off at the wrap, because this file is saved
+  with Windows line endings and the reader kept a stray carriage return in the
+  middle of each joined line. Sixty-nine of the seventy-eight entries below were
+  affected, and around ten thousand characters that were written but never shown
+  are now readable. Nothing in the file changed — only the reading of it.
+
+### Under the hood
+- **One place to bump the version (change):** `APP_VERSION` and
+  `APP_RELEASE_DATE` in `1-core-managers.js` are stamped into the page title,
+  the menu item and the changelog header when the app starts, so those three can
+  no longer drift apart. A release now edits the two constants and this file.
+- **Changelog links escape quotes (hardening):** a double quote inside a link's
+  address could previously end the `href` early. It is now escaped.
+
 ## [v4.6] — 2026-07-20
 
 ### Calendar and To-Do cards you can size yourself
@@ -163,8 +205,8 @@ All notable changes to **Anderson Homepage** are documented here.
 
 ### Light/dark contrast — text is now readable everywhere
 A pass over both themes fixed many places where text was invisible or low-contrast
-(WCAG AA: 4.5:1 normal, 3:1 large). Dark mode is unchanged; the fixes target light
-mode, where dark-native components previously sat on light surfaces.
+  (WCAG AA: 4.5:1 normal, 3:1 large). Dark mode is unchanged; the fixes target light
+  mode, where dark-native components previously sat on light surfaces.
 - **Modals are a consistently dark surface in both themes.** Settings, changelog,
   the To-Do archive, the new font controls, calendar sources, and the group/app
   editors are full of white-on-dark content that was invisible on the white

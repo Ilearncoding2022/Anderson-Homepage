@@ -14,6 +14,13 @@
 // CONFIGURATION & CONSTANTS
 // ========================================
 
+// Single source of truth for the release stamp. A release bumps these two and
+// adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
+// them into the <title>, the menu's "What's new" item, and the changelog modal
+// header, so those three spots can never drift out of sync.
+const APP_VERSION = 'v4.7';
+const APP_RELEASE_DATE = '2026-07-20';
+
 const COLOR_PALETTE = [
     { name: 'Ocean Blue', value: 'rgba(30, 136, 229, 0.25)' },
     { name: 'Forest Green', value: 'rgba(76, 175, 80, 0.25)' },

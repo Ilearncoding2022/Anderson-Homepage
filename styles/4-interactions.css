@@ -273,6 +273,48 @@
     display: block;
 }
 
+/* Named sub-section headings inside a Settings tab panel — replaces the old
+   ad hoc <div class="dropdown-divider"> separators that used to run inside
+   the modal (the dropdown menu itself still uses that divider). Desktop-only;
+   matches the .dropdown-label idiom (uppercase, letter-spaced, muted) with an
+   added hairline so sections read as distinct blocks without a divider. */
+.settings-subhead {
+    display: block;
+    margin: 1.75rem 0 0.85rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* First heading in a panel sits flush under the tab row — no extra top gap. */
+.settings-tab-content > .settings-subhead:first-child {
+    margin-top: 0;
+}
+
+/* The Pomodoro tab is filled at runtime with the timer card's own sound/history
+   sub-panels, which are dark glass surfaces with their own padding. The muted
+   grey + light hairline read as invisible there, and each heading already opens
+   its own panel, so it needs no top gap. */
+#settingsTabPomodoro .settings-subhead {
+    margin-top: 0;
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+/* "Session History" shares a flex row with its Clear button, so it must be told
+   to span the row — otherwise its hairline stops after the words. */
+#settingsTabPomodoro .pomodoro-history-header {
+    align-items: baseline;
+}
+
+#settingsTabPomodoro .pomodoro-history-header .settings-subhead {
+    flex: 1 1 auto;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
