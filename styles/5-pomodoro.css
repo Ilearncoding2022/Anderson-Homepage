@@ -435,35 +435,61 @@
     background: rgba(255, 255, 255, 0.1);
 }
 
+/* Slider look matches the shared .size-slider (menu/Settings): thin filled
+   track + centered 16px thumb. Adapted for dark glass — the unfilled track is
+   translucent white. --fill is set in JS from the slider's value (WebKit only;
+   Firefox uses its native ::-moz-range-progress pseudo). */
 .pomodoro-time-slider {
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
+    height: 16px;
+    background: transparent;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
+    cursor: pointer;
+}
+
+.pomodoro-time-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right,
+        #4CAF50 0 var(--fill, 0%),
+        rgba(255, 255, 255, 0.15) var(--fill, 0%) 100%);
+}
+
+.pomodoro-time-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.pomodoro-time-slider::-moz-range-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: #4CAF50;
 }
 
 .pomodoro-time-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
+    margin-top: -7px;
     border-radius: 50%;
     background: #4CAF50;
     cursor: pointer;
-    box-shadow: 0 2px 10px rgba(76, 175, 80, 0.5);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .pomodoro-time-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: #4CAF50;
     cursor: pointer;
-    border: none;
-    box-shadow: 0 2px 10px rgba(76, 175, 80, 0.5);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* ========================================
@@ -579,12 +605,32 @@
 
 .pomodoro-volume-slider {
     flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
+    height: 16px;
+    background: transparent;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
+    cursor: pointer;
+}
+
+.pomodoro-volume-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right,
+        #4CAF50 0 var(--fill, 0%),
+        rgba(255, 255, 255, 0.15) var(--fill, 0%) 100%);
+}
+
+.pomodoro-volume-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.pomodoro-volume-slider::-moz-range-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: #4CAF50;
 }
 
 .pomodoro-volume-slider::-webkit-slider-thumb {
@@ -592,18 +638,35 @@
     appearance: none;
     width: 16px;
     height: 16px;
+    margin-top: -7px;
     border-radius: 50%;
-    background: white;
+    background: #4CAF50;
     cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .pomodoro-volume-slider::-moz-range-thumb {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: white;
+    background: #4CAF50;
     cursor: pointer;
-    border: none;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Keyboard focus ring for both Pomodoro sliders. White (like the card's other
+   focus styles) since these sit on dark glass; the box itself is transparent so
+   the ring goes on the thumb. */
+.pomodoro-time-slider:focus-visible::-webkit-slider-thumb,
+.pomodoro-volume-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7);
+}
+
+.pomodoro-time-slider:focus-visible::-moz-range-thumb,
+.pomodoro-volume-slider:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7);
 }
 
 .pomodoro-volume-label {

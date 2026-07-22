@@ -1314,6 +1314,7 @@ const CalendarManager = {
     },
 
     toggleTimelineMode() {
+        if (this.getViewMode() === 'list') return;
         Utils.safeLocalStorageSet(this.config.storageKeys.timelineMode, this.getTimelineMode() ? 'off' : 'on');
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
     },
@@ -1575,12 +1576,14 @@ const CalendarManager = {
     pageDayView(dir) {
         if (!this.canPageDayView(dir)) return;
         this.state.dayViewOffset += dir * this.getViewDayCount();
-        if (window.UIRenderer) UIRenderer.renderCalendarCard();
+        // Scoped refresh (not a full card rebuild) so the header ticker keeps running.
+        if (window.UIRenderer) UIRenderer.refreshCalendarDayView();
     },
 
     resetDayViewToToday() {
         this.state.dayViewOffset = 0;
-        if (window.UIRenderer) UIRenderer.renderCalendarCard();
+        // Scoped refresh (not a full card rebuild) so the header ticker keeps running.
+        if (window.UIRenderer) UIRenderer.refreshCalendarDayView();
     },
 
     // Label shown on the header toggle button.
@@ -1698,7 +1701,13 @@ const CalendarManager = {
     _timeStr(date, tz) {
         const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
         if (tz) opts.timeZone = tz;
-        return date.toLocaleTimeString('en-US', opts);
+        const parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(date);
+        let hour = parts.find(p => p.type === 'hour')?.value ?? '';
+        const minute = parts.find(p => p.type === 'minute')?.value ?? '';
+        // Drop a leading zero (07 → 7) and omit ":00", so on-the-hour times read as
+        // just the hour (7, 19); times with minutes keep h:mm (7:45, 19:45).
+        if (hour.length === 2 && hour.startsWith('0')) hour = hour.slice(1);
+        return minute === '00' ? hour : `${hour}:${minute}`;
     },
 
     // Group events by day label, duplicating multi-day events across each day they span.

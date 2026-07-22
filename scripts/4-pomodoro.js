@@ -351,6 +351,7 @@ const PomodoroTimer = {
             }
             if (PomodoroUI.elements.customSlider && PomodoroUI.elements.customSlider.value != minutes) {
                 PomodoroUI.elements.customSlider.value = minutes;
+                window.paintRangeFill?.(PomodoroUI.elements.customSlider);
             }
             
             // Update preset highlighting
@@ -1054,7 +1055,10 @@ const PomodoroUI = {
     // the sound list is built.
     applySettingsToUI() {
         const s = PomodoroState.settings;
-        if (this.elements.volumeSlider) this.elements.volumeSlider.value = s.volume;
+        if (this.elements.volumeSlider) {
+            this.elements.volumeSlider.value = s.volume;
+            window.paintRangeFill?.(this.elements.volumeSlider);
+        }
         if (this.elements.volumeLabel) this.elements.volumeLabel.textContent = `${s.volume}%`;
         if (this.elements.soundRepeat) this.elements.soundRepeat.value = String(s.soundRepeat || 0);
 

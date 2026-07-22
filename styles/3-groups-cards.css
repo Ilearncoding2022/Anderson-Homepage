@@ -910,14 +910,25 @@ body.card-resizing .app-group {
     }
 }
 
+/* Header row wraps instead of overflowing when the card is column-width. */
+.calendar-group .group-title-container {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+    min-width: 0;
+}
+
 /* Calendar header controls */
 .calendar-header-meta {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    margin-left: auto;
-    /* Inset from the card's right edge so the trailing warning badge has room and
-       the refresh button + sync-time sit a bit further left. */
+    /* Clearance from the timezone/grouping dropdown that ends .group-title (the
+       container has no column-gap, so these would otherwise sit flush). Matches
+       the 0.5rem gap between the WEEK/VN dropdowns so the refresh button keeps
+       the header's spacing rhythm. */
+    margin-left: 0.5rem;
+    /* Small gap before whatever sits next: the width toggle (its last child),
+       or the header ticker when the card is wide enough to keep it inline. */
     margin-right: 0.4rem;
     flex-shrink: 0;
 }
@@ -962,9 +973,32 @@ body.card-resizing .app-group {
     transform: rotate(90deg);
 }
 
+/* Width toggle, relocated here from the hover-revealed .group-actions — sized
+   and colored to match the refresh button so the always-visible cluster reads
+   as one group. Color/background/hover are scoped with :not(.is-full) so the
+   pressed-state rule below (.card-width-btn.is-full, same 0,2,0 specificity
+   but declared earlier) isn't overridden by source order when both apply. */
+.calendar-header-meta .card-width-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.calendar-header-meta .card-width-btn:not(.is-full) {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.calendar-header-meta .card-width-btn:hover:not(.is-full) {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    transform: none;
+}
+
 .calendar-group-toggle,
-.calendar-view-toggle,
-.calendar-timeline-toggle {
+.calendar-view-toggle {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -984,20 +1018,11 @@ body.card-resizing .app-group {
 }
 
 .calendar-group-toggle:hover,
-.calendar-view-toggle:hover,
-.calendar-timeline-toggle:hover {
+.calendar-view-toggle:hover {
     background: rgba(255, 255, 255, 0.25);
     color: white;
 }
 
-/* Timeline toggle "on" state: a filled accent pill. */
-.calendar-timeline-toggle.active {
-    background: rgba(129, 199, 132, 0.35);
-    border-color: rgba(129, 199, 132, 0.6);
-    color: #fff;
-}
-
-.calendar-timeline-toggle:focus-visible,
 .calendar-view-toggle:focus-visible,
 .calendar-group-toggle:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.7);
@@ -1082,6 +1107,74 @@ body.card-resizing .app-group {
 .calendar-view-menu-item[aria-checked="false"]::before {
     content: '';
     width: 0.8rem;
+}
+
+.calendar-view-menu-sep {
+    height: 1px;
+    margin: 0.25rem 0.2rem;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.cal-menu-switch {
+    justify-content: space-between;
+    text-transform: none;
+}
+
+.cal-menu-switch .cal-menu-switch-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.cal-menu-switch[aria-checked="true"]::before,
+.cal-menu-switch[aria-checked="false"]::before {
+    content: none;
+    width: 0;
+}
+
+.cal-switch-track {
+    flex-shrink: 0;
+    position: relative;
+    width: 26px;
+    height: 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    transition: background 0.15s;
+}
+
+.cal-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+}
+
+.cal-menu-switch[aria-checked="true"] .cal-switch-track {
+    background: #64B5F6;
+}
+
+.cal-menu-switch[aria-checked="true"] .cal-switch-knob {
+    transform: translateX(11px);
+}
+
+.cal-menu-switch[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.cal-menu-switch[aria-disabled="true"]:hover {
+    background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cal-switch-track,
+    .cal-switch-knob {
+        transition: none;
+    }
 }
 
 /* Setup / empty / error states */
@@ -1354,6 +1447,7 @@ body.card-resizing .app-group {
     flex-shrink: 0;   /* stay full height above the (internally scrolling) timeline */
     display: flex;
     align-items: center;
+    justify-content: center;   /* ‹ range Today › sit together as one centered cluster */
     gap: 0.5rem;
     padding: 0.15rem 0 0.35rem;
     /* Solid-ish dark backdrop (matches the card's own light-mode glass base) so
@@ -1374,6 +1468,13 @@ body.card-resizing .app-group {
     line-height: 1.4;
 }
 
+/* Double the flex gap (0.5rem) on each side of Today & Now so it stands clear of
+   the date range on its left and the paging arrow on its right:
+   0.5rem gap + 0.5rem margin = 1rem on each side. */
+.cal-nav-today {
+    margin: 0 0.5rem;
+}
+
 .cal-nav-btn:hover:not(:disabled),
 .cal-nav-today:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.2);
@@ -1392,7 +1493,8 @@ body.card-resizing .app-group {
 }
 
 .cal-nav-range {
-    flex: 1;
+    /* Natural width (no flex:1) so it doesn't stretch and push Today to the far
+       right — it now sits directly beside the range text in the centered cluster. */
     text-align: center;
     font-size: var(--cal-fs-groupdate, 0.7rem);
     zoom: var(--cal-z-groupdate, 1);
@@ -1493,6 +1595,54 @@ body.card-resizing .app-group {
     }
 }
 
+/* Slot that owns the header's leftover width; the ticker inside is narrower and
+   right-aligned within it. Keeping the flex sizing on the slot (not the ticker)
+   lets the ticker be a plain 80%-width block hugging the right edge. */
+.cal-upcoming-header-slot {
+    flex: 1 1 8rem;
+    min-width: 0;
+    align-self: center;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+/* Compact variant for the card header (hover/focus pause and reduced-motion
+   rules above key on .cal-upcoming-ticker, which this still carries, so they
+   apply automatically here too). 80% wide → 20% narrower than the slot. */
+.cal-upcoming-header {
+    width: 80%;
+    min-width: 0;
+    margin-bottom: 0;
+    height: 22px;
+    display: flex;
+    align-items: center;
+}
+
+.cal-upcoming-header .cal-upcoming-tick {
+    padding: 0 0.6rem;
+}
+
+.cal-upcoming-header .cal-upcoming-dot {
+    width: 6px;
+    height: 6px;
+}
+
+.cal-upcoming-header .cal-upcoming-name {
+    display: inline-block;
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    zoom: 1;
+}
+
+.cal-upcoming-header .cal-upcoming-time {
+    font-size: 0.62rem;
+    zoom: 1;
+}
+
 /* List variant */
 .cal-upcoming-list {
     display: flex;
@@ -1587,6 +1737,9 @@ body.card-resizing .app-group {
     padding: 0.3rem 0.4rem;
     cursor: pointer;
     transition: background 0.2s;
+    /* Time and title share one line: "19–19:45 | Event name". */
+    display: flex;
+    align-items: baseline;
 }
 
 .calendar-day-chip:hover {
@@ -1608,6 +1761,7 @@ body.card-resizing .app-group {
     font-weight: 600;
     color: rgba(255, 255, 255, 0.65);
     white-space: nowrap;
+    flex: 0 0 auto;   /* never shrink the time; the title truncates instead */
 }
 
 .calendar-chip-title {
@@ -1615,7 +1769,21 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-event, 1);
     font-weight: 500;
     color: rgba(255, 255, 255, 0.9);
-    word-break: break-word;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* " | " separator between the time and title on the shared line (chip grid and
+   timeline events). Sits at the start of the title box so it truncates last. */
+.calendar-chip-title::before,
+.cal-tl-event-title::before {
+    content: "|";
+    margin: 0 0.4em;
+    font-weight: 400;
+    opacity: 0.5;
 }
 
 .calendar-day-empty {
@@ -1745,6 +1913,28 @@ body.card-resizing .app-group {
     outline: 1px solid rgba(76, 175, 80, 0.35);
 }
 
+/* "Jump to today" flash (UIRenderer._flashTodayColumn, fired by the Today
+   button). A green wash blinked 3× via an inset box-shadow, which paints above
+   the column's own background/gridlines but below the event blocks, so events
+   stay readable. Applied to today's timeline column + its header/all-day cell,
+   or the chip grid's day column. */
+@keyframes cal-today-flash {
+    0%, 100% { box-shadow: inset 0 0 0 9999px rgba(76, 175, 80, 0); }
+    50%      { box-shadow: inset 0 0 0 9999px rgba(76, 175, 80, 0.5); }
+}
+
+.cal-today-flash {
+    animation: cal-today-flash 0.45s ease-in-out 3;
+}
+
+/* Reduced motion: one gentle flash instead of three blinks. */
+@media (prefers-reduced-motion: reduce) {
+    .cal-today-flash {
+        animation-iteration-count: 1;
+        animation-duration: 0.7s;
+    }
+}
+
 .cal-tl-event {
     position: absolute;
     overflow: hidden;
@@ -1759,6 +1949,10 @@ body.card-resizing .app-group {
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     line-height: 1.15;
+    /* Time and title share one line at the top of the block: "19–19:45 | Title".
+       baseline keeps the line pinned to the top even when the block is tall. */
+    display: flex;
+    align-items: baseline;
 }
 
 .cal-tl-event:hover {
@@ -1772,24 +1966,23 @@ body.card-resizing .app-group {
 }
 
 .cal-tl-event-time {
-    display: block;
     font-size: var(--cal-fs-tz, 0.6rem);
     zoom: var(--cal-z-tz, 1);
     font-weight: 600;
     opacity: 0.9;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 0 0 auto;   /* never shrink the time; the title truncates instead */
 }
 
 .cal-tl-event-title {
-    display: block;
     font-size: var(--cal-fs-event, 0.72rem);
     zoom: var(--cal-z-event, 1);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
 /* Current-time indicator on the today column: a two-stripe black/white bar under

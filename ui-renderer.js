@@ -719,17 +719,16 @@ const UIRenderer = {
                 <div class="group-header">
                     <div class="group-title-container">
                         <div class="group-title">
-                            <a class="calendar-icon-link" href="https://calendar.google.com" title="Open Google Calendar">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured && viewMode !== 'list' ? `<button class="calendar-timeline-toggle${cm.getTimelineMode() ? ' active' : ''}" onclick="CalendarManager.toggleTimelineMode()" role="switch" aria-checked="${cm.getTimelineMode() ? 'true' : 'false'}" title="Toggle hour-by-hour timeline" aria-label="Hour-by-hour timeline"><span class="calendar-group-toggle-icon" aria-hidden="true">◷</span>Timeline</button>` : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
+                            <a class="calendar-icon-link" href="https://calendar.google.com" title="Open Google Calendar">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
                         </div>
                         <div class="calendar-header-meta">
                             ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now">↻</button>` : ''}
                             ${lastFetchedLabel ? `<span class="calendar-last-updated">${Utils.sanitizeHTML(lastFetchedLabel)}</span>` : ''}
                             ${warningBadge}
                             ${fetchError ? `<span class="calendar-error-dot" title="${Utils.sanitizeHTML(fetchError)}">!</span>` : ''}
+                            ${this._cardWidthButton('__calendar__')}
                         </div>
-                    </div>
-                    <div class="group-actions">
-                        ${this._cardWidthButton('__calendar__')}
+                        ${this._calendarHeaderTicker()}
                     </div>
                 </div>
                 <div class="calendar-events-container">
@@ -777,6 +776,21 @@ const UIRenderer = {
         this._applyTimelineScroll(tlScroll);
     },
 
+    // Scoped update for day-view navigation (Today & Now, and prev/next paging):
+    // rebuild only the events container, leaving the card header — and the running
+    // upcoming-events ticker inside it — in place so it keeps scrolling instead of
+    // restarting the way a full card re-render would. Falls back to a full render
+    // if the card/container isn't in the DOM yet.
+    refreshCalendarDayView() {
+        const card = document.querySelector('.calendar-group');
+        const container = card?.querySelector('.calendar-events-container');
+        if (!container) { this.renderCalendarCard(); return; }
+        const tlScroll = this._readTimelineScroll();
+        container.innerHTML = this._calendarContentHTML();
+        this.matchCalendarHeight();
+        this._applyTimelineScroll(tlScroll);
+    },
+
     // View picker: a menu-button dropdown (3-Day / 5-Day / Week / List). Replaces
     // the old cycling button so any view is one click away.
     _calendarViewDropdown(viewMode, viewLabel) {
@@ -785,9 +799,23 @@ const UIRenderer = {
         const items = order.map(m =>
             `<button class="calendar-view-menu-item" role="menuitemradio" aria-checked="${m === viewMode ? 'true' : 'false'}" onclick="CalendarManager.setViewMode('${m}')">${labels[m]}</button>`
         ).join('');
+        // Timeline switch: last row in the menu, a slider-toggle rather than a
+        // radio item since it's an independent on/off setting, not a view choice.
+        // Disabled (but still focusable/announced) in List view, where the
+        // timeline has nothing to render.
+        const tlOn = window.CalendarManager?.getTimelineMode?.() || false;
+        const tlDisabled = viewMode === 'list';
+        const tlRow = `<div class="calendar-view-menu-sep" role="separator"></div>`
+            + `<button class="calendar-view-menu-item cal-menu-switch" role="menuitemcheckbox"`
+            + ` aria-checked="${tlOn ? 'true' : 'false'}"`
+            + (tlDisabled ? ` aria-disabled="true"` : ` onclick="UIRenderer.toggleTimelineFromMenu(this)"`)
+            + ` title="Hour-by-hour timeline${tlDisabled ? ' (day views only)' : ''}">`
+            + `<span class="cal-menu-switch-label"><span aria-hidden="true">◷</span> Timeline</span>`
+            + `<span class="cal-switch-track" aria-hidden="true"><span class="cal-switch-knob"></span></span>`
+            + `</button>`;
         return `<span class="calendar-view-dd">`
             + `<button class="calendar-view-toggle" onclick="UIRenderer.toggleViewMenu(this)" aria-haspopup="menu" aria-expanded="false" aria-controls="calViewMenu" title="Change calendar view" aria-label="Change calendar view. Current: ${Utils.sanitizeHTML(viewLabel)}"><span class="calendar-group-toggle-icon" aria-hidden="true">▦</span>${Utils.sanitizeHTML(viewLabel)}<span class="calendar-view-caret" aria-hidden="true">▾</span></button>`
-            + `<div class="calendar-view-menu" id="calViewMenu" role="menu" aria-label="Calendar view">${items}</div>`
+            + `<div class="calendar-view-menu" id="calViewMenu" role="menu" aria-label="Calendar view">${items}${tlRow}</div>`
             + `</span>`;
     },
 
@@ -840,6 +868,19 @@ const UIRenderer = {
         };
         document.addEventListener('click', this._viewMenuDismiss, true);
         document.addEventListener('keydown', this._viewMenuKeydown, true);
+    },
+
+    // The timeline switch lives inside the view menu, so toggling it tears
+    // down and re-renders the whole calendar card (same as any other view
+    // menu action). Re-open the fresh menu and refocus the switch afterward
+    // so repeated toggling keeps giving live feedback instead of closing.
+    toggleTimelineFromMenu(el) {
+        if (el.getAttribute('aria-disabled') === 'true') return;
+        CalendarManager.toggleTimelineMode();
+        const btn = document.querySelector('.calendar-group [aria-controls="calViewMenu"]');
+        if (!btn) return;
+        this.toggleViewMenu(btn);
+        document.querySelector('#calViewMenu .cal-menu-switch')?.focus();
     },
 
     _calendarSetupPrompt() {
@@ -977,7 +1018,7 @@ const UIRenderer = {
             <div class="calendar-dayview-nav">
                 <button class="cal-nav-btn" onclick="CalendarManager.pageDayView(-1)" ${cm.canPageDayView(-1) ? '' : 'disabled'} aria-label="Previous ${n} days" title="Previous ${n} days">‹</button>
                 <span class="cal-nav-range">${Utils.sanitizeHTML(rangeLabel)}</span>
-                <button class="cal-nav-today" onclick="CalendarManager.resetDayViewToToday()" ${win.offset === 0 ? 'disabled' : ''} aria-label="Back to today" title="Back to today">Today</button>
+                <button class="cal-nav-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now">Today &amp; Now</button>
                 <button class="cal-nav-btn" onclick="CalendarManager.pageDayView(1)" ${cm.canPageDayView(1) ? '' : 'disabled'} aria-label="Next ${n} days" title="Next ${n} days">›</button>
             </div>`;
         if (cm.getTimelineMode()) return bar + nav + this._calendarTimeline(win);
@@ -1004,6 +1045,9 @@ const UIRenderer = {
         const cm = window.CalendarManager;
         const events = cm.getUpcomingBarEvents();
         if (!events.length) return '';
+        // Ticker format now renders in the header instead (_calendarHeaderTicker);
+        // this body-of-card bar is list-only.
+        if (cm.getUpcomingBarFormat() !== 'list') return '';
         const format = cm.getUpcomingBarFormat();
         const tz = cm.getAnchorTimezone();
 
@@ -1033,6 +1077,28 @@ const UIRenderer = {
             }).join('');
             return `<div class="cal-upcoming-bar cal-upcoming-list" aria-label="Upcoming events">${rows}</div>`;
         }
+    },
+
+    // Compact scrolling ticker for the card header (day views only — the list
+    // format keeps rendering in the card body via _calendarUpcomingBar above).
+    // Same dot/time helpers and double-sequence loop trick as the ticker
+    // branch this replaced; only the gating and the extra cal-upcoming-header
+    // class (for header-scale sizing) differ.
+    _calendarHeaderTicker() {
+        const cm = window.CalendarManager;
+        if (!cm?.state.isConfigured) return '';
+        if ((cm.getViewMode?.() || 'list') === 'list') return '';
+        if (cm.getUpcomingBarFormat() !== 'ticker') return '';
+        const events = cm.getUpcomingBarEvents();
+        if (!events.length) return '';
+        const tz = cm.getAnchorTimezone();
+
+        const dot = (ev) => {
+            const raw = ev._calColor || '#4CAF50';
+            const c = Utils.isValidColor(raw) ? raw : '#4CAF50';
+            return `<span class="cal-upcoming-dot" style="background:${c}" aria-hidden="true"></span>`;
+        };
+        const timeText = (ev) => cm.formatBarCountdown(new Date(ev.start).getTime()) || '';
 
         // Ticker: two identical sequences translated by -50% for a seamless loop.
         // Only the first is focusable/announced; the duplicate is aria-hidden and
@@ -1055,9 +1121,16 @@ const UIRenderer = {
         const seq = (dup) => `<div class="cal-upcoming-seq"${dup ? ' aria-hidden="true"' : ''}>${events.map(ev => itemHTML(ev, dup)).join('')}</div>`;
         // Duration scales with item count so more events don't scroll faster
         // (the loop distance is one sequence width, which grows with the count).
-        const dur = Math.max(12, events.length * 7);
-        return `<div class="cal-upcoming-bar cal-upcoming-ticker" aria-label="Upcoming events">
-            <div class="cal-upcoming-track" style="--cal-ticker-dur:${dur}s">${seq(false)}${seq(true)}</div>
+        // Divided by 0.85 → 15% slower than the base cadence. This is the
+        // pre-measurement value (and the one used under reduced motion);
+        // _sizeUpcomingTicker sets the authoritative width-proportional duration.
+        const dur = Math.max(14, Math.round(events.length * 7 / 0.85));
+        // Slot fills the header's remaining width and right-aligns the ticker,
+        // which is itself only 80% wide (20% narrower than the full slot).
+        return `<div class="cal-upcoming-header-slot">
+            <div class="cal-upcoming-bar cal-upcoming-ticker cal-upcoming-header" aria-label="Upcoming events">
+                <div class="cal-upcoming-track" style="--cal-ticker-dur:${dur}s">${seq(false)}${seq(true)}</div>
+            </div>
         </div>`;
     },
 
@@ -2137,7 +2210,12 @@ const UIRenderer = {
     // Runs in rAF — the timeline needs its final height (matchCalendarHeight) and
     // layout before scrollTop means anything.
     _applyTimelineScroll(prev) {
-        const userMoved = prev != null
+        // A pending "jump to today" (Today button) forces re-anchoring on the
+        // now-line even if the user had scrolled the outgoing timeline away from
+        // it. One-shot flag, consumed on this render.
+        const forceNow = this._calTlForceNow === true;
+        this._calTlForceNow = false;
+        const userMoved = !forceNow && prev != null
             && (this._calTlAnchoredTop == null || Math.abs(prev - this._calTlAnchoredTop) > 1);
 
         requestAnimationFrame(() => {
@@ -2156,6 +2234,37 @@ const UIRenderer = {
             // Record where it actually landed (the browser clamps to the scroll
             // range) so the next render can tell our scroll from the user's.
             this._calTlAnchoredTop = tl.scrollTop;
+        });
+    },
+
+    // "Today" button (day views only). Snap the window back to today, force the
+    // timeline to re-anchor on the now-line even if the user had scrolled away,
+    // and flash today's column so the jump is obvious.
+    jumpToTodayView() {
+        const cm = window.CalendarManager;
+        if (!cm) return;
+        this._calTlForceNow = true;     // consumed by _applyTimelineScroll
+        cm.resetDayViewToToday();       // offset = 0, then renderCalendarCard()
+        this._flashTodayColumn();
+    },
+
+    // Green 3-blink flash on today's column(s): the timeline day column (plus its
+    // header and all-day cell) or the chip grid's day column, whichever rendered.
+    // Runs after the render has rebuilt the DOM.
+    _flashTodayColumn() {
+        requestAnimationFrame(() => {
+            const cells = document.querySelectorAll(
+                '.calendar-group .cal-tl-col.is-today,'
+              + '.calendar-group .cal-tl-dayhead.is-today,'
+              + '.calendar-group .cal-tl-allday-cell.is-today,'
+              + '.calendar-group .calendar-day-col.is-today');
+            cells.forEach(el => {
+                el.classList.remove('cal-today-flash');
+                void el.offsetWidth;    // restart the animation if it was mid-flight
+                el.classList.add('cal-today-flash');
+                el.addEventListener('animationend',
+                    () => el.classList.remove('cal-today-flash'), { once: true });
+            });
         });
     },
 
@@ -2192,10 +2301,11 @@ const UIRenderer = {
             }
         });
         // Width-proportional duration → steady scroll speed regardless of count.
+        // Base speed 55 px/s × 0.85 = 46.75 px/s → 15% slower.
         const track = ticker.querySelector('.cal-upcoming-track');
         if (track) {
             const seqW = seqs[0].scrollWidth;
-            track.style.setProperty('--cal-ticker-dur', Math.max(8, Math.round(seqW / 55)) + 's');
+            track.style.setProperty('--cal-ticker-dur', Math.max(9, Math.round(seqW / (55 * 0.85))) + 's');
         }
     },
 

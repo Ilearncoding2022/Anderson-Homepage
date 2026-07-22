@@ -18,7 +18,7 @@
 
 .header {
     background-color: var(--bg-card);
-    padding: 1rem 2rem;
+    padding: 0.5rem 2rem;
     box-shadow: var(--shadow);
     display: flex;
     justify-content: space-between;
@@ -43,7 +43,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-left: 150px;
+    margin-left: 0;
 }
 
 .header h1 {
@@ -274,42 +274,50 @@
    ======================================== */
 
 .digital-clock {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1.25rem;
+    text-align: left;
     user-select: none;
-    padding: 0 1.5rem;
-    margin-left: -140px;
 }
 
 .digital-clock.clock-secondary {
     border-left: 2px solid var(--border-color);
-    margin-left: -3px;
+}
+
+.clock-city {
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.clock-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.25;
 }
 
 .clock-date {
-    font-size: 0.9rem;
+    font-size: 0.72rem;
     font-weight: 500;
     color: var(--text-secondary);
-    letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
+    letter-spacing: 0.4px;
+    margin-bottom: 0;
+    white-space: nowrap;
 }
 
 .clock-time {
-    font-size: 2rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--text-primary);
     font-family: 'Courier New', Courier, monospace;
-    letter-spacing: 2px;
-    line-height: 1;
-}
-
-.clock-timezone {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-top: 0.25rem;
-    text-transform: uppercase;
     letter-spacing: 1px;
-    opacity: 0.9;
+    line-height: 1;
 }
 
 /* ========================================
@@ -505,49 +513,53 @@ button:hover {
 .size-slider {
     flex: 1 1 auto;
     min-width: 0;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--bg-secondary);
+    /* Comfortable click/drag height; the visible track is the thin runnable-track
+       /range-track pseudo below, centered in this box. The 20px thumb overflows
+       this box slightly but nothing up the tree clips it. */
+    height: 16px;
+    background: transparent;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
     cursor: pointer;
-    border: 1px solid var(--border-color);
 }
 
-/* Slider thumb styling - WebKit browsers (Chrome, Safari, Edge) */
+/* Slider thumb styling - WebKit browsers (Chrome, Safari, Edge). The thumb's
+   border-box is 20px (16px + a 2px border each side); margin-top centers that on
+   the 6px track: (6 - 20) / 2 = -7px. */
 .size-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
+    margin-top: -7px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: 3px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border: 2px solid #fff;
 }
 
 .size-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.55);
 }
 
 .size-slider::-webkit-slider-thumb:active {
-    transform: scale(1.15);
+    transform: scale(1.1);
 }
 
 /* Slider thumb styling - Firefox */
 .size-slider::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
-    border: 3px solid white;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.5);
-    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 /* ========================================
@@ -567,49 +579,68 @@ button:hover {
 }
 
 .size-slider::-moz-range-thumb:hover {
-    transform: scale(1.2);
-    box-shadow: 0 3px 12px rgba(76, 175, 80, 0.7);
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.55);
 }
 
 .size-slider::-moz-range-thumb:active {
-    transform: scale(1.15);
+    transform: scale(1.1);
 }
 
-/* Slider track styling */
+/* Track styling. The filled portion (accent) runs up to the thumb; the rest is
+   the neutral border color. WebKit paints this as a two-stop gradient driven by
+   the --fill custom property (set in JS from the slider's value); Firefox uses
+   its native ::-moz-range-progress pseudo, so it ignores --fill. */
 .size-slider::-webkit-slider-runnable-track {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--bg-secondary);
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right,
+        var(--accent) 0 var(--fill, 0%),
+        var(--border-color) var(--fill, 0%) 100%);
+    /* 1px seam so the track edges (and the accent fill within) stay defined in
+       light theme, where accent vs --border-color is otherwise only ~2:1. */
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 .size-slider::-moz-range-track {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--bg-secondary);
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border-color);
 }
 
-/* Size label - the pixel count indicator */
+.size-slider::-moz-range-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent);
+}
+
+/* Keyboard focus: ring the thumb (the input box itself is transparent). Uses
+   --text-primary (not accent green, which can't clear 3:1 on a light surface at
+   any opacity) so the indicator is clearly visible in both themes. */
+.size-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--text-primary);
+}
+
+.size-slider:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px var(--text-primary);
+}
+
+/* Size label - the current-value indicator. A quiet accent-tinted pill rather
+   than a heavy solid badge, so it reads as a readout beside the control instead
+   of competing with it. Text is --text-primary (not accent green) so it clears
+   WCAG AA on the faint tint in both light and dark themes. */
 .size-label {
-    min-width: 50px;
-    max-width: 50px;
-    width: 50px;
     flex-shrink: 0;
-    flex-grow: 0;
     text-align: center;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: white !important;
-    background-color: var(--accent) !important;
-    padding: 0.35rem 0.5rem;
-    border-radius: 6px;
-    font-family: 'Courier New', Courier, monospace;
+    color: var(--text-primary);
+    background-color: rgba(76, 175, 80, 0.14);
+    padding: 0.12rem 0.55rem;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
     letter-spacing: 0.3px;
-    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
-    border: 2px solid var(--accent);
-    display: inline-block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    line-height: 1.2;
+    line-height: 1.4;
 }
 
 /* Size markers - reference numbers below slider */
@@ -619,9 +650,9 @@ button:hover {
     align-items: center;
     font-size: 0.65rem;
     color: var(--text-secondary);
-    /* Inset by the thumb radius (24px thumb) so the first/last markers
+    /* Inset by the thumb radius (16px thumb) so the first/last markers
        line up with the thumb's travel at the slider's extremes */
-    padding: 0 12px;
+    padding: 0 8px;
     margin-top: 0.35rem;
     font-family: 'Courier New', Courier, monospace;
     opacity: 1;

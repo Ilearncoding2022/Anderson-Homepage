@@ -183,19 +183,25 @@
         </div>
         <div class="header-center">
             <div id="clock" class="digital-clock">
-                <div class="clock-date">Loading...</div>
-                <div class="clock-time">--:--</div>
-                <div class="clock-timezone">Local Time</div>
+                <div class="clock-city">Local Time</div>
+                <div class="clock-details">
+                    <div class="clock-date">Loading...</div>
+                    <div class="clock-time">--:--</div>
+                </div>
             </div>
             <div id="clock2" class="digital-clock clock-secondary">
-                <div class="clock-date">Loading...</div>
-                <div class="clock-time">--:--</div>
-                <div class="clock-timezone">UTC</div>
+                <div class="clock-city">UTC</div>
+                <div class="clock-details">
+                    <div class="clock-date">Loading...</div>
+                    <div class="clock-time">--:--</div>
+                </div>
             </div>
             <div id="clock3" class="digital-clock clock-secondary">
-                <div class="clock-date">Loading...</div>
-                <div class="clock-time">--:--</div>
-                <div class="clock-timezone">--</div>
+                <div class="clock-city">--</div>
+                <div class="clock-details">
+                    <div class="clock-date">Loading...</div>
+                    <div class="clock-time">--:--</div>
+                </div>
             </div>
         </div>
         <div class="controls">
@@ -440,35 +446,6 @@
                 </div>
             </div>
             <div class="settings-tab-content" id="settingsTabCalendar" data-tab="calendar" role="tabpanel" aria-labelledby="settingsTabBtnCalendar">
-                <h3 class="settings-subhead">Connection</h3>
-                <div class="form-group">
-                    <label for="calendarProxyUrl">Proxy URL (Google Apps Script)</label>
-                    <input type="url" id="calendarProxyUrl" placeholder="https://script.google.com/macros/s/.../exec">
-                </div>
-                <div class="form-group">
-                    <label for="calendarProxyToken">Proxy Secret Token</label>
-                    <input type="password" id="calendarProxyToken" placeholder="Your secret token">
-                </div>
-                <h3 class="settings-subhead">Sync</h3>
-                <div class="form-group">
-                    <label for="calendarDaysAhead">Days to Display</label>
-                    <select id="calendarDaysAhead">
-                        <option value="1">1 day</option>
-                        <option value="3">3 days</option>
-                        <option value="5">5 days</option>
-                        <option value="7" selected>7 days</option>
-                        <option value="15">15 days</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="calendarRefreshInterval">Refresh Interval</label>
-                    <select id="calendarRefreshInterval">
-                        <option value="300000">5 minutes</option>
-                        <option value="600000">10 minutes</option>
-                        <option value="1800000">30 minutes</option>
-                        <option value="3600000">1 hour</option>
-                    </select>
-                </div>
                 <h3 class="settings-subhead">Card</h3>
                 <div class="form-group">
                     <div class="size-slider-header">
@@ -495,58 +472,109 @@
                     <div id="calendarFontSettings"></div>
                 </div>
                 <h3 class="settings-subhead">Countdown timer</h3>
-                <div class="form-group">
-                    <label for="calendarCountdownPlacement">Placement</label>
-                    <select id="calendarCountdownPlacement">
-                        <option value="pill">Right-aligned pill</option>
-                        <option value="time-column">Under time column</option>
-                        <option value="title">Below the title</option>
-                        <option value="right-column">Prominent right column</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="calendarCountdownWindow">Show Timer For Events Within</label>
-                    <select id="calendarCountdownWindow">
-                        <option value="24">24 hours</option>
-                        <option value="36">36 hours</option>
-                        <option value="48" selected>48 hours</option>
-                        <option value="72">72 hours</option>
-                        <option value="all">All events</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="calendarCountdownWarnMins">Turn Amber Within (minutes)</label>
-                    <input type="number" id="calendarCountdownWarnMins" min="1" max="180" step="1" value="60">
-                </div>
-                <div class="form-group">
-                    <label for="calendarCountdownUrgentMins">Pulse Red Within (minutes)</label>
-                    <input type="number" id="calendarCountdownUrgentMins" min="1" max="180" step="1" value="10">
+                <div class="settings-2col">
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarCountdownPlacement">Placement</label>
+                            <select id="calendarCountdownPlacement">
+                                <option value="pill">Right-aligned pill</option>
+                                <option value="time-column">Under time column</option>
+                                <option value="title">Below the title</option>
+                                <option value="right-column">Prominent right column</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="calendarCountdownWindow">Show Timer For Events Within</label>
+                            <select id="calendarCountdownWindow">
+                                <option value="24">24 hours</option>
+                                <option value="36">36 hours</option>
+                                <option value="48" selected>48 hours</option>
+                                <option value="72">72 hours</option>
+                                <option value="all">All events</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarCountdownWarnMins">Turn Amber Within (minutes)</label>
+                            <input type="number" id="calendarCountdownWarnMins" min="1" max="180" step="1" value="60">
+                        </div>
+                        <div class="form-group">
+                            <label for="calendarCountdownUrgentMins">Pulse Red Within (minutes)</label>
+                            <input type="number" id="calendarCountdownUrgentMins" min="1" max="180" step="1" value="10">
+                        </div>
+                    </div>
                 </div>
                 <h3 class="settings-subhead">Upcoming bar</h3>
-                <div class="form-group">
-                    <label for="calendarUpcomingBarCount">Events to Show</label>
-                    <select id="calendarUpcomingBarCount">
-                        <option value="0">Off</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3" selected>3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                    </select>
-                    <p class="settings-hint">A strip showing the next events and their time remaining, above the 3-Day / 5-Day / Week views.</p>
+                <div class="settings-2col">
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarUpcomingBarCount">Events to Show</label>
+                            <select id="calendarUpcomingBarCount">
+                                <option value="0">Off</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3" selected>3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarUpcomingBarFormat">Display Format</label>
+                            <select id="calendarUpcomingBarFormat">
+                                <option value="ticker" selected>Scrolling ticker</option>
+                                <option value="list">List</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="settings-hint settings-2col-full">A strip showing the next events and their time remaining, above the 3-Day / 5-Day / Week views.</p>
                 </div>
-                <div class="form-group">
-                    <label for="calendarUpcomingBarFormat">Display Format</label>
-                    <select id="calendarUpcomingBarFormat">
-                        <option value="ticker" selected>Scrolling ticker</option>
-                        <option value="list">List</option>
-                    </select>
+                <h3 class="settings-subhead">Sync</h3>
+                <div class="settings-2col">
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarDaysAhead">Days to Display</label>
+                            <select id="calendarDaysAhead">
+                                <option value="1">1 day</option>
+                                <option value="3">3 days</option>
+                                <option value="5">5 days</option>
+                                <option value="7" selected>7 days</option>
+                                <option value="15">15 days</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="calendarRefreshInterval">Refresh Interval</label>
+                            <select id="calendarRefreshInterval">
+                                <option value="300000">5 minutes</option>
+                                <option value="600000">10 minutes</option>
+                                <option value="1800000">30 minutes</option>
+                                <option value="3600000">1 hour</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <h3 class="settings-subhead">Calendar sources</h3>
-                <div class="form-group">
-                    <div id="calendarSourcesList"></div>
-                    <button type="button" id="addCalendarBtn" class="calendar-add-btn">+ Add Calendar</button>
-                </div>
+                <details class="settings-collapsible">
+                    <summary class="settings-subhead">Calendar sources</summary>
+                    <div class="form-group">
+                        <div id="calendarSourcesList"></div>
+                        <button type="button" id="addCalendarBtn" class="calendar-add-btn">+ Add Calendar</button>
+                    </div>
+                </details>
+                <details class="settings-collapsible">
+                    <summary class="settings-subhead">Connection</summary>
+                    <div class="form-group">
+                        <label for="calendarProxyUrl">Proxy URL (Google Apps Script)</label>
+                        <input type="url" id="calendarProxyUrl" placeholder="https://script.google.com/macros/s/.../exec">
+                    </div>
+                    <div class="form-group">
+                        <label for="calendarProxyToken">Proxy Secret Token</label>
+                        <input type="password" id="calendarProxyToken" placeholder="Your secret token">
+                    </div>
+                </details>
             </div>
             <div class="settings-tab-content" id="settingsTabTodo" data-tab="todo" role="tabpanel" aria-labelledby="settingsTabBtnTodo">
                 <h3 class="settings-subhead">Fonts</h3>

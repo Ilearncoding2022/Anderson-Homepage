@@ -87,6 +87,11 @@ const App = {
                 }
             }, 500);
         }
+
+        // Baseline fill for every slider in the static markup, now that their
+        // values have been restored above. (paintRangeFill is defined in
+        // attachEventListeners, which ran earlier in init.)
+        document.querySelectorAll('input[type="range"]').forEach((el) => window.paintRangeFill?.(el));
     },
 
     _initCalendarSettings() {
@@ -119,6 +124,7 @@ const App = {
         const heightVal = CalendarManager.getHeight();
         if (heightSlider) heightSlider.value = heightVal === 'auto' ? '0.5' : heightVal;
         if (heightLabel) heightLabel.textContent = heightVal === 'auto' ? 'Auto' : `${heightVal}×`;
+        if (heightSlider) window.paintRangeFill?.(heightSlider);
 
         // Render existing calendar sources
         this._renderCalendarSources();
@@ -281,6 +287,7 @@ const App = {
 
         if (sizeSlider) {
             sizeSlider.value = AppState.iconSize;
+            window.paintRangeFill?.(sizeSlider);
         }
 
         if (sizeLabel) {
@@ -352,7 +359,7 @@ const App = {
         }
 
         const dateStr = now.toLocaleDateString('en-US', {
-            ...options, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+            ...options, weekday: 'short', month: 'short', day: 'numeric'
         });
 
         const timeStr = now.toLocaleTimeString('en-US', {
@@ -360,13 +367,31 @@ const App = {
         });
 
         clockElement.innerHTML = `
-            <div class="clock-date">${dateStr}</div>
-            <div class="clock-time">${timeStr}</div>
-            <div class="clock-timezone">${timezoneName}</div>
+            <div class="clock-city">${timezoneName}</div>
+            <div class="clock-details">
+                <div class="clock-date">${dateStr}</div>
+                <div class="clock-time">${timeStr}</div>
+            </div>
         `;
     },
 
     attachEventListeners() {
+        // Paint the filled portion of range sliders up to the thumb. WebKit reads
+        // the resulting --fill in its track gradient; Firefox uses the native
+        // ::-moz-range-progress pseudo and ignores it. Delegated so it covers every
+        // range input, present or added later; callers repaint on programmatic sets.
+        window.paintRangeFill = (el) => {
+            if (!el || el.type !== 'range') return;
+            const min = parseFloat(el.min) || 0;
+            const max = parseFloat(el.max);
+            const val = parseFloat(el.value);
+            const pct = (max > min) ? ((val - min) / (max - min)) * 100 : 0;
+            el.style.setProperty('--fill', Math.max(0, Math.min(100, pct)) + '%');
+        };
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.type === 'range') window.paintRangeFill(e.target);
+        });
+
         document.getElementById('themeToggle')?.addEventListener('click', Theme.toggle);
 
         const searchForm = document.getElementById('searchForm');
