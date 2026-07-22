@@ -1737,9 +1737,10 @@ body.card-resizing .app-group {
     padding: 0.3rem 0.4rem;
     cursor: pointer;
     transition: background 0.2s;
-    /* Time and title share one line: "19–19:45 | Event name". */
-    display: flex;
-    align-items: baseline;
+    /* Time and title flow as one wrapping paragraph — "19–19:45 | Event name" —
+       the title wrapping onto extra lines and growing the chip instead of being
+       cut off. Block box with inline children; the column stacks chips by flex. */
+    display: block;
 }
 
 .calendar-day-chip:hover {
@@ -1760,8 +1761,8 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-tz, 1);
     font-weight: 600;
     color: rgba(255, 255, 255, 0.65);
-    white-space: nowrap;
-    flex: 0 0 auto;   /* never shrink the time; the title truncates instead */
+    white-space: nowrap;   /* keep the time range together; the title wraps after it */
+    display: inline;
 }
 
 .calendar-chip-title {
@@ -1769,11 +1770,8 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-event, 1);
     font-weight: 500;
     color: rgba(255, 255, 255, 0.9);
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: inline;
+    overflow-wrap: anywhere;
 }
 
 /* " | " separator between the time and title on the shared line (chip grid and
@@ -1949,10 +1947,26 @@ body.card-resizing .app-group {
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     line-height: 1.15;
-    /* Time and title share one line at the top of the block: "19–19:45 | Title".
-       baseline keeps the line pinned to the top even when the block is tall. */
-    display: flex;
-    align-items: baseline;
+    /* Time and title flow as one wrapping paragraph so a tall block fills its
+       height instead of showing one truncated line. .cal-tl-event-text clamps to
+       the number of lines that fit — set inline per block by _fitTimelineEventText
+       from the block's pixel height — for a clean ellipsis on the last line. NO
+       zoom on this positioned box: it would corrupt the pixel top/height, the same
+       trap documented on .cal-tl-hour. */
+    display: block;
+}
+
+/* Wrapping + line-clamp box for the event text. The default 1-line clamp matches
+   the old single-line look and is the graceful fallback before the JS fit pass
+   runs; _fitTimelineEventText raises the clamp to fit each block's height. */
+.cal-tl-event-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
+    /* Lane-split events get narrow, so let long words break rather than overflow. */
+    overflow-wrap: anywhere;
 }
 
 .cal-tl-event:hover {
@@ -1970,19 +1984,13 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-tz, 1);
     font-weight: 600;
     opacity: 0.9;
-    white-space: nowrap;
-    flex: 0 0 auto;   /* never shrink the time; the title truncates instead */
+    white-space: nowrap;   /* keep the time range together; the title wraps after it */
 }
 
 .cal-tl-event-title {
     font-size: var(--cal-fs-event, 0.72rem);
     zoom: var(--cal-z-event, 1);
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 0 1 auto;
-    min-width: 0;
 }
 
 /* Current-time indicator on the today column: a two-stripe black/white bar under

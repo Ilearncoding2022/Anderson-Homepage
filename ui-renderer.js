@@ -1271,8 +1271,7 @@ const UIRenderer = {
                          ${this._calEventDataAttrs(ev)}
                          tabindex="0" role="button"
                          aria-label="View details: ${safeTitle}, ${Utils.sanitizeHTML(d.day.label)}, ${Utils.sanitizeHTML(timeText)}">
-                        <span class="cal-tl-event-time">${Utils.sanitizeHTML(timeText)}</span>
-                        <span class="cal-tl-event-title">${safeTitle}</span>
+                        <span class="cal-tl-event-text"><span class="cal-tl-event-time">${Utils.sanitizeHTML(timeText)}</span><span class="cal-tl-event-title">${safeTitle}</span></span>
                     </div>`;
             }).join('');
             const nowLine = d.nowTopPct != null
@@ -2194,6 +2193,44 @@ const UIRenderer = {
         return tl ? tl.scrollTop : null;
     },
 
+    // Give each timeline event block as many text lines as its pixel height allows,
+    // so a tall block fills its height instead of truncating on one line. Block
+    // heights are fixed (set inline from the event's duration), so CSS alone can't
+    // do it — -webkit-line-clamp needs an integer line count. Measure one rendered
+    // line from a hidden probe (the --cal-z-* zoom vars make rem math unreliable),
+    // then set the clamp per block from its inline height. Setting the clamp never
+    // changes a block's own height (its text is overflow-hidden inside a fixed box),
+    // so this is safe to run before the scroll-anchoring math in _applyTimelineScroll.
+    _fitTimelineEventText(timeline) {
+        if (!timeline) return;
+        const events = timeline.querySelectorAll('.cal-tl-event');
+        if (!events.length) return;
+
+        // One hidden probe carrying the real font/zoom cascade → one line's height.
+        // position:absolute keeps it out of the grid flow; removed before it paints.
+        const probe = document.createElement('div');
+        probe.className = 'cal-tl-event';
+        probe.style.cssText = 'position:absolute; visibility:hidden; pointer-events:none; top:0; left:0; width:120px; height:auto; min-height:0;';
+        probe.innerHTML = '<span class="cal-tl-event-text"><span class="cal-tl-event-time">00–00</span><span class="cal-tl-event-title">Mg</span></span>';
+        timeline.appendChild(probe);
+        const probeText = probe.querySelector('.cal-tl-event-text');
+        const lineH = probeText ? probeText.offsetHeight : 0;
+        timeline.removeChild(probe);
+        if (!lineH) return;
+
+        events.forEach(el => {
+            const text = el.querySelector('.cal-tl-event-text');
+            if (!text) return;
+            // Height parsed from the inline style (set at build time) so this loop
+            // forces no per-block layout. Minus 2px for the 1px top+bottom padding
+            // on .cal-tl-event.
+            const inner = (parseFloat(el.style.height) || 0) - 2;
+            const lines = Math.max(1, Math.floor(inner / lineH));
+            text.style.webkitLineClamp = String(lines);
+            text.style.lineClamp = String(lines);
+        });
+    },
+
     // Anchor the viewport on the current-time line when the outgoing timeline was
     // still sitting exactly where we last anchored it (i.e. the user never
     // scrolled it) or when there was no timeline at all — the first render of the
@@ -2221,6 +2258,10 @@ const UIRenderer = {
         requestAnimationFrame(() => {
             const tl = document.querySelector('.calendar-group .calendar-timeline');
             if (!tl) return;
+            // Fit each event block's text to its height (runs on every render path
+            // through this hook). Before the scroll math below — it never changes a
+            // block's own height, so the now-line geometry stays valid.
+            this._fitTimelineEventText(tl);
             if (userMoved) { tl.scrollTop = prev; return; }
 
             const now = tl.querySelector('.cal-tl-now');

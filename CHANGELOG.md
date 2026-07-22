@@ -5,6 +5,48 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.8] — 2026-07-22
+
+### Calendar card
+- **Today & Now, always within reach (new):** the day-view button that used to
+  read "Today" is now "Today & Now" and is never greyed out. Pressing it returns
+  to today's window, flashes today's column green, and, in the timeline view,
+  scrolls back to the current-time line even when you had scrolled elsewhere.
+- **On-the-hour times are shorter (change):** an event time that lands exactly on
+  the hour drops its minutes, so 19:00 reads as 19 and 7:00 as 7; times with
+  minutes are unchanged, so 19:45 still reads as 19:45.
+- **Time and title on one line (change):** in the day and timeline views an event
+  now reads "19–19:45 | Event name" on a single line rather than stacking the
+  time above the title.
+- **Long titles wrap instead of clipping (change):** a long event title in the day
+  and timeline views now wraps onto more lines to use a tall event's full height,
+  rather than being cut off with an ellipsis while the space below it sat empty.
+  The time still leads the first line.
+- **A calmer upcoming ticker (change):** the scrolling strip of upcoming events
+  in the card header is a fifth narrower, sits to the right, and scrolls more
+  slowly.
+
+### Settings, Calendar tab
+- **Two columns where one was enough (change):** the Sync, Countdown timer and
+  Upcoming bar sections lay their controls out in two narrower columns, so the
+  tab is shorter to read.
+- **Connection and Calendar sources fold away (change):** both sections now
+  collapse and start collapsed, keeping the proxy connection and the feed list
+  out of sight until you open them. The tab is reordered to lead with the
+  display settings.
+
+### Sliders
+- **One cleaner slider everywhere (change):** the Icon Size slider in the menu,
+  the Card Height slider in Settings and the Pomodoro sliders now share a thin
+  track that fills up to the handle, a handle that sits on the track instead of
+  hanging beneath it, and a focus outline for keyboard use.
+
+### Fixes
+- **The upcoming ticker stops restarting (fix):** moving between weeks or pressing
+  Today used to rebuild the whole card, which snapped the scrolling ticker back
+  to its beginning. Those actions now refresh only the list of events, so the
+  ticker keeps gliding.
+
 ## [v4.7] — 2026-07-20
 
 ### Settings and the menu, reorganized
