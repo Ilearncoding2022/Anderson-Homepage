@@ -374,6 +374,20 @@ const App = {
         });
     },
 
+    // Is the calendar's "Today & Now" action available right now? The button only
+    // renders for a configured calendar in a non-list view, so its presence is the
+    // single source of truth — the shortcuts below can't outlive the button.
+    _todayNowAvailable() {
+        return !!document.querySelector('.cal-header-today');
+    },
+
+    // Run the "Today & Now" action, reporting whether it applied.
+    _jumpToTodayNow() {
+        if (!this._todayNowAvailable() || !window.UIRenderer) return false;
+        UIRenderer.jumpToTodayView();
+        return true;
+    },
+
     // Group the calendar by clock slot 'tz1'|'tz2'|'tz3'. Shared by the clock
     // click/Enter/Space delegate above and the 1/2/3 shortcuts so both paths
     // behave identically.
@@ -381,6 +395,13 @@ const App = {
         const cm = window.CalendarManager;
         if (!cm) return;
         if (mode === 'tz3' && this._cachedTimezones.tz3 === 'none') return;
+
+        // Re-selecting the clock that's already grouping the calendar has nothing
+        // to change, so it acts as "Today & Now" for that zone instead. Compared by
+        // resolved zone, not by slot: two clocks set to the same zone are one
+        // selection as far as the highlight (and the grouping menu) is concerned.
+        const zone = cm._resolveZone?.(`timezone${mode.slice(2)}`);
+        if (zone && zone === cm.getGroupingTimezone?.() && this._jumpToTodayNow()) return;
 
         // In a non-list view with the timeline on and today already inside the
         // visible day range, re-anchor the timeline on the now-line as part of
@@ -432,6 +453,15 @@ const App = {
                 return;
             }
 
+            // Enter is the shortcut for the calendar's "Today & Now" button, but
+            // only when nothing focusable owns it — a focused link or event row
+            // should still activate itself.
+            if (e.key === 'Enter') {
+                if (e.target.closest?.('a, [tabindex], [data-cal-event]')) return;
+                if (this._jumpToTodayNow()) e.preventDefault();
+                return;
+            }
+
             const keyToMode = { '1': 'tz1', '2': 'tz2', '3': 'tz3' };
             const mode = keyToMode[e.key];
             if (!mode) return;
@@ -455,6 +485,12 @@ const App = {
                 clock3El.style.display = '';
                 this.updateClockDisplay('clock3', timezone3, 'timezone3');
             }
+            // A third clock widens the centre column by ~190px, which is width the
+            // usage widget's title/countdowns can no longer have. CSS can't see an
+            // inline display:none, so mirror the state onto the header as a class
+            // (see the .header.has-three-clocks rules in 2-components.css).
+            document.querySelector('.header')
+                ?.classList.toggle('has-three-clocks', timezone3 !== 'none');
         }
 
         this._applyClockGroupingHighlight();

@@ -184,21 +184,21 @@
             </div>
         </div>
         <div class="header-center">
-            <div id="clock" class="digital-clock" role="button" tabindex="0" aria-keyshortcuts="1" title="Group the calendar by this time zone (press 1)">
+            <div id="clock" class="digital-clock" role="button" tabindex="0" aria-keyshortcuts="1" title="Group the calendar by this time zone (press 1) — again for Today &amp; Now">
                 <div class="clock-city">Local Time</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
                     <div class="clock-time">--:--</div>
                 </div>
             </div>
-            <div id="clock2" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="2" title="Group the calendar by this time zone (press 2)">
+            <div id="clock2" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="2" title="Group the calendar by this time zone (press 2) — again for Today &amp; Now">
                 <div class="clock-city">UTC</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
                     <div class="clock-time">--:--</div>
                 </div>
             </div>
-            <div id="clock3" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="3" title="Group the calendar by this time zone (press 3)">
+            <div id="clock3" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="3" title="Group the calendar by this time zone (press 3) — again for Today &amp; Now">
                 <div class="clock-city">--</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
@@ -211,7 +211,9 @@
                  generated usage-data.js (written by tools/update-claude-usage.ps1).
                  Stays hidden until the data file loads successfully. -->
             <div id="usageWidget" class="usage-widget" hidden>
-                <span class="usage-title">Claude<br>Usage<br>Tracker</span>
+                <!-- Three separate lines (not <br>) so .usage-title can space them
+                     with a flex gap instead of leaning on line-height. -->
+                <span class="usage-title"><span>Claude</span><span>Usage</span><span>Tracker</span></span>
                 <div class="usage-rows">
                     <div class="usage-row" data-kind="session">
                         <span class="usage-label">Session</span>
@@ -231,71 +233,84 @@
                 </div>
                 <span id="usageStaleNote" class="sr-only" role="status"></span>
             </div>
-            <div class="controls">
-                <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
-                <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="Toggle Theme">🌙</button>
-            </div>
         </div>
     </header>
 
-    <!-- ============================================ -->
-    <!-- DROPDOWN MENU - quick actions + navigation only -->
-    <!-- ============================================ -->
-    <div class="dropdown-menu" id="dropdownMenu">
-        <!-- Action Buttons (most-used actions first: Add Website, then Add Group) -->
-        <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
-        <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
+    <!-- Menu button + its dropdown, sharing the right-edge tab rail with the
+         minimap toggle. Minimap.init() adopts this node into .minimap-tabs so the
+         pair slides together when the minimap panel opens; the CSS below places
+         it in the same spot beforehand, and keeps it usable if that never runs. -->
+    <div class="controls">
+        <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
 
-        <div class="dropdown-divider"></div>
+        <!-- ============================================ -->
+        <!-- DROPDOWN MENU - quick actions + navigation only -->
+        <!-- ============================================ -->
+        <div class="dropdown-menu" id="dropdownMenu">
+            <!-- Action Buttons (most-used actions first: Add Website, then Add Group) -->
+            <button class="dropdown-item" id="addWebsiteBtn">+ Add Website</button>
+            <button class="dropdown-item" id="addGroupBtn">📁 Add Group</button>
 
-        <!-- View Section: layout toggle + icon size, grouped under one heading -->
-        <div class="dropdown-section">
-            <label class="dropdown-label">View</label>
-            <div class="view-toggle">
-                <button id="gridView" class="active" title="Grid View" aria-label="Grid View">⊞</button>
-                <button id="listView" title="List View" aria-label="List View">☰</button>
+            <div class="dropdown-divider"></div>
+
+            <!-- View Section: theme + layout toggle + icon size, grouped under one heading -->
+            <div class="dropdown-section">
+                <label class="dropdown-label">View</label>
+
+                <!-- Dark/light switch, moved here out of the header. The button keeps
+                     its #themeToggle id and emoji swap, so Theme.load/toggle and the
+                     existing click wiring are unchanged. -->
+                <div class="dropdown-control-row">
+                    <label for="themeToggle">Theme</label>
+                    <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="Toggle Theme">🌙</button>
+                </div>
+
+                <div class="view-toggle">
+                    <button id="gridView" class="active" title="Grid View" aria-label="Grid View">⊞</button>
+                    <button id="listView" title="List View" aria-label="List View">☰</button>
+                </div>
+
+                <div class="size-slider-header">
+                    <label for="sizeSlider">Icon Size</label>
+                    <span class="size-label" id="sizeLabel">80px</span>
+                </div>
+
+                <!-- Full-width slider -->
+                <div class="size-slider-container">
+                    <input type="range"
+                           class="size-slider"
+                           id="sizeSlider"
+                           min="20"
+                           max="100"
+                           value="80"
+                           step="5"
+                           title="Adjust Icon Size">
+                </div>
+
+                <!-- Reference Markers -->
+                <div class="size-markers">
+                    <span>20</span>
+                    <span>40</span>
+                    <span>60</span>
+                    <span>80</span>
+                    <span>100</span>
+                </div>
             </div>
 
-            <div class="size-slider-header">
-                <label for="sizeSlider">Icon Size</label>
-                <span class="size-label" id="sizeLabel">80px</span>
+            <div class="dropdown-divider"></div>
+
+            <!-- Settings + changelog: both open a separate modal/dialog surface -->
+            <button class="dropdown-item" id="settingsBtn">⚙️ Settings…</button>
+            <button type="button" class="dropdown-item" id="changelogBtn"
+                    aria-haspopup="dialog" title="View full changelog">📋 What's new</button>
+
+            <div class="dropdown-divider"></div>
+
+            <!-- Quiet footer status: localStorage capacity (moved from the page footer) -->
+            <div class="storage-meter" id="storageMeter" title="Browser localStorage usage (≈5 MB limit). Large items like the background image and website icons are stored separately and don't count here.">
+                <span class="storage-meter-text" id="storageMeterText">Storage: …</span>
+                <div class="storage-meter-bar"><div class="storage-meter-fill" id="storageMeterFill"></div></div>
             </div>
-
-            <!-- Full-width slider -->
-            <div class="size-slider-container">
-                <input type="range"
-                       class="size-slider"
-                       id="sizeSlider"
-                       min="20"
-                       max="100"
-                       value="80"
-                       step="5"
-                       title="Adjust Icon Size">
-            </div>
-
-            <!-- Reference Markers -->
-            <div class="size-markers">
-                <span>20</span>
-                <span>40</span>
-                <span>60</span>
-                <span>80</span>
-                <span>100</span>
-            </div>
-        </div>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- Settings + changelog: both open a separate modal/dialog surface -->
-        <button class="dropdown-item" id="settingsBtn">⚙️ Settings…</button>
-        <button type="button" class="dropdown-item" id="changelogBtn"
-                aria-haspopup="dialog" title="View full changelog">📋 What's new</button>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- Quiet footer status: localStorage capacity (moved from the page footer) -->
-        <div class="storage-meter" id="storageMeter" title="Browser localStorage usage (≈5 MB limit). Large items like the background image and website icons are stored separately and don't count here.">
-            <span class="storage-meter-text" id="storageMeterText">Storage: …</span>
-            <div class="storage-meter-bar"><div class="storage-meter-fill" id="storageMeterFill"></div></div>
         </div>
     </div>
 

@@ -50,11 +50,21 @@
     transform: translateX(0) translateY(-50%);
 }
 
-.minimap-toggle {
+/* Tab rail on the panel's left edge: the app menu button on top, the minimap's
+   own toggle below. Positioning lives here so both tabs stack as one unit and
+   travel with the panel when it slides open. */
+.minimap-tabs {
     position: absolute;
     left: -36px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.minimap-toggle {
     width: 36px;
     height: 64px;
     background: rgba(0, 0, 0, 0.55);
@@ -74,6 +84,71 @@
 .minimap-toggle:hover {
     background-color: rgba(0, 0, 0, 0.7);
     color: white;
+    transform: none;
+}
+
+/* ---- Menu button, adopted into the rail by Minimap.init() ---- */
+
+/* Before adoption (and if minimap.js never runs) .controls positions itself on
+   the same rail, one tab-height above centre, so the button is always reachable
+   and doesn't visibly jump when the panel takes it over. */
+.controls {
+    position: fixed;
+    right: 0;
+    top: calc(50% - 35px);
+    transform: translateY(-100%);
+    z-index: 100;
+}
+
+/* Relative, not static: it stays the containing block its dropdown is anchored
+   to, while the rail's flex column does the placing. */
+.minimap-tabs .controls {
+    position: relative;
+    top: auto;
+    right: auto;
+    transform: none;
+}
+
+/* Same dark glass as .minimap-toggle — one cluster, not two visitors. */
+.minimap-tabs .hamburger-btn {
+    width: 36px;
+    height: 48px;
+    border-radius: 8px 0 0 8px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
+    padding: 0;
+}
+
+.minimap-tabs .hamburger-btn:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    transform: none;
+}
+
+[data-theme="light"] .minimap-tabs .hamburger-btn {
+    background: rgba(18, 18, 22, 0.9);
+}
+
+[data-theme="light"] .minimap-tabs .hamburger-btn:hover {
+    background-color: rgba(18, 18, 22, 0.97);
+}
+
+/* Opens leftward from the rail and vertically centred, rather than dropping from
+   a mid-screen tab and running off the bottom of the window. */
+.minimap-tabs .dropdown-menu {
+    top: 50%;
+    right: calc(100% + 8px);
+    bottom: auto;
+    left: auto;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    /* Same 10px slide-in as the default dropdown, on top of the centring. */
+    transform: translate(0, calc(-50% - 10px));
+}
+
+.minimap-tabs .dropdown-menu.show {
     transform: translateY(-50%);
 }
 

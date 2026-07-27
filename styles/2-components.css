@@ -44,7 +44,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 1rem;
+    gap: 0.5rem;
     min-width: 0;
 }
 
@@ -222,12 +222,11 @@
     border-color: var(--accent);
 }
 
+/* Wrapper around the menu button and the dropdown it anchors. Placement lives in
+   6-minimap.css, which parks the pair on the minimap's right-edge tab rail. */
 .controls {
     display: flex;
-    gap: 1rem;
     align-items: center;
-    flex-wrap: wrap;
-    flex: 0 0 auto;
 }
 
 /* ---- Claude token-usage bars (header, fed by usage-data.js) ---- */
@@ -237,13 +236,22 @@
     gap: 10px;
     font-size: 0.7rem;
     color: var(--text-secondary);
+    /* Keeps the block off the header's right edge, roughly where it sat when the
+       menu button was still its neighbour. Trimmed when a third clock widens the
+       centre column, so the countdowns stay affordable in that layout too. */
+    margin-right: 60px;
 }
 
 /* display:flex above would defeat the UA's [hidden] rule without these. */
 .usage-widget[hidden] { display: none; }
 .usage-row[hidden] { display: none; }
 
+/* Three stacked <span> lines — flex gap spaces them without inflating the
+   line box the way a larger line-height would. */
 .usage-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     line-height: 1.2;
     text-align: left;
     white-space: nowrap;
@@ -311,12 +319,29 @@
 .usage-widget.is-stale { opacity: 0.55; }
 .usage-widget.is-stale .usage-resets::after { content: " ⚠"; }
 
-/* Mid-width windows: shed the title and countdown text, then the whole
-   widget, before the side zones can crowd the centered clocks (mobile
-   stacking takes over at 768px and brings the widget back full-width). */
-@media (max-width: 1500px) {
+/* Mid-width windows: shed the countdowns and title, then the whole widget,
+   before the side zones can crowd the centered clocks (mobile stacking takes
+   over at 768px and brings the widget back full-width).
+
+   The arithmetic behind the numbers: the full widget costs 333px (252px without
+   the countdowns) now that the menu button no longer shares the zone, plus its
+   margin-right; the right zone gets (viewport − 96px − centre) / 2, where the
+   centre column is ~355px with two clocks and ~545px with three (after the 1pt
+   clock trim). Two clocks + 60px margin therefore needs ~1237px. */
+@media (max-width: 1240px) {
     .header .usage-resets,
     .header .usage-title { display: none; }
+}
+
+/* A third clock eats ~190px of the centre. Rather than dropping the countdowns
+   the moment that happens, give back most of the widget's left nudge — the nudge
+   is cosmetic, the countdowns are the point. 333 + 24 fits from ~1340px up.
+   Class is set by AppInit.updateClock(); clock3 is hidden with an inline style,
+   which CSS can't see. */
+.header.has-three-clocks .usage-widget { margin-right: 24px; }
+
+@media (max-width: 1340px) {
+    .header.has-three-clocks .usage-resets { display: none; }
 }
 
 @media (min-width: 769px) and (max-width: 1180px) {
@@ -412,8 +437,10 @@
     border-left: 2px solid var(--border-color);
 }
 
+/* All three clock text sizes are 1pt below their original rem value — kept as
+   calc() so the relationship stays visible instead of baking in odd decimals. */
 .clock-city {
-    font-size: 1.25rem;
+    font-size: calc(1.25rem - 1pt);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -430,7 +457,7 @@
 }
 
 .clock-date {
-    font-size: 0.72rem;
+    font-size: calc(0.72rem - 1pt);
     font-weight: 500;
     color: var(--text-secondary);
     letter-spacing: 0.4px;
@@ -439,7 +466,7 @@
 }
 
 .clock-time {
-    font-size: 1.05rem;
+    font-size: calc(1.05rem - 1pt);
     font-weight: 700;
     color: var(--text-primary);
     font-family: 'Courier New', Courier, monospace;
@@ -534,7 +561,7 @@ button:hover {
     padding: 0;
 }
 
-/* Theme Toggle Button */
+/* Theme Toggle Button (lives in the dropdown menu's View section) */
 .theme-toggle {
     background-color: var(--bg-secondary);
     color: var(--text-primary);
@@ -551,10 +578,12 @@ button:hover {
    5. DROPDOWN MENU
    ======================================== */
 
+/* Anchored to .controls rather than to a fixed viewport corner, so it follows the
+   menu button. 6-minimap.css re-aims it leftward once the button joins the rail. */
 .dropdown-menu {
-    position: fixed;
-    top: 70px;
-    right: 20px;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
     background-color: var(--bg-card);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
@@ -614,6 +643,23 @@ button:hover {
     height: 1px;
     background-color: var(--border-color);
     margin: 1rem 0;
+}
+
+/* Label-left / control-right row inside a dropdown section (Theme toggle).
+   Mirrors .size-slider-header so the View section reads as one column. */
+.dropdown-control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.dropdown-menu .dropdown-control-row label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 0;
+    cursor: pointer;
 }
 
 /* ========================================
