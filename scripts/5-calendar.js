@@ -1223,6 +1223,9 @@ const CalendarManager = {
         if (!this.groupingModes.includes(mode)) return;
         Utils.safeLocalStorageSet(this.config.storageKeys.grouping, mode);
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
+        // Refresh the header clock's ROYGBIV highlight immediately (it otherwise
+        // updates on the next 1s clock tick).
+        window.App?._applyClockGroupingHighlight?.();
     },
 
     // Options for the grouping dropdown: one entry per enabled Settings clock
@@ -1373,17 +1376,10 @@ const CalendarManager = {
             return { day: d, dayStart, allDay, timed };
         });
 
-        // Shared hour range: fit to events (hour-aligned), fall back to 8–18.
-        let rangeStartMin, rangeEndMin;
-        if (minStart === Infinity) { rangeStartMin = 8 * 60; rangeEndMin = 18 * 60; }
-        else {
-            rangeStartMin = Math.max(0, Math.floor(minStart / 60) * 60);
-            rangeEndMin = Math.min(1440, Math.ceil(maxEnd / 60) * 60);
-            if (rangeEndMin - rangeStartMin < 60) rangeEndMin = Math.min(1440, rangeStartMin + 60);
-        }
-        // One "now" reading shared by the gap exclusion below and the now-line
-        // position further down — two Date.now() calls could straddle a minute
-        // boundary and disagree about which hour slot to keep uncollapsed.
+        // One "now" reading shared by the range extension, the gap exclusion,
+        // and the now-line position further down — two Date.now() calls could
+        // straddle a minute boundary and disagree about which hour slot to keep
+        // uncollapsed. Read before the range so the range can be sized to cover it.
         const nowMs = Date.now();
         // Today comes from the window's own isToday flag rather than a 24h span
         // off dayStart: a spring-forward day is 23h long, so [dayStart, +24h)
@@ -1392,6 +1388,28 @@ const CalendarManager = {
         // computed from _dateOnly(now, tz) in getDayViewWindow, so it is exact.
         const nowDay = perDay.find(pd => pd.day.isToday);
         const nowMin = nowDay ? (nowMs - nowDay.dayStart) / 60000 : null;
+
+        // Shared hour range: fit to events (hour-aligned), fall back to 8–18.
+        let rangeStartMin, rangeEndMin;
+        if (minStart === Infinity) { rangeStartMin = 8 * 60; rangeEndMin = 18 * 60; }
+        else {
+            rangeStartMin = Math.max(0, Math.floor(minStart / 60) * 60);
+            rangeEndMin = Math.min(1440, Math.ceil(maxEnd / 60) * 60);
+            if (rangeEndMin - rangeStartMin < 60) rangeEndMin = Math.min(1440, rangeStartMin + 60);
+        }
+        // When today is in view, widen the range to cover "now" so the dial is
+        // always rendered. Without this, a 01:23 now with a first event at 09:00
+        // leaves nowMin outside [rangeStartMin, rangeEndMin] and the dial — plus
+        // its nowSlot / nowTopPct guards — silently drops it. The empty stretch
+        // between now and the events is ≥2h free on every day, so it collapses
+        // into one "no events" band below; the hour holding now is force-excluded
+        // from that collapse (nowSlot) and stays full height at the dial's true
+        // position. The mirror case (now after the last event) is covered too.
+        if (nowMin != null && nowMin >= 0 && nowMin < 1440) {
+            rangeStartMin = Math.min(rangeStartMin, Math.floor(nowMin / 60) * 60);
+            rangeEndMin = Math.max(rangeEndMin, Math.min(1440, Math.floor(nowMin / 60) * 60 + 60));
+        }
+
         const nowSlot = (nowMin != null && nowMin >= rangeStartMin && nowMin <= rangeEndMin)
             ? Math.floor(nowMin / 60) * 60
             : null;
@@ -1606,8 +1624,24 @@ const CalendarManager = {
         return out;
     },
 
-    // Friendly short label for a zone: curated names, then DST-aware abbreviation, then path tail.
+    // A user-supplied custom label (Settings → Clocks) wins over any derived name.
+    // Labels are keyed by clock slot, so find the first slot that resolves to this
+    // zone and carries a non-empty label.
+    _customLabelForZone(id) {
+        for (const key of ['timezone1', 'timezone2', 'timezone3']) {
+            if (this._resolveZone(key) === id) {
+                const lbl = (localStorage.getItem(key + 'Label') || '').trim();
+                if (lbl) return lbl;
+            }
+        }
+        return null;
+    },
+
+    // Friendly short label for a zone: custom label, then curated names, then
+    // DST-aware abbreviation, then path tail.
     _tzLabel(id) {
+        const custom = this._customLabelForZone(id);
+        if (custom) return custom;
         const friendly = {
             'Asia/Ho_Chi_Minh': 'VN',
             'America/New_York': 'ET'

@@ -167,36 +167,38 @@
     <!-- ============================================ -->
     
     <header class="header">
-        <div class="header-left">
-            <!-- Pomodoro toggle — shows/hides the pomodoro card.
-                 The mini countdown appears here when the timer runs with the card hidden. -->
-            <div id="pomodoroToolbar" class="pomodoro-toolbar">
-                <button id="pomodoroTimerBtn" class="pomodoro-toolbar-btn" title="Toggle Pomodoro Timer" aria-label="Toggle Pomodoro Timer" aria-expanded="false" aria-controls="pomodoroScreen"><img src="Pomodoro.png" alt="" class="pomodoro-btn-icon" draggable="false"></button>
-                <span id="pomodoroMiniTime" class="pomodoro-mini-time" role="timer" aria-label="Pomodoro time remaining" style="display: none;"></span>
+        <div class="header-zone-left">
+            <div class="header-left">
+                <!-- Pomodoro toggle — shows/hides the pomodoro card.
+                     The mini countdown appears here when the timer runs with the card hidden. -->
+                <div id="pomodoroToolbar" class="pomodoro-toolbar">
+                    <button id="pomodoroTimerBtn" class="pomodoro-toolbar-btn" title="Toggle Pomodoro Timer" aria-label="Toggle Pomodoro Timer" aria-expanded="false" aria-controls="pomodoroScreen"><img src="Pomodoro.png" alt="" class="pomodoro-btn-icon" draggable="false"></button>
+                    <span id="pomodoroMiniTime" class="pomodoro-mini-time" role="timer" aria-label="Pomodoro time remaining" style="display: none;"></span>
+                </div>
+            </div>
+            <div class="header-search">
+                <form id="searchForm" class="search-form">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." aria-label="Search Google" aria-keyshortcuts="/ Control+K" autocomplete="off">
+                    <button type="submit" class="search-button" aria-label="Search">🔍</button>
+                </form>
             </div>
         </div>
-        <div class="header-search">
-            <form id="searchForm" class="search-form">
-                <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." autocomplete="off" autofocus>
-                <button type="submit" class="search-button" aria-label="Search">🔍</button>
-            </form>
-        </div>
         <div class="header-center">
-            <div id="clock" class="digital-clock">
+            <div id="clock" class="digital-clock" role="button" tabindex="0" aria-keyshortcuts="1" title="Group the calendar by this time zone (press 1)">
                 <div class="clock-city">Local Time</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
                     <div class="clock-time">--:--</div>
                 </div>
             </div>
-            <div id="clock2" class="digital-clock clock-secondary">
+            <div id="clock2" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="2" title="Group the calendar by this time zone (press 2)">
                 <div class="clock-city">UTC</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
                     <div class="clock-time">--:--</div>
                 </div>
             </div>
-            <div id="clock3" class="digital-clock clock-secondary">
+            <div id="clock3" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="3" title="Group the calendar by this time zone (press 3)">
                 <div class="clock-city">--</div>
                 <div class="clock-details">
                     <div class="clock-date">Loading...</div>
@@ -204,9 +206,35 @@
                 </div>
             </div>
         </div>
-        <div class="controls">
-            <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
-            <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="Toggle Theme">🌙</button>
+        <div class="header-zone-right">
+            <!-- Claude token-usage bars — populated by scripts/8-usage.js from the
+                 generated usage-data.js (written by tools/update-claude-usage.ps1).
+                 Stays hidden until the data file loads successfully. -->
+            <div id="usageWidget" class="usage-widget" hidden>
+                <span class="usage-title">Claude<br>Usage<br>Tracker</span>
+                <div class="usage-rows">
+                    <div class="usage-row" data-kind="session">
+                        <span class="usage-label">Session</span>
+                        <div class="usage-bar" role="progressbar" aria-label="Session usage" aria-valuemin="0" aria-valuemax="100"><div class="usage-fill"></div><span class="usage-pct">--%</span></div>
+                        <span class="usage-resets"></span>
+                    </div>
+                    <div class="usage-row" data-kind="weekly_all">
+                        <span class="usage-label">Week (All)</span>
+                        <div class="usage-bar" role="progressbar" aria-label="Weekly usage" aria-valuemin="0" aria-valuemax="100"><div class="usage-fill"></div><span class="usage-pct">--%</span></div>
+                        <span class="usage-resets"></span>
+                    </div>
+                    <div class="usage-row" data-kind="weekly_scoped">
+                        <span class="usage-label">Week (Fable)</span>
+                        <div class="usage-bar" role="progressbar" aria-label="Weekly Fable usage" aria-valuemin="0" aria-valuemax="100"><div class="usage-fill"></div><span class="usage-pct">--%</span></div>
+                        <span class="usage-resets"></span>
+                    </div>
+                </div>
+                <span id="usageStaleNote" class="sr-only" role="status"></span>
+            </div>
+            <div class="controls">
+                <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
+                <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="Toggle Theme">🌙</button>
+            </div>
         </div>
     </header>
 
@@ -322,26 +350,28 @@
                         </label>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="bgPosition">Background Position</label>
-                    <select id="bgPosition">
-                        <option value="cover" selected>Fill (Cover)</option>
-                        <option value="contain">Fit (Contain)</option>
-                        <option value="stretch">Stretch</option>
-                        <option value="stretch-horizontal">Stretch Horizontal</option>
-                        <option value="stretch-vertical">Stretch Vertical</option>
-                        <option value="center">Center (Original Size)</option>
-                        <option value="tile">Tile (Repeat)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="bgBlur">Background Blur Effect</label>
-                    <select id="bgBlur">
-                        <option value="no-blur">No Blur (Crisp)</option>
-                        <option value="light-blur">Light Blur</option>
-                        <option value="medium-blur" selected>Medium Blur (Default)</option>
-                        <option value="heavy-blur">Heavy Blur</option>
-                    </select>
+                <div class="bg-row">
+                    <div class="form-group">
+                        <label for="bgPosition">Background Position</label>
+                        <select id="bgPosition">
+                            <option value="cover" selected>Fill (Cover)</option>
+                            <option value="contain">Fit (Contain)</option>
+                            <option value="stretch">Stretch</option>
+                            <option value="stretch-horizontal">Stretch Horizontal</option>
+                            <option value="stretch-vertical">Stretch Vertical</option>
+                            <option value="center">Center (Original Size)</option>
+                            <option value="tile">Tile (Repeat)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="bgBlur">Background Blur Effect</label>
+                        <select id="bgBlur">
+                            <option value="no-blur">No Blur (Crisp)</option>
+                            <option value="light-blur">Light Blur</option>
+                            <option value="medium-blur" selected>Medium Blur (Default)</option>
+                            <option value="heavy-blur">Heavy Blur</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <button id="clearBgImage">Clear Background Image</button>
@@ -362,9 +392,10 @@
                     </select>
                 </div>
                 <h3 class="settings-subhead">Clocks</h3>
+                <div class="clock-row">
                 <div class="form-group">
                     <label for="timezone1">Clock #1 Timezone</label>
-                    <select id="timezone1">
+                    <select id="timezone1" class="timezone-select">
                         <option value="local">Local Time (Auto-detect)</option>
                         <option value="UTC">UTC</option>
                         <option value="America/New_York">Eastern Time (New York)</option>
@@ -390,8 +421,16 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="timezone1Label">Clock #1 Custom Label</label>
+                    <input type="text" id="timezone1Label" class="timezone-label-input"
+                           maxlength="24" autocomplete="off"
+                           placeholder="Leave blank for auto">
+                </div>
+                </div>
+                <div class="clock-row">
+                <div class="form-group">
                     <label for="timezone2">Clock #2 Timezone</label>
-                    <select id="timezone2">
+                    <select id="timezone2" class="timezone-select">
                         <option value="local">Local Time (Auto-detect)</option>
                         <option value="UTC" selected>UTC</option>
                         <option value="America/New_York">Eastern Time (New York)</option>
@@ -417,8 +456,16 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="timezone2Label">Clock #2 Custom Label</label>
+                    <input type="text" id="timezone2Label" class="timezone-label-input"
+                           maxlength="24" autocomplete="off"
+                           placeholder="Leave blank for auto">
+                </div>
+                </div>
+                <div class="clock-row">
+                <div class="form-group">
                     <label for="timezone3">Clock #3 Timezone</label>
-                    <select id="timezone3">
+                    <select id="timezone3" class="timezone-select">
                         <option value="none" selected>Disabled</option>
                         <option value="local">Local Time (Auto-detect)</option>
                         <option value="UTC">UTC</option>
@@ -443,6 +490,13 @@
                         <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
                         <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label for="timezone3Label">Clock #3 Custom Label</label>
+                    <input type="text" id="timezone3Label" class="timezone-label-input"
+                           maxlength="24" autocomplete="off"
+                           placeholder="Leave blank for auto">
+                </div>
                 </div>
             </div>
             <div class="settings-tab-content" id="settingsTabCalendar" data-tab="calendar" role="tabpanel" aria-labelledby="settingsTabBtnCalendar">
@@ -659,6 +713,10 @@
     <script src="group-modal.js"></script>
     <script src="app-modal.js"></script>
     <script src="minimap.js"></script>
+
+    <!-- Claude token-usage header widget (v4.9). Reads the generated usage-data.js
+         via <script> injection (works from file://) — see scripts/8-usage.js. -->
+    <script src="scripts/8-usage.js"></script>
 
     <!-- SQLite Database Persistence (sql-wasm-binary.js is ~850 KB). These are
          lazy-loaded by App.loadDbModule() after first paint so they don't block

@@ -910,11 +910,13 @@ body.card-resizing .app-group {
     }
 }
 
-/* Header row wraps instead of overflowing when the card is column-width. */
+/* Header row wraps instead of overflowing when the card is column-width.
+   position:relative anchors the absolutely-centered "Today & Now" button. */
 .calendar-group .group-title-container {
     flex-wrap: wrap;
     row-gap: 0.35rem;
     min-width: 0;
+    position: relative;
 }
 
 /* Calendar header controls */
@@ -995,6 +997,76 @@ body.card-resizing .app-group {
     background: rgba(255, 255, 255, 0.25);
     color: #fff;
     transform: none;
+}
+
+/* "Today & Now" (day views only) pinned to the true horizontal centre of the
+   header row, independent of the left title cluster and the right controls.
+   Absolute → out of flow, so it never shifts the title/meta/ticker layout.
+   Higher specificity than .cal-nav-today so it wins the margin/size overrides
+   regardless of source order. z-index lifts it over the ticker it may overlap. */
+.calendar-group .cal-header-today {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 4;
+    margin: 0;
+    height: 26px;
+    padding: 0 0.75rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    isolation: isolate;
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(20, 30, 20, 0.55);
+}
+
+/* Green running-light border: a bright head with a fading trailing plume that
+   circles the button. A conic-gradient whose start angle is animated (needs the
+   registered custom property below to interpolate) is masked down to a thin ring
+   so only the border glows. drop-shadow gives the light its green bloom. */
+@property --cal-today-beam {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+.calendar-group .cal-header-today::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;                 /* ring thickness */
+    background: conic-gradient(from var(--cal-today-beam),
+        transparent 0deg,
+        transparent 250deg,
+        rgba(46, 204, 64, 0.18) 300deg,
+        rgba(90, 255, 100, 0.55) 336deg,
+        #9dff7a 352deg,
+        #f0fff0 360deg);
+    /* Show only the border ring: full box minus the padded interior. */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 2px rgba(125, 255, 90, 0.85));
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .calendar-group .cal-header-today::before {
+        animation: cal-today-beam-spin 2.4s linear infinite;
+    }
+}
+
+/* Reduced motion: no travelling light — a static, even green ring instead. */
+@media (prefers-reduced-motion: reduce) {
+    .calendar-group .cal-header-today::before {
+        background: rgba(125, 255, 90, 0.4);
+    }
+}
+
+@keyframes cal-today-beam-spin {
+    to { --cal-today-beam: 360deg; }
 }
 
 .calendar-group-toggle,
@@ -1609,9 +1681,10 @@ body.card-resizing .app-group {
 
 /* Compact variant for the card header (hover/focus pause and reduced-motion
    rules above key on .cal-upcoming-ticker, which this still carries, so they
-   apply automatically here too). 80% wide → 20% narrower than the slot. */
+   apply automatically here too). 68% wide → 32% narrower than the slot
+   (15% shorter than the former 80%), still hugging the slot's right edge. */
 .cal-upcoming-header {
-    width: 80%;
+    width: 68%;
     min-width: 0;
     margin-bottom: 0;
     height: 22px;
@@ -2062,7 +2135,7 @@ body.card-resizing .app-group {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(158, 158, 168, 0.12);
+    background: rgba(255, 255, 255, 0.7);
     border-radius: 6px;
 }
 
@@ -2070,7 +2143,7 @@ body.card-resizing .app-group {
     font-style: italic;
     font-size: var(--cal-fs-tz, 0.65rem);
     zoom: var(--cal-z-tz, 1);
-    color: rgba(255, 255, 255, 0.4);
+    color: #000;
     letter-spacing: 0.3px;
 }
 

@@ -54,6 +54,7 @@ const DbManager = {
         'calendarUpcomingBarCount', 'calendarUpcomingBarFormat',
         'calendarCachedEvents', 'calendarLastFetched',
         'columnLayout', 'timezone1', 'timezone2', 'timezone3',
+        'timezone1Label', 'timezone2Label', 'timezone3Label',
         'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive',
         'todoFontSettings', 'calendarFontSettings',
         'virtualGroupPositions', 'minimapOpen'

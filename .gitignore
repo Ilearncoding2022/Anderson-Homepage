@@ -15,6 +15,11 @@ anderson-homepage-backup-*.json
 # machine-specific absolute paths.
 .claude/
 
+# Claude token-usage snapshot written by tools/update-claude-usage.ps1 for the
+# header widget (percentages/reset times only, but machine-generated).
+/usage-data.js
+/usage-data.js.tmp
+
 # ==========================================================================
 # Machine-specific / OS cruft
 # ==========================================================================

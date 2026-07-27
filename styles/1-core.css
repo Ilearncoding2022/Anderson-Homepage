@@ -111,7 +111,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1rem;
     min-width: 0;
 }
 
@@ -121,7 +121,7 @@ body {
 
 /* Full-width groups rendered after the columns */
 .groups-container > .app-group {
-    margin-top: 2rem;
+    margin-top: 1rem;
 }
 
 /* Special cards (Calendar / To-Do) that opted out of the column grid render as
@@ -130,8 +130,8 @@ body {
 .groups-full-top {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 /* Visible to screen readers only — used for control descriptions that would
