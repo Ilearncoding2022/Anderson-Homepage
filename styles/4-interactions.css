@@ -694,14 +694,10 @@
         font-size: 1rem;
     }
 
-    .controls {
-        width: 100%;
-        justify-content: center;
-    }
+    /* .controls is a viewport-fixed rail tab now (6-minimap.css), so it needs no
+       mobile override — the old full-width header rule would have stretched it. */
 
     .dropdown-menu {
-        right: 10px;
-        left: 10px;
         min-width: unset;
     }
 

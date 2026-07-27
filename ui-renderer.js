@@ -729,7 +729,7 @@ const UIRenderer = {
                             ${this._cardWidthButton('__calendar__')}
                         </div>
                         ${this._calendarHeaderTicker()}
-                        ${isConfigured && viewMode !== 'list' ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now">Today &amp; Now</button>` : ''}
+                        ${isConfigured && viewMode !== 'list' ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now (Enter)">Today &amp; Now</button>` : ''}
                     </div>
                 </div>
                 <div class="calendar-events-container">

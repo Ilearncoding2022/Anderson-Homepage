@@ -25,7 +25,7 @@ const Minimap = {
         panel.className = 'minimap-panel' + (this._isOpen ? ' open' : '');
         panel.id = 'minimapPanel';
         panel.innerHTML = `
-            <button class="minimap-toggle" title="Toggle Minimap">⊞</button>
+            <div class="minimap-tabs"></div>
             <div class="minimap-content">
                 <div class="minimap-header">
                     <span class="minimap-title">Layout</span>
@@ -39,6 +39,17 @@ const Minimap = {
             </div>
         `;
         document.body.appendChild(panel);
+
+        // The tab rail carries the app's menu button as well as the minimap's own
+        // toggle, so the two read as one control cluster and slide together when
+        // the panel opens. .controls is authored in the HTML (with its dropdown
+        // and its click wiring already attached — moving a node keeps both), and
+        // is adopted here rather than rebuilt.
+        const tabs = panel.querySelector('.minimap-tabs');
+        const controls = document.querySelector('.controls');
+        if (controls) tabs.appendChild(controls);
+        tabs.insertAdjacentHTML('beforeend',
+            '<button class="minimap-toggle" title="Toggle Minimap">⊞</button>');
 
         this._panel = panel;
         this._blocksContainer = panel.querySelector('.minimap-blocks');
