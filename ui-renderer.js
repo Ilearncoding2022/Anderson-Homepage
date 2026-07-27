@@ -729,6 +729,7 @@ const UIRenderer = {
                             ${this._cardWidthButton('__calendar__')}
                         </div>
                         ${this._calendarHeaderTicker()}
+                        ${isConfigured && viewMode !== 'list' ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now">Today &amp; Now</button>` : ''}
                     </div>
                 </div>
                 <div class="calendar-events-container">
@@ -1018,7 +1019,6 @@ const UIRenderer = {
             <div class="calendar-dayview-nav">
                 <button class="cal-nav-btn" onclick="CalendarManager.pageDayView(-1)" ${cm.canPageDayView(-1) ? '' : 'disabled'} aria-label="Previous ${n} days" title="Previous ${n} days">‹</button>
                 <span class="cal-nav-range">${Utils.sanitizeHTML(rangeLabel)}</span>
-                <button class="cal-nav-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now">Today &amp; Now</button>
                 <button class="cal-nav-btn" onclick="CalendarManager.pageDayView(1)" ${cm.canPageDayView(1) ? '' : 'disabled'} aria-label="Next ${n} days" title="Next ${n} days">›</button>
             </div>`;
         if (cm.getTimelineMode()) return bar + nav + this._calendarTimeline(win);

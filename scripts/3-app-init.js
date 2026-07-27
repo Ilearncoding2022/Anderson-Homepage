@@ -54,11 +54,9 @@ const App = {
 
         this.attachEventListeners();
         this.initClock();
+        this._wireGlobalShortcuts();
 
         if (window.StorageMeter) StorageMeter.start();
-
-        // Focus on search field after everything is loaded
-        this.focusSearchField();
 
         if (AppState.currentView === 'list') {
             ViewManager.setListView();
@@ -273,14 +271,6 @@ const App = {
         `).join('');
     },
 
-    focusSearchField() {
-        setTimeout(() => {
-            if (window.PomodoroState && PomodoroState.isVisible) return;
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) searchInput.focus();
-        }, 100);
-    },
-
     initIconSizeSlider() {
         const sizeSlider = document.getElementById('sizeSlider');
         const sizeLabel = document.getElementById('sizeLabel');
@@ -308,6 +298,39 @@ const App = {
         this._cachedTimezones.tz3 = localStorage.getItem('timezone3') || 'none';
     },
 
+    // Current GMT offset for a stored clock value ('local'/'UTC'/IANA id), e.g.
+    // "GMT+7" or "GMT-5". Returns '' for the disabled sentinel or an invalid zone.
+    // Uses 'shortOffset' so the number is DST-accurate at the moment settings open.
+    _gmtOffset(value) {
+        if (!value || value === 'none') return '';
+        const tz = value === 'local'
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : value;
+        try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: tz, timeZoneName: 'shortOffset'
+            }).formatToParts(new Date());
+            let name = parts.find(p => p.type === 'timeZoneName')?.value || '';
+            if (name === 'GMT') name = 'GMT+0';   // UTC and friends report bare "GMT"
+            return name;
+        } catch (_) {
+            return '';
+        }
+    },
+
+    // Append the live "(GMT±N)" offset to every option in the three clock selects.
+    // The pristine label is cached on the option once (dataset.base) so repeated
+    // calls — e.g. each time Settings opens under a new DST state — don't stack.
+    annotateTimezoneOffsets() {
+        document.querySelectorAll('.timezone-select').forEach(sel => {
+            Array.from(sel.options).forEach(opt => {
+                if (opt.dataset.base === undefined) opt.dataset.base = opt.textContent;
+                const off = this._gmtOffset(opt.value);
+                opt.textContent = off ? `${opt.dataset.base} · ${off}` : opt.dataset.base;
+            });
+        });
+    },
+
     initClock() {
         // Guard: clear any existing clock interval before creating a new one so a
         // second call (e.g. from test code) can't accumulate duplicate timers.
@@ -317,7 +340,103 @@ const App = {
         }
         this._loadTimezones();
         this.updateClock();
+        this._wireClockGroupingClicks();
         this._clockIntervalId = setInterval(() => this.updateClock(), 1000);
+    },
+
+    // Clicking (or pressing Enter/Space on) a header clock groups the calendar by
+    // that clock's zone — the same choice as Settings → Calendar grouping. This
+    // also lights that clock with the ROYGBIV highlight via setGrouping(). Wired
+    // once, delegated on .header-center so it survives clock3 showing/hiding and
+    // the per-second innerHTML rebuilds of each clock's contents.
+    _wireClockGroupingClicks() {
+        const center = document.querySelector('.header-center');
+        if (!center || this._clockClicksWired) return;
+        this._clockClicksWired = true;
+
+        const idToMode = { clock: 'tz1', clock2: 'tz2', clock3: 'tz3' };
+        const activate = (target) => {
+            const clockEl = target?.closest?.('.digital-clock');
+            if (!clockEl || !center.contains(clockEl)) return;
+            const mode = idToMode[clockEl.id];
+            if (!mode) return;
+            this._activateClockGrouping(mode);
+        };
+
+        center.addEventListener('click', (e) => activate(e.target));
+        center.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+            const clockEl = e.target?.closest?.('.digital-clock');
+            if (!clockEl || !center.contains(clockEl)) return;
+            e.preventDefault();   // Space would otherwise scroll the page
+            e.stopPropagation();  // keep Space from also toggling the pomodoro timer
+            activate(e.target);
+        });
+    },
+
+    // Group the calendar by clock slot 'tz1'|'tz2'|'tz3'. Shared by the clock
+    // click/Enter/Space delegate above and the 1/2/3 shortcuts so both paths
+    // behave identically.
+    _activateClockGrouping(mode) {
+        const cm = window.CalendarManager;
+        if (!cm) return;
+        if (mode === 'tz3' && this._cachedTimezones.tz3 === 'none') return;
+
+        // In a non-list view with the timeline on and today already inside the
+        // visible day range, re-anchor the timeline on the now-line as part of
+        // the grouping change — without moving the date window. The flag is
+        // consumed by _applyTimelineScroll during the setGrouping re-render; if
+        // "now" isn't in the rendered window it's a harmless no-op.
+        try {
+            const nonList = (cm.getViewMode?.() || 'list') !== 'list';
+            const timeline = !!cm.getTimelineMode?.();
+            const todayInRange = (cm.getDayViewWindow?.().days || []).some(d => d.isToday);
+            if (nonList && timeline && todayInRange && window.UIRenderer) {
+                window.UIRenderer._calTlForceNow = true;
+            }
+        } catch { /* scroll assist is best-effort; grouping change still applies */ }
+
+        cm.setGrouping(mode);
+    },
+
+    // Global shortcuts: 1/2/3 pick the main clock (calendar grouping + rainbow
+    // highlight) when focus isn't on a control; / and Ctrl/Cmd+K focus search.
+    _wireGlobalShortcuts() {
+        if (this._globalShortcutsWired) return;
+        this._globalShortcutsWired = true;
+
+        document.addEventListener('keydown', (e) => {
+            // Let an open modal own the keyboard (same guard as the pomodoro keys).
+            if (document.querySelector('.modal.show')) return;
+
+            const searchInput = document.getElementById('searchInput');
+
+            // Ctrl/Cmd+K focuses search from anywhere, including other inputs.
+            // e.code so it works on non-Latin keyboard layouts too.
+            if ((e.ctrlKey || e.metaKey) && !e.altKey && e.code === 'KeyK') {
+                e.preventDefault();   // browsers bind Ctrl+K to the address bar
+                searchInput?.focus();
+                searchInput?.select();
+                return;
+            }
+
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
+            // Not while a button has focus — except the clocks themselves
+            // (role=button), where Enter/Space already changes grouping.
+            if (e.target.closest?.('button, [role="button"]') && !e.target.closest?.('.digital-clock')) return;
+
+            if (e.key === '/') {
+                e.preventDefault();   // Firefox binds / to quick-find
+                searchInput?.focus();
+                return;
+            }
+
+            const keyToMode = { '1': 'tz1', '2': 'tz2', '3': 'tz3' };
+            const mode = keyToMode[e.key];
+            if (!mode) return;
+            this._activateClockGrouping(mode);   // no-ops when tz3 is disabled
+        });
     },
 
     updateClock() {
@@ -325,8 +444,8 @@ const App = {
         const timezone2 = this._cachedTimezones.tz2;
         const timezone3 = this._cachedTimezones.tz3;
 
-        this.updateClockDisplay('clock', timezone1);
-        this.updateClockDisplay('clock2', timezone2);
+        this.updateClockDisplay('clock', timezone1, 'timezone1');
+        this.updateClockDisplay('clock2', timezone2, 'timezone2');
 
         const clock3El = document.getElementById('clock3');
         if (clock3El) {
@@ -334,12 +453,32 @@ const App = {
                 clock3El.style.display = 'none';
             } else {
                 clock3El.style.display = '';
-                this.updateClockDisplay('clock3', timezone3);
+                this.updateClockDisplay('clock3', timezone3, 'timezone3');
             }
         }
+
+        this._applyClockGroupingHighlight();
     },
 
-    updateClockDisplay(elementId, timezone) {
+    // Give the header clock whose zone is the calendar's active grouping zone a
+    // slowly rotating ROYGBIV colour (CSS handles the animation). Grouping 'none'
+    // clears it. getGrouping() normalises to the first clock resolving to the
+    // grouped zone, so exactly one clock is ever highlighted. Called each tick, so
+    // a grouping change picks up within a second; toggle() is a no-op when the
+    // class is already in the desired state, so it never restarts the animation.
+    _applyClockGroupingHighlight() {
+        const modeToId = { tz1: 'clock', tz2: 'clock2', tz3: 'clock3' };
+        const grouping = window.CalendarManager?.getGrouping?.();
+        const activeId = (grouping && grouping !== 'none') ? modeToId[grouping] : null;
+        ['clock', 'clock2', 'clock3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.toggle('clock-rainbow', id === activeId);
+            el.setAttribute('aria-pressed', String(id === activeId));
+        });
+    },
+
+    updateClockDisplay(elementId, timezone, slotKey) {
         const clockElement = document.getElementById(elementId);
         if (!clockElement) return;
 
@@ -358,6 +497,13 @@ const App = {
             timezoneName = parts[parts.length - 1].replace(/_/g, ' ');
         }
 
+        // A user-supplied custom label (Settings → Clocks) overrides the derived
+        // name here and everywhere else the zone is shown (e.g. calendar rows).
+        const customLabel = slotKey
+            ? (localStorage.getItem(slotKey + 'Label') || '').trim()
+            : '';
+        if (customLabel) timezoneName = customLabel;
+
         const dateStr = now.toLocaleDateString('en-US', {
             ...options, weekday: 'short', month: 'short', day: 'numeric'
         });
@@ -367,7 +513,7 @@ const App = {
         });
 
         clockElement.innerHTML = `
-            <div class="clock-city">${timezoneName}</div>
+            <div class="clock-city">${Utils.sanitizeHTML(timezoneName)}</div>
             <div class="clock-details">
                 <div class="clock-date">${dateStr}</div>
                 <div class="clock-time">${timeStr}</div>
@@ -539,6 +685,16 @@ const App = {
             this.updateClock();
         });
 
+        // Custom per-clock labels: override the derived zone name in the header
+        // clocks and anywhere else the zone is shown (calendar event rows/headers).
+        ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
+            document.getElementById(key + 'Label')?.addEventListener('input', (e) => {
+                Utils.safeLocalStorageSet(key + 'Label', e.target.value.trim());
+                this.updateClock();
+                if (window.UIRenderer) UIRenderer.renderCalendarCard();
+            });
+        });
+
         document.getElementById('exportData')?.addEventListener('click', () => Storage.export());
         document.getElementById('importData')?.addEventListener('click', () => {
             document.getElementById('importFile')?.click();
@@ -640,10 +796,19 @@ const App = {
             const tz3Select = document.getElementById('timezone3');
             const layoutSelect = document.getElementById('columnLayout');
 
+            // Refresh "(GMT±N)" offsets before showing the selected values so the
+            // dropdowns reflect the current DST state each time Settings opens.
+            this.annotateTimezoneOffsets();
+
             if (tz1Select) tz1Select.value = timezone1;
             if (tz2Select) tz2Select.value = timezone2;
             if (tz3Select) tz3Select.value = timezone3;
             if (layoutSelect) layoutSelect.value = columnLayout;
+
+            ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
+                const input = document.getElementById(key + 'Label');
+                if (input) input.value = localStorage.getItem(key + 'Label') || '';
+            });
 
             if (window.UIRenderer) {
                 UIRenderer.renderTodoArchive(document.getElementById('todoArchiveSettings'), 'h4');

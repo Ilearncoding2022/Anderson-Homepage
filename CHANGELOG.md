@@ -5,6 +5,33 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.9] — 2026-07-27
+
+### Header
+- **Clocks take center stage (change):** the three timezone clocks now sit at the
+  true horizontal center of the header, and the search bar moved left to sit
+  right next to the Pomodoro button. The search box no longer grabs the keyboard
+  on page load.
+- **Switch the main clock from the keyboard (new):** with focus on empty page
+  space, pressing 1, 2 or 3 makes that clock the main one — the same thing as
+  clicking it: the rainbow highlight moves and the calendar card regroups by
+  that clock's time zone. Pressing 3 does nothing while the third clock is off.
+- **Jump to search with / or Ctrl+K (new):** press / (or Ctrl+K from anywhere,
+  even inside another field) to put the cursor in the search box.
+
+### Claude usage bars
+- **Your Claude limits at a glance (new):** a "Claude Usage Tracker" block
+  between the clocks and the menu button shows the Session, Week (All) and
+  Week (Fable) token usage of your Claude subscription, each with its
+  percentage inside the bar and a "Resets in ..." countdown beside it. Bars
+  are green below 50%, yellow from 50% and red from 80%.
+- **Powered by a background updater (new):** a small script
+  _(tools/update-claude-usage.ps1)_ refreshes the numbers every 10 minutes via
+  a Windows scheduled task, using your local Claude Code sign-in. Only
+  percentages and reset times are stored; if the data stops refreshing the
+  bars dim with a warning marker, and on a machine without the updater the
+  widget simply stays hidden.
+
 ## [v4.8] — 2026-07-22
 
 ### Calendar card

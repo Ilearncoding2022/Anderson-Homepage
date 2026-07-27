@@ -16,12 +16,15 @@
    1. HEADER & NAVIGATION
    ======================================== */
 
+/* 1fr auto 1fr keeps .header-center at the true horizontal midpoint even
+   when the left (pomodoro + search) and right (usage bars + controls)
+   zones have different widths. */
 .header {
     background-color: var(--bg-card);
     padding: 0.5rem 2rem;
     box-shadow: var(--shadow);
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     position: sticky;
     top: 0;
@@ -29,21 +32,37 @@
     gap: 1rem;
 }
 
+.header-zone-left {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.header-zone-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    min-width: 0;
+}
+
 .header-left {
     flex: 0 0 auto;
 }
 
+/* Shrinkable so the side zones never spill into the centered clocks on
+   mid-width windows; .search-form caps it back at 320px when there's room. */
 .header-search {
-    flex: 0 0 auto;
-    margin-left: 50px;
+    flex: 0 1 320px;
+    min-width: 0;
 }
 
 .header-center {
-    flex: 0 0 auto;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-left: 0;
 }
 
 .header h1 {
@@ -209,7 +228,99 @@
     align-items: center;
     flex-wrap: wrap;
     flex: 0 0 auto;
-    margin-left: -40px;
+}
+
+/* ---- Claude token-usage bars (header, fed by usage-data.js) ---- */
+.usage-widget {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+/* display:flex above would defeat the UA's [hidden] rule without these. */
+.usage-widget[hidden] { display: none; }
+.usage-row[hidden] { display: none; }
+
+.usage-title {
+    line-height: 1.2;
+    text-align: left;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.usage-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.usage-row {
+    display: grid;
+    grid-template-columns: 74px 120px auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.usage-label {
+    white-space: nowrap;
+    text-align: left;
+}
+
+.usage-bar {
+    position: relative;
+    height: 16px;
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.3);
+    overflow: hidden;
+}
+
+.usage-fill {
+    height: 100%;
+    width: 0%;
+    background: #4caf50;
+    transition: width 0.4s ease, background 0.3s ease;
+}
+
+/* Black-on-white-halo stays readable over the grey track and all three fill
+   colors in both themes (var(--text-primary) failed contrast on the fills). */
+.usage-pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    color: #000;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.75);
+}
+
+.usage-resets {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Green ≤49%, yellow 50–79%, red ≥80% (classes set by 8-usage.js). */
+.usage-row.is-warn .usage-fill { background: #fdd835; }
+.usage-row.is-danger .usage-fill { background: #f44336; }
+
+/* Dim the whole widget when the data file hasn't been refreshed lately
+   (updater stopped, PC asleep, or the Claude Code token expired). A .sr-only
+   status span inside the widget carries the same warning for screen readers. */
+.usage-widget.is-stale { opacity: 0.55; }
+.usage-widget.is-stale .usage-resets::after { content: " ⚠"; }
+
+/* Mid-width windows: shed the title and countdown text, then the whole
+   widget, before the side zones can crowd the centered clocks (mobile
+   stacking takes over at 768px and brings the widget back full-width). */
+@media (max-width: 1500px) {
+    .header .usage-resets,
+    .header .usage-title { display: none; }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+    .usage-widget { display: none; }
 }
 
 /* ========================================
@@ -218,7 +329,8 @@
 
 .search-form {
     position: relative;
-    width: 320px;
+    width: 100%;
+    max-width: 320px;
 }
 
 .search-input {
@@ -275,11 +387,25 @@
 
 .digital-clock {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
     padding: 0 1.25rem;
     text-align: left;
     user-select: none;
+    /* Clickable: each clock sets the calendar's grouping to its own zone. */
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+}
+
+.digital-clock:hover {
+    background-color: rgba(127, 127, 127, 0.12);
+}
+
+.digital-clock:focus-visible {
+    outline: 2px solid var(--accent, #4CAF50);
+    outline-offset: 2px;
 }
 
 .digital-clock.clock-secondary {
@@ -297,8 +423,9 @@
 
 .clock-details {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.5rem;
     line-height: 1.25;
 }
 
@@ -318,6 +445,58 @@
     font-family: 'Courier New', Courier, monospace;
     letter-spacing: 1px;
     line-height: 1;
+    white-space: nowrap;
+}
+
+.clock-time::before {
+    content: "|";
+    margin-right: 0.5rem;
+    font-family: inherit;
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+/* When this clock's zone is the calendar's active grouping zone (Settings →
+   Calendar grouping ≠ "No grouping"), its label/date/time cycle through the
+   ROYGBIV spectrum at ~1 colour/second with a continuous crossfade.
+
+   The animation lives on the STABLE container, not the text: updateClockDisplay()
+   rebuilds the inner .clock-city/.clock-date/.clock-time via innerHTML every
+   second, which would restart an animation placed on them. Animating the
+   container's inherited `color` and letting the children inherit it keeps the
+   cycle smooth across those per-second rebuilds. */
+@keyframes clock-roygbiv {
+    0%     { color: #ff2020; }  /* red */
+    14.28% { color: #ff7a00; }  /* orange */
+    28.57% { color: #ffd400; }  /* yellow */
+    42.85% { color: #17c000; }  /* green */
+    57.14% { color: #1e6bff; }  /* blue */
+    71.42% { color: #5a2fd0; }  /* indigo */
+    85.71% { color: #b028e0; }  /* violet */
+    100%   { color: #ff2020; }  /* back to red — seamless loop */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .digital-clock.clock-rainbow {
+        animation: clock-roygbiv 7s linear infinite;
+    }
+
+    /* Drop the fixed primary/secondary colours so the children inherit the
+       container's animated colour. The "|" separator keeps its own colour. */
+    .digital-clock.clock-rainbow .clock-city,
+    .digital-clock.clock-rainbow .clock-date,
+    .digital-clock.clock-rainbow .clock-time {
+        color: inherit;
+    }
+}
+
+/* With reduced motion the animation never runs, so mark the grouped clock
+   with a static ring instead — otherwise it's indistinguishable. */
+@media (prefers-reduced-motion: reduce) {
+    .digital-clock.clock-rainbow {
+        box-shadow: inset 0 0 0 2px var(--accent, #4caf50);
+        border-radius: 8px;
+    }
 }
 
 /* ========================================

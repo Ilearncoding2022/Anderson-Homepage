@@ -18,8 +18,8 @@
 // adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
 // them into the <title>, the menu's "What's new" item, and the changelog modal
 // header, so those three spots can never drift out of sync.
-const APP_VERSION = 'v4.8';
-const APP_RELEASE_DATE = '2026-07-22';
+const APP_VERSION = 'v4.9';
+const APP_RELEASE_DATE = '2026-07-27';
 
 const COLOR_PALETTE = [
     { name: 'Ocean Blue', value: 'rgba(30, 136, 229, 0.25)' },
@@ -78,6 +78,7 @@ const Storage = {
         'calendarUpcomingBarCount', 'calendarUpcomingBarFormat',
         'calendarCachedEvents', 'calendarLastFetched', 'calendarBuckets',
         'columnLayout', 'timezone1', 'timezone2', 'timezone3',
+        'timezone1Label', 'timezone2Label', 'timezone3Label',
         'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive',
         'todoFontSettings', 'calendarFontSettings',
         'virtualGroupPositions', 'minimapOpen'
@@ -520,6 +521,12 @@ const Storage = {
         ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
             if (data[key] && typeof data[key] === 'string' && data[key].trim() !== '') {
                 Utils.safeLocalStorageSet(key, data[key]);
+            }
+        });
+        // Custom clock labels (may be intentionally blank — allow clearing on import).
+        ['timezone1Label', 'timezone2Label', 'timezone3Label'].forEach(key => {
+            if (typeof data[key] === 'string') {
+                Utils.safeLocalStorageSet(key, data[key].slice(0, 24).trim());
             }
         });
 

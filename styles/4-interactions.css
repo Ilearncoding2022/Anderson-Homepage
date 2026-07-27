@@ -362,6 +362,48 @@
     font-size: 1rem;
 }
 
+/* Appearance tab: pair each clock's Timezone select with its Custom Label input
+   on one row. The two fields together span 90% of the width; the Timezone select
+   takes 56.25% (25% wider than an even split) and the Custom Label the remaining
+   33.75%, so they still fit side by side and stack on a very narrow modal. */
+.clock-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.clock-row > .form-group {
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.clock-row > .form-group:first-child {
+    flex: 0 0 56.25%;
+}
+
+.clock-row > .form-group:last-child {
+    flex: 0 0 33.75%;
+}
+
+/* Appearance tab: pair Background Position and Background Blur Effect on one row.
+   Each select drops to 45% (a 55% reduction from the default full width) so the
+   two fit side by side; they stack on a very narrow modal via flex-wrap. */
+.bg-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.bg-row > .form-group {
+    flex: 0 0 45%;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
 /* ========================================
    4b. CALENDAR TAB: 2-COLUMN ROWS & COLLAPSIBLE SECTIONS
    ======================================== */
@@ -586,8 +628,28 @@
 @media (max-width: 768px) {
     .header {
         padding: 1rem;
+        display: flex; /* base .header is a grid; stack the zones on mobile */
         flex-direction: column;
         gap: 1rem;
+    }
+
+    .header-zone-left,
+    .header-zone-right {
+        flex-direction: column;
+        width: 100%;
+        gap: 1rem;
+    }
+
+    .usage-widget {
+        width: 100%;
+    }
+
+    .usage-row {
+        grid-template-columns: 74px 1fr auto;
+    }
+
+    .usage-rows {
+        flex: 1;
     }
 
     .header-left {
@@ -610,7 +672,7 @@
     .digital-clock {
         width: 100%;
         padding: 0.5rem 0;
-        justify-content: center;
+        align-items: center;
     }
 
     .digital-clock.clock-secondary {
