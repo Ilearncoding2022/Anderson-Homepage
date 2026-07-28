@@ -331,6 +331,175 @@ const App = {
         });
     },
 
+    // ---- Clock slot reordering (Settings → Appearance → Clocks) ----
+    //
+    // Everything downstream of a clock — the header clocks, the 1/2/3 grouping
+    // shortcuts, CalendarManager._resolveZone, the custom labels — is keyed by
+    // slot number, so "make this clock #1" is purely a matter of moving the
+    // stored (zone, label) pairs between slots. The three Settings rows keep
+    // their fixed #1/#2/#3 labels and never move; only the values do.
+
+    _clockDefaults: { 1: 'local', 2: 'UTC', 3: 'none' },
+
+    _readClockSlots() {
+        return [1, 2, 3].map(slot => ({
+            slot,
+            tz: localStorage.getItem('timezone' + slot) || this._clockDefaults[slot],
+            label: localStorage.getItem('timezone' + slot + 'Label') || ''
+        }));
+    },
+
+    // Push the stored slot values back into the Settings controls, and refresh
+    // which grips are usable. Shared by openSettings() and every reorder.
+    _syncClockInputs() {
+        this._readClockSlots().forEach(({ slot, tz, label }) => {
+            const select = document.getElementById('timezone' + slot);
+            if (select) select.value = tz;
+            const input = document.getElementById('timezone' + slot + 'Label');
+            if (input) input.value = label;
+            const grip = document.querySelector(`.clock-drag-handle[data-clock-slot="${slot}"]`);
+            if (grip) {
+                grip.disabled = tz === 'none';
+                grip.title = grip.disabled
+                    ? 'Give this clock a time zone to reorder it'
+                    : 'Drag to reorder (or use ↑/↓ keys)';
+            }
+        });
+    },
+
+    // Move the clock values into a new slot order. `order` lists the source slot
+    // numbers top to bottom — [3, 1, 2] puts clock #3's zone and label in slot
+    // #1. Returns true if anything actually moved.
+    _applyClockOrder(order) {
+        const bySlot = new Map(this._readClockSlots().map(c => [c.slot, c]));
+        let next = order.map(s => bySlot.get(s)).filter(Boolean);
+        if (next.length !== bySlot.size) return false;
+
+        // Only slot #3 offers "Disabled", and updateClock() only knows how to
+        // hide clock 3 — so a disabled clock sinks to the bottom wherever it was
+        // dropped, and the clocks that do have a zone keep their new order.
+        next = [...next.filter(c => c.tz !== 'none'), ...next.filter(c => c.tz === 'none')];
+        if (next.every((c, i) => c.slot === i + 1)) return false;
+
+        // Calendar grouping is stored per slot ('tz1'|'tz2'|'tz3'), so follow the
+        // zone to its new slot — otherwise reordering would silently regroup the
+        // calendar by whichever zone landed in the old slot.
+        const cm = window.CalendarManager;
+        const grouping = cm?.getGrouping?.();
+        let newGrouping = null;
+        if (grouping && grouping !== 'none') {
+            const from = Number(grouping.slice(2));
+            const to = next.findIndex(c => c.slot === from) + 1;
+            if (to > 0 && to !== from) newGrouping = 'tz' + to;
+        }
+
+        next.forEach((c, i) => {
+            Utils.safeLocalStorageSet('timezone' + (i + 1), c.tz);
+            Utils.safeLocalStorageSet('timezone' + (i + 1) + 'Label', c.label);
+        });
+
+        this._syncClockInputs();
+        this._loadTimezones();
+        this.updateClock();
+        // setGrouping re-renders the calendar card itself; without it the card
+        // still needs a repaint for the reordered per-event zone rows.
+        if (newGrouping) cm.setGrouping(newGrouping);
+        else if (window.UIRenderer) UIRenderer.renderCalendarCard();
+        return true;
+    },
+
+    _disarmClockDrag() {
+        if (this._clockArmedDrag) {
+            this._clockArmedDrag.removeAttribute('draggable');
+            this._clockArmedDrag = null;
+        }
+    },
+
+    // Rows live in slot order at rest; dragover shuffles them for live feedback,
+    // so put them back before the values move into their new slots.
+    _restoreClockRowOrder(container) {
+        [...container.querySelectorAll(':scope > .clock-row')]
+            .sort((a, b) => Number(a.dataset.clockSlot) - Number(b.dataset.clockSlot))
+            .forEach(row => container.appendChild(row));
+    },
+
+    // Wire the grips: HTML5 drag (armed only while a grip is held, so the row's
+    // select and text input stay usable) plus ↑/↓ on a focused grip. Same idiom
+    // as the To-Do list's reorder handles.
+    _wireClockReorder() {
+        const container = document.getElementById('clockRows');
+        if (!container) return;
+        const rows = () => [...container.querySelectorAll(':scope > .clock-row')];
+
+        container.addEventListener('mousedown', (e) => {
+            const handle = e.target.closest('.clock-drag-handle');
+            if (!handle || handle.disabled) return;
+            const row = handle.closest('.clock-row');
+            if (!row) return;
+            row.setAttribute('draggable', 'true');
+            this._clockArmedDrag = row;
+        });
+        document.addEventListener('mouseup', () => this._disarmClockDrag());
+
+        container.addEventListener('dragstart', (e) => {
+            const row = this._clockArmedDrag;
+            if (!row || e.target !== row) return;
+            this._clockDragRow = row;
+            row.classList.add('clock-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            // Firefox needs data set for a drag to start.
+            try { e.dataTransfer.setData('text/plain', row.dataset.clockSlot || ''); } catch (_) {}
+        });
+
+        container.addEventListener('dragover', (e) => {
+            const row = this._clockDragRow;
+            if (!row) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const after = rows().find(r => {
+                if (r === row) return false;
+                const box = r.getBoundingClientRect();
+                return e.clientY < box.top + box.height / 2;
+            });
+            if (after) container.insertBefore(row, after);
+            else container.appendChild(row);
+        });
+
+        // Allow drop without the browser's "snap-back" animation.
+        container.addEventListener('drop', (e) => {
+            if (this._clockDragRow) e.preventDefault();
+        });
+
+        container.addEventListener('dragend', () => {
+            const row = this._clockDragRow;
+            this._clockDragRow = null;
+            this._disarmClockDrag();
+            if (!row) return;
+            row.classList.remove('clock-dragging');
+            const order = rows().map(r => Number(r.dataset.clockSlot));
+            this._restoreClockRowOrder(container);
+            this._applyClockOrder(order);
+        });
+
+        // Keyboard reordering: focus a grip and press ↑/↓.
+        container.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            const handle = e.target.closest('.clock-drag-handle');
+            if (!handle || handle.disabled) return;
+            e.preventDefault();
+            const from = Number(handle.dataset.clockSlot);
+            const to = from + (e.key === 'ArrowUp' ? -1 : 1);
+            if (to < 1 || to > 3) return;
+            const order = [1, 2, 3];
+            [order[from - 1], order[to - 1]] = [order[to - 1], order[from - 1]];
+            // The rows don't move, so follow the clock the user is carrying to
+            // the grip of the slot it landed in.
+            if (this._applyClockOrder(order)) {
+                container.querySelector(`.clock-drag-handle[data-clock-slot="${to}"]`)?.focus();
+            }
+        });
+    },
+
     initClock() {
         // Guard: clear any existing clock interval before creating a new one so a
         // second call (e.g. from test code) can't accumulate duplicate timers.
@@ -705,21 +874,17 @@ const App = {
             if (window.UIRenderer) UIRenderer.render();
         });
 
-        document.getElementById('timezone1')?.addEventListener('change', (e) => {
-            Utils.safeLocalStorageSet('timezone1', e.target.value);
-            this._loadTimezones();
-            this.updateClock();
+        ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
+            document.getElementById(key)?.addEventListener('change', (e) => {
+                Utils.safeLocalStorageSet(key, e.target.value);
+                this._loadTimezones();
+                this.updateClock();
+                // Enabling/disabling a clock changes whether its grip can move it.
+                this._syncClockInputs();
+            });
         });
-        document.getElementById('timezone2')?.addEventListener('change', (e) => {
-            Utils.safeLocalStorageSet('timezone2', e.target.value);
-            this._loadTimezones();
-            this.updateClock();
-        });
-        document.getElementById('timezone3')?.addEventListener('change', (e) => {
-            Utils.safeLocalStorageSet('timezone3', e.target.value);
-            this._loadTimezones();
-            this.updateClock();
-        });
+
+        this._wireClockReorder();
 
         // Custom per-clock labels: override the derived zone name in the header
         // clocks and anywhere else the zone is shown (calendar event rows/headers).
@@ -822,29 +987,14 @@ const App = {
     openSettings() {
         const modal = document.getElementById('settingsModal');
         if (modal) {
-            const timezone1 = localStorage.getItem('timezone1') || 'local';
-            const timezone2 = localStorage.getItem('timezone2') || 'UTC';
-            const timezone3 = localStorage.getItem('timezone3') || 'none';
             const columnLayout = localStorage.getItem('columnLayout') || '5-5';
-
-            const tz1Select = document.getElementById('timezone1');
-            const tz2Select = document.getElementById('timezone2');
-            const tz3Select = document.getElementById('timezone3');
             const layoutSelect = document.getElementById('columnLayout');
+            if (layoutSelect) layoutSelect.value = columnLayout;
 
             // Refresh "(GMT±N)" offsets before showing the selected values so the
             // dropdowns reflect the current DST state each time Settings opens.
             this.annotateTimezoneOffsets();
-
-            if (tz1Select) tz1Select.value = timezone1;
-            if (tz2Select) tz2Select.value = timezone2;
-            if (tz3Select) tz3Select.value = timezone3;
-            if (layoutSelect) layoutSelect.value = columnLayout;
-
-            ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
-                const input = document.getElementById(key + 'Label');
-                if (input) input.value = localStorage.getItem(key + 'Label') || '';
-            });
+            this._syncClockInputs();
 
             if (window.UIRenderer) {
                 UIRenderer.renderTodoArchive(document.getElementById('todoArchiveSettings'), 'h4');

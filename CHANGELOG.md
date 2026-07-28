@@ -5,6 +5,37 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.11] — 2026-07-28
+
+### Calendar card
+- **A bigger "Today & Now" button (change):** the button in the middle of the
+  card header is 15% larger, text and all, so it reads clearly and is an easier
+  target.
+- **A shorter, slower upcoming-events ticker (change):** the strip of upcoming
+  events scrolling across the card header is 15% narrower and moves 10% more
+  slowly. Together with the larger button, the two no longer overlap on a
+  full-width card.
+
+### Minimap
+- **The Layout panel opens like the menu (change):** the ⊞ tab no longer drags
+  the whole tab rail across the screen when you open it. The rail now stays
+  where it is and the Layout panel opens to its left, vertically centered —
+  exactly how the ☰ menu directly above it already behaved. The panel still
+  remembers whether you left it open.
+
+### Settings
+- **Drag to reorder your clocks (new):** every row under Appearance → Clocks now
+  has a grip on its left. Drag a row to change which time zone is clock #1, #2
+  or #3, and its custom label travels with it. You can do the same from the
+  keyboard: tab to a grip and press the up or down arrow.
+- **Grouping follows the time zone, not the slot (change):** if the calendar is
+  grouped by one of the clocks and you reorder them, it stays grouped by the
+  same time zone rather than by whatever moved into that slot.
+- **A disabled clock stays third (change):** only the third clock can be turned
+  off, so a clock set to "Disabled" always settles back into the third slot no
+  matter where you drop it, and its grip is greyed out until you give it a time
+  zone.
+
 ## [v4.10] — 2026-07-27
 
 ### Header

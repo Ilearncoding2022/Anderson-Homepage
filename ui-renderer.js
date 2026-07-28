@@ -1121,12 +1121,13 @@ const UIRenderer = {
         const seq = (dup) => `<div class="cal-upcoming-seq"${dup ? ' aria-hidden="true"' : ''}>${events.map(ev => itemHTML(ev, dup)).join('')}</div>`;
         // Duration scales with item count so more events don't scroll faster
         // (the loop distance is one sequence width, which grows with the count).
-        // Divided by 0.85 → 15% slower than the base cadence. This is the
-        // pre-measurement value (and the one used under reduced motion);
-        // _sizeUpcomingTicker sets the authoritative width-proportional duration.
-        const dur = Math.max(14, Math.round(events.length * 7 / 0.85));
+        // Divided by 0.85 × 0.9 → 15% slower than the base cadence, then a
+        // further 10% slower. This is the pre-measurement value (and the one used
+        // under reduced motion); _sizeUpcomingTicker sets the authoritative
+        // width-proportional duration.
+        const dur = Math.max(16, Math.round(events.length * 7 / (0.85 * 0.9)));
         // Slot fills the header's remaining width and right-aligns the ticker,
-        // which is itself only 80% wide (20% narrower than the full slot).
+        // which is itself only 57.8% wide (42.2% narrower than the full slot).
         return `<div class="cal-upcoming-header-slot">
             <div class="cal-upcoming-bar cal-upcoming-ticker cal-upcoming-header" aria-label="Upcoming events">
                 <div class="cal-upcoming-track" style="--cal-ticker-dur:${dur}s">${seq(false)}${seq(true)}</div>
@@ -2342,11 +2343,12 @@ const UIRenderer = {
             }
         });
         // Width-proportional duration → steady scroll speed regardless of count.
-        // Base speed 55 px/s × 0.85 = 46.75 px/s → 15% slower.
+        // Base speed 55 px/s × 0.85 × 0.9 = 42.08 px/s → 15% slower, then a
+        // further 10% slower.
         const track = ticker.querySelector('.cal-upcoming-track');
         if (track) {
             const seqW = seqs[0].scrollWidth;
-            track.style.setProperty('--cal-ticker-dur', Math.max(9, Math.round(seqW / (55 * 0.85))) + 's');
+            track.style.setProperty('--cal-ticker-dur', Math.max(10, Math.round(seqW / (55 * 0.85 * 0.9))) + 's');
         }
     },
 

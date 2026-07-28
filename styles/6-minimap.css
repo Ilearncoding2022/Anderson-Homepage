@@ -14,27 +14,40 @@
    1. PANEL & TOGGLE
    ======================================== */
 
+/* Zero-width anchor pinned to the right edge at mid-height: it places the tab
+   rail and nothing else. The rail never moves — the panel body opens leftward
+   from it as a popover, the same gesture as the menu button's dropdown. */
 .minimap-panel {
     position: fixed;
     right: 0;
     top: 50%;
-    transform: translateX(100%) translateY(-50%);
-    width: 286px;
-    max-height: 80vh;
+    transform: translateY(-50%);
+    width: 0;
     z-index: 100;
-    transition: transform 0.3s ease;
     overflow: visible;
 }
 
+/* Free-floating popover 8px to the left of the 36px rail — the same offset the
+   menu dropdown uses (.minimap-tabs .dropdown-menu below). Vertically centred on
+   the rail, and fading/sliding in on the same 0.2s curve as that dropdown. */
 .minimap-content {
+    position: absolute;
+    top: 50%;
+    right: 44px;
+    width: 286px;
     background: rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(12px);
-    border-radius: 12px 0 0 12px;
+    border-radius: 12px;
     padding: 1rem;
     max-height: 80vh;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.3) transparent;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(10px, -50%);
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
 }
 
 .minimap-content::-webkit-scrollbar {
@@ -46,13 +59,16 @@
     border-radius: 2px;
 }
 
-.minimap-panel.open {
-    transform: translateX(0) translateY(-50%);
+.minimap-panel.open .minimap-content {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(0, -50%);
 }
 
 /* Tab rail on the panel's left edge: the app menu button on top, the minimap's
-   own toggle below. Positioning lives here so both tabs stack as one unit and
-   travel with the panel when it slides open. */
+   own toggle below. Positioning lives here so both tabs stack as one unit. The
+   rail is stationary — both tabs open their panel leftward over the page. */
 .minimap-tabs {
     position: absolute;
     left: -36px;
