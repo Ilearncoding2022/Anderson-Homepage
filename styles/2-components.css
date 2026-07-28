@@ -291,8 +291,9 @@
     transition: width 0.4s ease, background 0.3s ease;
 }
 
-/* Black-on-white-halo stays readable over the grey track and all three fill
-   colors in both themes (var(--text-primary) failed contrast on the fills). */
+/* Black on a white halo in light mode; the halo is what keeps it readable over
+   the grey track and all three fill colors (var(--text-primary) failed contrast
+   on the fills). */
 .usage-pct {
     position: absolute;
     inset: 0;
@@ -302,6 +303,13 @@
     font-variant-numeric: tabular-nums;
     color: #000;
     text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.75);
+}
+
+/* Dark mode inverts both: white text needs the dark halo, or it would vanish
+   into the yellow and green fills. */
+[data-theme="dark"] .usage-pct {
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.75);
 }
 
 .usage-resets {

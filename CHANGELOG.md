@@ -5,6 +5,43 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.10] — 2026-07-27
+
+### Header
+- **The dark/light switch moved into the menu (change):** the moon/sun button is
+  no longer in the top-right corner of the header. It now lives in the menu under
+  View, on a row labelled "Theme", just above the grid/list toggle. It works the
+  same way and still remembers your choice.
+- **The menu button moved to the minimap tab (change):** the ☰ button left the
+  header too and now shares the tab on the right edge of the screen with the
+  minimap toggle, sitting directly above it. Its menu opens to the left of that
+  tab, vertically centered, and the whole tab slides along when you open the
+  minimap panel.
+- **Slightly smaller clock text (change):** the city, date and time of all three
+  timezone clocks are one point smaller.
+
+### Claude usage bars
+- **The "Claude Usage Tracker" label stays visible (change):** the label used to
+  disappear unless the window was very wide. The space freed by the two buttons
+  leaving the header now goes to the usage block, so the label and the
+  "Resets in ..." countdowns stay on screen at ordinary window sizes — down to
+  1240 pixels wide, or 1340 with a third clock shown.
+- **Roomier three-line label (change):** the three lines of the label have a
+  little more space between them.
+- **Readable percentages in dark mode (change):** the percentage shown inside
+  each bar is white in dark mode instead of black, with a dark outline behind it
+  so it stays legible on the green, yellow and red fills.
+
+### Calendar card
+- **Click the selected clock again to jump to today (new):** clicking the clock
+  that is already the main one, or pressing its 1, 2 or 3 key again, now does
+  the same thing as the "Today & Now" button: it returns to today's window,
+  flashes today's column and scrolls back to the current-time line. Picking a
+  different clock still just regroups the calendar as before.
+- **Enter jumps to today (new):** with focus on empty page space, pressing Enter
+  triggers "Today & Now". It stands aside whenever something else on the page is
+  waiting for the key, such as the search box or an open dialog.
+
 ## [v4.9] — 2026-07-27
 
 ### Header
