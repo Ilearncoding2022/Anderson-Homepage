@@ -236,9 +236,9 @@
         </div>
     </header>
 
-    <!-- Menu button + its dropdown, sharing the right-edge tab rail with the
-         minimap toggle. Minimap.init() adopts this node into .minimap-tabs so the
-         pair slides together when the minimap panel opens; the CSS below places
+    <!-- Menu button + its dropdown, sharing the stationary right-edge tab rail
+         with the minimap toggle — both open their panel leftward from the rail.
+         Minimap.init() adopts this node into .minimap-tabs; the CSS below places
          it in the same spot beforehand, and keeps it usable if that never runs. -->
     <div class="controls">
         <button class="hamburger-btn" id="hamburgerBtn" title="Menu" aria-label="Menu">☰</button>
@@ -407,7 +407,15 @@
                     </select>
                 </div>
                 <h3 class="settings-subhead">Clocks</h3>
-                <div class="clock-row">
+                <!-- Drag a row's grip to change which zone/label is clock #1, #2 or #3.
+                     The rows themselves stay in slot order — the grip moves the
+                     values between slots (App._wireClockReorder). -->
+                <p class="settings-hint clock-reorder-hint">Drag a row's grip (or focus it and press ↑ / ↓) to change which clock is #1, #2 and #3.</p>
+                <div class="clock-rows" id="clockRows">
+                <div class="clock-row" data-clock-slot="1">
+                <button type="button" class="clock-drag-handle" data-clock-slot="1"
+                        title="Drag to reorder (or use ↑/↓ keys)"
+                        aria-label="Reorder clock #1. Use Arrow Up and Arrow Down to move."><span aria-hidden="true">⠿</span></button>
                 <div class="form-group">
                     <label for="timezone1">Clock #1 Timezone</label>
                     <select id="timezone1" class="timezone-select">
@@ -442,7 +450,10 @@
                            placeholder="Leave blank for auto">
                 </div>
                 </div>
-                <div class="clock-row">
+                <div class="clock-row" data-clock-slot="2">
+                <button type="button" class="clock-drag-handle" data-clock-slot="2"
+                        title="Drag to reorder (or use ↑/↓ keys)"
+                        aria-label="Reorder clock #2. Use Arrow Up and Arrow Down to move."><span aria-hidden="true">⠿</span></button>
                 <div class="form-group">
                     <label for="timezone2">Clock #2 Timezone</label>
                     <select id="timezone2" class="timezone-select">
@@ -477,7 +488,10 @@
                            placeholder="Leave blank for auto">
                 </div>
                 </div>
-                <div class="clock-row">
+                <div class="clock-row" data-clock-slot="3">
+                <button type="button" class="clock-drag-handle" data-clock-slot="3"
+                        title="Drag to reorder (or use ↑/↓ keys)"
+                        aria-label="Reorder clock #3. Use Arrow Up and Arrow Down to move."><span aria-hidden="true">⠿</span></button>
                 <div class="form-group">
                     <label for="timezone3">Clock #3 Timezone</label>
                     <select id="timezone3" class="timezone-select">
@@ -511,6 +525,7 @@
                     <input type="text" id="timezone3Label" class="timezone-label-input"
                            maxlength="24" autocomplete="off"
                            placeholder="Leave blank for auto">
+                </div>
                 </div>
                 </div>
             </div>

@@ -1011,9 +1011,11 @@ body.card-resizing .app-group {
     transform: translate(-50%, -50%);
     z-index: 4;
     margin: 0;
-    height: 26px;
-    padding: 0 0.75rem;
-    font-size: 0.7rem;
+    /* 15% larger than the original 26px / 0.75rem / 0.7rem — box and text scale
+       together so the padding-to-text ratio is unchanged. */
+    height: 30px;
+    padding: 0 0.8625rem;
+    font-size: 0.805rem;
     white-space: nowrap;
     isolation: isolate;
     border-color: rgba(255, 255, 255, 0.18);
@@ -1619,7 +1621,7 @@ body.card-resizing .app-group {
 .cal-upcoming-track {
     display: flex;
     width: max-content;
-    animation: cal-upcoming-scroll var(--cal-ticker-dur, 30s) linear infinite;
+    animation: cal-upcoming-scroll var(--cal-ticker-dur, 33s) linear infinite;
 }
 
 .cal-upcoming-ticker:hover .cal-upcoming-track,
@@ -1681,10 +1683,10 @@ body.card-resizing .app-group {
 
 /* Compact variant for the card header (hover/focus pause and reduced-motion
    rules above key on .cal-upcoming-ticker, which this still carries, so they
-   apply automatically here too). 68% wide → 32% narrower than the slot
-   (15% shorter than the former 80%), still hugging the slot's right edge. */
+   apply automatically here too). 57.8% wide → 42.2% narrower than the slot
+   (15% shorter than the former 68%), still hugging the slot's right edge. */
 .cal-upcoming-header {
-    width: 68%;
+    width: 57.8%;
     min-width: 0;
     margin-bottom: 0;
     height: 22px;

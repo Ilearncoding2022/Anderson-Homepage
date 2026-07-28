@@ -26,7 +26,7 @@ const Minimap = {
         panel.id = 'minimapPanel';
         panel.innerHTML = `
             <div class="minimap-tabs"></div>
-            <div class="minimap-content">
+            <div class="minimap-content" id="minimapContent">
                 <div class="minimap-header">
                     <span class="minimap-title">Layout</span>
                 </div>
@@ -41,15 +41,16 @@ const Minimap = {
         document.body.appendChild(panel);
 
         // The tab rail carries the app's menu button as well as the minimap's own
-        // toggle, so the two read as one control cluster and slide together when
-        // the panel opens. .controls is authored in the HTML (with its dropdown
-        // and its click wiring already attached — moving a node keeps both), and
-        // is adopted here rather than rebuilt.
+        // toggle, so the two read as one control cluster — and both open their
+        // panel leftward from a rail that stays put. .controls is authored in the
+        // HTML (with its dropdown and its click wiring already attached — moving a
+        // node keeps both), and is adopted here rather than rebuilt.
         const tabs = panel.querySelector('.minimap-tabs');
         const controls = document.querySelector('.controls');
         if (controls) tabs.appendChild(controls);
         tabs.insertAdjacentHTML('beforeend',
-            '<button class="minimap-toggle" title="Toggle Minimap">⊞</button>');
+            `<button class="minimap-toggle" title="Toggle Minimap" aria-label="Toggle Minimap"
+                     aria-expanded="${this._isOpen}" aria-controls="minimapContent">⊞</button>`);
 
         this._panel = panel;
         this._blocksContainer = panel.querySelector('.minimap-blocks');
@@ -64,6 +65,8 @@ const Minimap = {
     toggle() {
         this._isOpen = !this._isOpen;
         this._panel.classList.toggle('open', this._isOpen);
+        this._panel.querySelector('.minimap-toggle')
+            ?.setAttribute('aria-expanded', String(this._isOpen));
         Utils.safeLocalStorageSet('minimapOpen', String(this._isOpen));
     },
 
