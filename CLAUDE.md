@@ -56,6 +56,43 @@ colour emoji in the UI — they can't inherit `currentColor`, so they never dim,
 match the accent, or respond to hover, and they render differently per OS. A
 control whose only content is an icon needs a real `aria-label`.
 
+## Live Claude Code Status Bar (v4.14+)
+
+The row of glass bars under the header is fed from *outside* the browser:
+Claude Code hooks in `~/.claude/settings.json` (pointing at this repo's
+**absolute path** — moving/renaming the repo silently kills the pipeline) run
+`tools/claude-status-hook.js` on every session event. The hook keeps
+per-session spool files in `%LOCALAPPDATA%\AndersonHomepage\claude-status\`
+and atomically rewrites `claude-projects.js` at the app root (gitignored),
+which `scripts/9-projects.js` re-reads every 10 s by script-tag injection
+(`fetch()` can't read local files from `file://`).
+
+Rules that are not obvious from the code:
+
+- **Privacy is structural.** Every disk write passes through
+  `toContractSession()`. Tool inputs, prompts, and command text may be
+  inspected in memory (activity classification) but must never be persisted —
+  never add a field to the spool or merged file without deliberately extending
+  that whitelist.
+- **The hook must stay harmless.** It runs on every tool call of every Claude
+  Code session on this machine: always exit 0, never write to stdout (Claude
+  Code interprets hook stdout), bail on TTY stdin. Node only — a PowerShell
+  hook costs ~690 ms per invocation vs ~92 ms.
+- **Don't "simplify" the guards.** `clearPendingIfTool` (a sibling tool's
+  PostToolUse in a parallel batch must not clear another tool's pending
+  permission), the `.lock` directory (two hook processes for one session were
+  observed 23 ms apart), and SessionEnd tombstones (late events must not
+  resurrect ended sessions) each close a race observed in practice.
+- **The front end reconciles in place**, keyed by lowercased `cwdKey` (the
+  same directory arrives with both drive-letter casings). Rebuilding the row
+  resets the needs-you blink phase and replays the enter animation.
+- `#projectsAlert` sits **outside** the collapsible wrapper on purpose — a
+  `role="status"` write into a `hidden` subtree is dropped by assistive tech.
+- The reduced-motion pulse in `styles/8-projects.css` needs `!important` on
+  all four animation properties to beat the global animation killer in
+  `styles/5-pomodoro.css`; the pomodoro card is inserted *after* the row by
+  `relocateUI()`, keeping the row directly below the header.
+
 ## Agent Delegation
 
 When working on tasks, delegate to the appropriate specialist agent using the Agent tool. Match the task to the best-fit agent:
