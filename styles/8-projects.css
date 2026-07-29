@@ -1,11 +1,19 @@
 /* ==========================================
    8-PROJECTS.CSS - Project Status Bar
-   Anderson Homepage v4.14
+   Anderson Homepage v4.15
 
-   A row of glass panes below the header, one per live Claude Code session
+   A row of glass panes below the header, one per live Claude Code project
    (grouped by working directory), fed by scripts/9-projects.js from the
    machine-generated claude-projects.js at the app root. See that script's
    header comment for the data pipeline.
+
+   Three nested levels, deliberately given three different visual weights so
+   a glance at the row can't confuse them:
+     project      the glass pane itself — full weight, left rail, UI font
+     conversation .pb-chat, indented behind a hairline — one per session
+     agent        .pb-agent, indented again, smallest and dimmest
+   Only the project level is ever visible while collapsed; the rest lives in
+   .pb-detail behind the disclosure button.
    ========================================== */
 
 /* ----------------------------------------
@@ -34,6 +42,9 @@
 .projects-row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Each pane sizes to its own content: one expanded project must not
+       inflate every collapsed bar sharing its grid row. */
+    align-items: start;
     gap: 12px;
     padding-bottom: 1rem;
     min-height: 0;            /* required for the 0fr collapse */
@@ -93,6 +104,52 @@
     min-width: 0;
 }
 
+/* Disclosure. Icon-only, so scripts/9-projects.js keeps a real aria-label on
+   it; the 24px box gives it a pointer target the 12px glyph wouldn't. */
+.pb-toggle {
+    flex: none;
+    align-self: center;
+    width: 24px;
+    height: 24px;
+    margin: -6px 0 -6px -6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-card);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+/* display:inline-flex above would defeat the UA [hidden] rule without this —
+   the same trap as .projects-row-wrap[hidden] and .pb-detail[hidden]. The JS
+   hides this button whenever there's nothing below worth disclosing. */
+.pb-toggle[hidden] {
+    display: none;
+}
+
+.pb-toggle:hover {
+    color: var(--ink);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.pb-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.pb-chev {
+    --ico-size: 13px;
+    transition: transform 0.2s ease;
+}
+
+.project-bar.is-expanded .pb-chev {
+    transform: rotate(180deg);
+}
+
 .pb-name {
     flex: 0 1 auto;
     min-width: 0;
@@ -110,8 +167,10 @@
 .pb-count {
     flex: none;
     font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 0.7rem;
     color: var(--ink-dim);
+    white-space: nowrap;
 }
 
 .pb-time {
@@ -156,6 +215,238 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* ----------------------------------------
+   2b. Detail: conversations and their agents
+   ---------------------------------------- */
+
+.pb-detail {
+    margin-top: 6px;
+    padding-top: 7px;
+    border-top: 1px solid var(--structural);
+}
+
+/* .pb-detail sets no display of its own, so the UA [hidden] rule would
+   suffice — kept explicit because every ancestor here (.projects-row-wrap,
+   .project-bar) does set one, and a later `display:` added to this block
+   would silently un-hide every collapsed project. */
+.pb-detail[hidden] {
+    display: none;
+}
+
+.pb-chats {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* One conversation: the chat level is skipped and its agents hang straight
+   off the project, so this list takes on .pb-agents' spacing and indent. */
+.pb-chats.is-agents-only {
+    gap: 2px;
+    padding-left: 10px;
+}
+
+/* One conversation. The hairline rail is the indent cue — it reads as
+   "contained by the project" without spending an icon or a bullet on it. */
+.pb-chat {
+    position: relative;
+    padding-left: 10px;
+    --pb-chat-hue: var(--accent);
+}
+
+.pb-chat::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 1px;
+    background-color: var(--structural);
+}
+
+.pb-chat.is-working   { --pb-chat-hue: var(--accent); }
+.pb-chat.is-needs-you { --pb-chat-hue: var(--warn); }
+.pb-chat.is-your-turn { --pb-chat-hue: var(--ok-neutral); }
+.pb-chat.is-idle      { --pb-chat-hue: var(--structural); }
+
+.pb-chat-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.pb-chat-dot {
+    flex: none;
+    align-self: center;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: var(--pb-chat-hue);
+    transition: background-color 0.25s ease;
+}
+
+.pb-chat-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A conversation with no first prompt captured yet is labelled "Chat N" —
+   a placeholder, so it shouldn't read as strongly as a real title. */
+.pb-chat.is-untitled .pb-chat-title {
+    color: var(--ink-dim);
+    font-style: italic;
+}
+
+.pb-chat-time,
+.pb-agent-time {
+    flex: none;
+    margin-left: auto;
+    padding-left: 0.5rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.68rem;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--ink-dim);
+}
+
+.pb-chat-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+    margin-top: 1px;
+}
+
+/* Hue lives on the dot, NOT on this text. --accent over the glass fill
+   measures ~2.6:1 on a bright wallpaper at the default overlay (and worse at
+   "No blur"), which fails AA badly for 0.6rem type — and it's the state
+   shown most of the time. The dot carries the colour; the word carries the
+   meaning. Mirrors what .pb-state does one level up. */
+.pb-chat-state {
+    flex: none;
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    color: var(--ink);
+}
+
+/* --warn is the one hue that holds up at this size, and needs-you is the
+   state that earns the extra salience. */
+.pb-chat.is-needs-you .pb-chat-state {
+    color: var(--warn);
+}
+
+.pb-chat.is-idle .pb-chat-state {
+    color: var(--ink-dim);
+}
+
+.pb-chat-activity {
+    min-width: 0;
+    padding-left: 0.4rem;
+    border-left: 1px solid var(--structural);
+    font-size: 0.66rem;
+    line-height: 1.2;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-chat-activity[hidden],
+.pb-agent-activity[hidden] {
+    display: none;
+}
+
+/* One agent inside a conversation — the quietest level. */
+.pb-agents {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    margin: 3px 0 0;
+    padding: 0 0 0 10px;
+}
+
+.pb-agents:empty {
+    display: none;
+}
+
+/* Only two states are reachable here: a live agent is working, or it's
+   blocked on approval. your-turn needs a Stop (main-thread only) and idle
+   agents are filtered out before render (_computeChat). */
+.pb-agent {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    --pb-agent-hue: var(--accent);
+}
+
+.pb-agent.is-needs-you { --pb-agent-hue: var(--warn); }
+
+.pb-agent-dot {
+    flex: none;
+    align-self: center;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background-color: var(--pb-agent-hue);
+}
+
+.pb-agent-type {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    line-height: 1.3;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-agent-activity {
+    flex: none;
+    padding-left: 0.35rem;
+    border-left: 1px solid var(--structural);
+    font-size: 0.64rem;
+    line-height: 1.3;
+    color: var(--ink-dim);
+    white-space: nowrap;
+}
+
+.pb-agent.is-needs-you .pb-agent-type,
+.pb-agent.is-needs-you .pb-agent-activity {
+    color: var(--warn);
+}
+
+.pb-agents-more,
+.pb-chats-more {
+    padding-left: 0.3rem;
+    font-size: 0.66rem;
+    font-style: italic;
+    color: var(--ink-dim);
+}
+
+.pb-chats-more {
+    padding-left: 10px;
 }
 
 /* ----------------------------------------

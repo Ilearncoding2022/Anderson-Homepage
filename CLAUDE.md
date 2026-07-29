@@ -56,7 +56,7 @@ colour emoji in the UI — they can't inherit `currentColor`, so they never dim,
 match the accent, or respond to hover, and they render differently per OS. A
 control whose only content is an icon needs a real `aria-label`.
 
-## Live Claude Code Status Bar (v4.14+)
+## Live Claude Code Status Bar (v4.14+, multi-agent since v4.15)
 
 The row of glass bars under the header is fed from *outside* the browser:
 Claude Code hooks in `~/.claude/settings.json` (pointing at this repo's
@@ -70,19 +70,73 @@ which `scripts/9-projects.js` re-reads every 10 s by script-tag injection
 Rules that are not obvious from the code:
 
 - **Privacy is structural.** Every disk write passes through
-  `toContractSession()`. Tool inputs, prompts, and command text may be
-  inspected in memory (activity classification) but must never be persisted —
-  never add a field to the spool or merged file without deliberately extending
-  that whitelist.
+  `toContractSession()` (and `toContractAgent()` for the nested records).
+  Tool inputs and command text may be inspected in memory (activity
+  classification) but must never be persisted — never add a field to the spool
+  or merged file without deliberately extending that whitelist. **One
+  exception, chosen explicitly in v4.15:** `title` keeps a sanitized snippet
+  of a session's *first* prompt as its label (`snippetOfPrompt` — first
+  non-empty line, control chars stripped, 64 chars, slash commands skipped,
+  never overwritten). Nothing else prompt-derived is kept, and this is not a
+  precedent to widen.
+
+**Three levels, and the difference matters.** A *project* is a directory
+(≈ a VS Code window) and gets one bar; a *conversation* is one session inside
+it (1-5 is routine) and gets a row in the expandable detail; an *agent* is a
+subagent inside a conversation and gets an indented row under it. The hook
+tells threads apart with `agent_id`, which Claude Code sets *only* for events
+fired inside a subagent (`agent_type` alone is not a discriminator — it is
+also present on the main thread of an `--agent` session). Two rules are
+load-bearing and both fail silently:
+
+- **An event carrying `agent_id` must never touch `cwd`/`cwdKey`/`folder`.**
+  A worktree-isolated agent reports its worktree as cwd while sharing the
+  parent's `session_id`; letting that through renames the project to
+  `agent-<hash>` and (since bars are keyed by `cwdKey`) makes the real project
+  disappear until the agent exits.
+- **Pending permission state is per-thread.** `clearPendingIfTool` matches on
+  tool *name*, which only disambiguates within one thread — across a parallel
+  fan-out every agent uses Read/Bash/Grep, so a shared slot lets one agent's
+  PostToolUse clear another's still-unresolved approval and the blink stops
+  while Claude is still blocked.
+
+The session's own `state`/`activity` describe its **main thread only**;
+`mainEventAt` ages it out independently of `lastEventAt` (which any agent
+bumps). `Stop` therefore stays truthful about the main loop, and
+`_computeChat()` in the front end is what turns "main stopped, agents still
+live" into *working* rather than *your turn*. Agent records are dropped on
+`SubagentStop`, but tombstoned for 60 s first — a late tool event must not
+resurrect an agent, same rule as the session tombstone.
 - **The hook must stay harmless.** It runs on every tool call of every Claude
   Code session on this machine: always exit 0, never write to stdout (Claude
   Code interprets hook stdout), bail on TTY stdin. Node only — a PowerShell
   hook costs ~690 ms per invocation vs ~92 ms.
 - **Don't "simplify" the guards.** `clearPendingIfTool` (a sibling tool's
   PostToolUse in a parallel batch must not clear another tool's pending
-  permission), the `.lock` directory (two hook processes for one session were
-  observed 23 ms apart), and SessionEnd tombstones (late events must not
-  resurrect ended sessions) each close a race observed in practice.
+  permission), the `.lock-<session>` directory (two hook processes for one
+  session were observed 23 ms apart), and SessionEnd tombstones (late events
+  must not resurrect ended sessions) each close a race observed in practice.
+- **The lock covers the spool write only, and the merge runs outside it.**
+  Both halves of that sentence are load-bearing and were measured, not
+  guessed. A 6-agent dispatch fires ~13 hook processes for one session at
+  once; with the merge inside the lock the critical section ran ~25 ms, the
+  tail of the queue exhausted its retries, fell back to *unlocked*
+  read-modify-write, and silently lost writes — 5 of 13 processes, taking an
+  agent's pending approval with them. The merge is safe outside because every
+  write (spool included) is tmp-file + atomic rename, so no reader can see a
+  partial record, and a merge round lost to a race self-heals on the next
+  event. `LOCK_ATTEMPTS`/`LOCK_SLEEP_MS` are sized to the measured ~11 ms
+  section × that process count; the lock is per session because two sessions
+  never touch the same spool file. If you change any of this, re-measure —
+  the failure is silent.
+- **Waiting is liveness, not staleness.** An agent blocked on a permission
+  prompt stops emitting events by definition, which made it the oldest record
+  and therefore the first thing both `pruneAgents` rules threw away — the one
+  record whose whole job is to keep the bar blinking. Records with a
+  `pendingSince` are exempt from the staleness sweep and sort last for
+  eviction. The front end has the mirror of this rule: `_deriveState` returns
+  `needs-you` before it looks at the clock, so a waiting agent is never
+  filtered out as idle.
 - **The front end reconciles in place**, keyed by lowercased `cwdKey` (the
   same directory arrives with both drive-letter casings). Rebuilding the row
   resets the needs-you blink phase and replays the enter animation.
@@ -92,6 +146,24 @@ Rules that are not obvious from the code:
   all four animation properties to beat the global animation killer in
   `styles/5-pomodoro.css`; the pomodoro card is inserted *after* the row by
   `relocateUI()`, keeping the row directly below the header.
+- **A level is rendered only when it holds more than one thing** (`_hasDetail`
+  / `_renderDetail`). One conversation *is* the project and one agent *is* the
+  conversation, so each folds up into the line above — the conversation's
+  title and the agent's type join the bar's meta line — and the disclosure
+  button is `hidden` when nothing is left to disclose. Two consequences worth
+  knowing: `.pb-toggle[hidden]` needs an explicit `display: none` (the
+  `display: inline-flex` on the button otherwise beats the UA `[hidden]`
+  rule — the same trap as `.projects-row-wrap[hidden]`), and when the chat
+  level folds, agent rows are rendered directly into `.pb-chats`, which takes
+  `.is-agents-only` for the tighter spacing.
+- **Collapsed projects render no detail rows at all** (`_applyExpansion`
+  empties the list rather than hiding it) — the 1 s ticker walks every live
+  `[data-since]` node, so an expanded project is the only one that costs
+  anything. Expansion is sticky per `cwdKey` in localStorage, with a
+  needs-you auto-expand that yields to the user for the rest of that episode
+  (`dataset.autoExpanded` marks the auto-open, `dataset.autoDismissed` the
+  deliberate collapse — without the second one, a collapse is undone by the
+  very next poll while the approval is still outstanding).
 
 ## Agent Delegation
 
