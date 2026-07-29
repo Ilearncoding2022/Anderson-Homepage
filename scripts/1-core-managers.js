@@ -18,23 +18,56 @@
 // adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
 // them into the <title>, the menu's "What's new" item, and the changelog modal
 // header, so those three spots can never drift out of sync.
-const APP_VERSION = 'v4.12';
+const APP_VERSION = 'v4.13';
 const APP_RELEASE_DATE = '2026-07-29';
 
+// Six hues, two intensities each. Intensity is the hierarchy tool now — a
+// "calm" 0.10 tint for groups that shouldn't shout, a "bold" 0.28 tint for
+// the ones that should — instead of twelve interchangeable swatches at one
+// identical strength. Green is deliberately absent: it's reserved app-wide
+// for the Today & Now beam and the calendar "now" bar, so it can't also mean
+// "here's a group colour".
 const COLOR_PALETTE = [
-    { name: 'Ocean Blue', value: 'rgba(30, 136, 229, 0.25)' },
-    { name: 'Forest Green', value: 'rgba(76, 175, 80, 0.25)' },
-    { name: 'Sunset Orange', value: 'rgba(255, 152, 0, 0.25)' },
-    { name: 'Royal Purple', value: 'rgba(156, 39, 176, 0.25)' },
-    { name: 'Rose Pink', value: 'rgba(233, 30, 99, 0.25)' },
-    { name: 'Teal', value: 'rgba(0, 150, 136, 0.25)' },
-    { name: 'Deep Orange', value: 'rgba(255, 87, 34, 0.25)' },
-    { name: 'Indigo', value: 'rgba(63, 81, 181, 0.25)' },
-    { name: 'Lime', value: 'rgba(205, 220, 57, 0.25)' },
-    { name: 'Cyan', value: 'rgba(0, 188, 212, 0.25)' },
-    { name: 'Amber', value: 'rgba(255, 193, 7, 0.25)' },
-    { name: 'Brown', value: 'rgba(121, 85, 72, 0.25)' }
+    { name: 'Blue', value: 'rgba(56, 132, 255, 0.10)' },
+    { name: 'Blue (bold)', value: 'rgba(56, 132, 255, 0.28)' },
+    { name: 'Teal', value: 'rgba(0, 190, 164, 0.10)' },
+    { name: 'Teal (bold)', value: 'rgba(0, 190, 164, 0.28)' },
+    { name: 'Amber', value: 'rgba(255, 138, 76, 0.10)' },
+    { name: 'Amber (bold)', value: 'rgba(255, 138, 76, 0.28)' },
+    { name: 'Violet', value: 'rgba(190, 110, 255, 0.10)' },
+    { name: 'Violet (bold)', value: 'rgba(190, 110, 255, 0.28)' },
+    { name: 'Rose', value: 'rgba(255, 92, 138, 0.10)' },
+    { name: 'Rose (bold)', value: 'rgba(255, 92, 138, 0.28)' },
+    { name: 'Slate', value: 'rgba(140, 155, 175, 0.10)' },
+    { name: 'Slate (bold)', value: 'rgba(140, 155, 175, 0.28)' }
 ];
+
+// ---------------------------------------------------------------------------
+// LEGACY_COLOR_MAP — one-time migration from the old 12-swatch Material
+// palette (all fixed at 0.25 alpha) to the new one, keyed by the exact old
+// `value` string. 0.25 sits much closer to the new "bold" tier (0.28) than
+// the "calm" one (0.10), so every legacy colour lands on its nearest hue's
+// bold swatch. Groups don't validate colour against palette membership
+// anywhere (Utils.isValidColor only checks CSS syntax), so an unmapped
+// custom/legacy value would keep rendering fine on its own — this map exists
+// so old groups pick up the new hue language (and so the old "Forest Green"
+// stops putting the now-reserved green back on screen). Applied once during
+// Storage.load()'s group migration pass; safe to run every load since it's a
+// no-op once a group's colour is no longer an old-palette string.
+const LEGACY_COLOR_MAP = {
+    'rgba(30, 136, 229, 0.25)': 'rgba(56, 132, 255, 0.28)',   // Ocean Blue -> Blue (bold)
+    'rgba(76, 175, 80, 0.25)': 'rgba(0, 190, 164, 0.28)',     // Forest Green -> Teal (bold) — green is reserved now
+    'rgba(255, 152, 0, 0.25)': 'rgba(255, 138, 76, 0.28)',    // Sunset Orange -> Amber (bold)
+    'rgba(156, 39, 176, 0.25)': 'rgba(190, 110, 255, 0.28)',  // Royal Purple -> Violet (bold)
+    'rgba(233, 30, 99, 0.25)': 'rgba(255, 92, 138, 0.28)',    // Rose Pink -> Rose (bold)
+    'rgba(0, 150, 136, 0.25)': 'rgba(0, 190, 164, 0.28)',     // Teal -> Teal (bold)
+    'rgba(255, 87, 34, 0.25)': 'rgba(255, 138, 76, 0.28)',    // Deep Orange -> Amber (bold)
+    'rgba(63, 81, 181, 0.25)': 'rgba(56, 132, 255, 0.28)',    // Indigo -> Blue (bold)
+    'rgba(205, 220, 57, 0.25)': 'rgba(255, 138, 76, 0.28)',   // Lime -> Amber (bold)
+    'rgba(0, 188, 212, 0.25)': 'rgba(0, 190, 164, 0.28)',     // Cyan -> Teal (bold)
+    'rgba(255, 193, 7, 0.25)': 'rgba(255, 138, 76, 0.28)',    // Amber -> Amber (bold)
+    'rgba(121, 85, 72, 0.25)': 'rgba(140, 155, 175, 0.28)'    // Brown -> Slate (bold)
+};
 
 // ========================================
 // STATE MANAGEMENT
@@ -128,9 +161,22 @@ const Storage = {
 
         // Migrate: Ensure all groups have required properties
         let colCounter = 0;
+        let migratedLegacyColor = false;
         AppState.groups.forEach((group, index) => {
             if (!group.width) group.width = 'full';
             if (group.collapsed === undefined) group.collapsed = false;
+
+            // Migrate: snap old 12-swatch Material colours onto the new palette
+            // (see LEGACY_COLOR_MAP above). Anything else — a custom colour, or
+            // an already-migrated one — passes through untouched.
+            // hasOwn, not a bare lookup: a stored colour of "constructor" or
+            // "toString" would otherwise hit Object.prototype, resolve truthy,
+            // and assign a *function* to group.color — which JSON.stringify then
+            // drops on save, silently losing the group's colour for good.
+            if (typeof group.color === 'string' && Object.hasOwn(LEGACY_COLOR_MAP, group.color)) {
+                group.color = LEGACY_COLOR_MAP[group.color];
+                migratedLegacyColor = true;
+            }
 
             if (group.position === undefined) {
                 if (group.id === 'ungrouped') {
@@ -153,6 +199,10 @@ const Storage = {
                 }
             }
         });
+
+        // Persist the colour migration immediately so it doesn't silently
+        // depend on the user happening to edit a group afterwards.
+        if (migratedLegacyColor) this.save();
 
         this.sortGroups();
 

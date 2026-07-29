@@ -19,17 +19,59 @@
 /* 1fr auto 1fr keeps .header-center at the true horizontal midpoint even
    when the left (pomodoro + search) and right (usage bars + controls)
    zones have different widths. */
+/* The one surface that never joined the glass system: it used to be a flat
+   --bg-card brick (pure white in light theme, glaring against the background
+   photo). It's sticky above everything else, so it gets the heaviest blur/
+   saturate of any pane in the app rather than the standard --glass-* pair.
+   The header stays this same dark tint in BOTH themes — it is reading the
+   photo behind it, not the light/dark surface colours — so its own text uses
+   --ink/--ink-dim rather than --text-primary/--text-secondary, which would
+   go dark-on-dark the moment light theme is active. */
 .header {
-    background-color: var(--bg-card);
-    padding: 0.5rem 2rem;
-    box-shadow: var(--shadow);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
     position: sticky;
     top: 0;
     z-index: 100;
+    color: var(--ink);
+    padding: 0.5rem 2rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
     gap: 1rem;
+}
+
+/* The material lives on its own layer rather than on .header directly. A mask
+   applied to .header fades everything it paints — including the header's TEXT —
+   so the date line under each clock dissolved along with the bottom edge. On a
+   pseudo-element the edge can feather while the content stays fully opaque.
+   z-index:-1 keeps it behind the header's content but inside the header's own
+   stacking context, so it never falls behind the page. */
+.header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-color: var(--header-fill);
+    backdrop-filter: blur(28px) saturate(1.8);
+    -webkit-backdrop-filter: blur(28px) saturate(1.8);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    mask-image: linear-gradient(#000 82%, transparent);
+    -webkit-mask-image: linear-gradient(#000 82%, transparent);
+    pointer-events: none;
+}
+
+/* mask-image only fades the header's own paint; it can't cast anything past
+   its own box. This soft contact shadow is what actually separates the glass
+   from a bright patch of background photo sitting directly beneath it, now
+   that the header carries no box-shadow of its own. */
+.header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 28px;
+    background: linear-gradient(rgba(0,0,0,0.28), transparent);
+    pointer-events: none;
 }
 
 .header-zone-left {
@@ -145,7 +187,8 @@
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.7rem;
-    color: var(--text-secondary);
+    /* Lives inside #dropdownMenu, which is dark glass in both themes. */
+    color: var(--ink-dim);
 }
 
 .storage-meter-bar {
@@ -160,24 +203,27 @@
     height: 100%;
     width: 0%;
     border-radius: 2px;
-    background: #4caf50;
+    /* Slate -> amber -> red. Green is reserved for the Today & Now beam
+       elsewhere, so "fine" reads as a cool neutral instead. */
+    background: var(--ok-neutral);
     transition: width 0.4s ease, background 0.3s ease;
 }
 
 .storage-meter-text {
     text-align: left;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 /* Warning tier (>=75%) */
-.storage-meter.is-warn .storage-meter-fill { background: #ff9800; }
-.storage-meter.is-warn .storage-meter-text { color: #ffb74d; }
+.storage-meter.is-warn .storage-meter-fill { background: var(--warn); }
+.storage-meter.is-warn .storage-meter-text { color: var(--warn); }
 
 /* Danger tier (>=90%) */
-.storage-meter.is-danger .storage-meter-fill { background: #f44336; }
+.storage-meter.is-danger .storage-meter-fill { background: var(--danger); }
 .storage-meter.is-danger .storage-meter-text {
-    color: #ff8a80;
+    color: var(--danger);
     font-weight: 600;
 }
 
@@ -235,7 +281,10 @@
     align-items: center;
     gap: 10px;
     font-size: 0.7rem;
-    color: var(--text-secondary);
+    /* The header is now a dark glass pane in both themes, so its text reads
+       off the --ink scale (always light-on-dark) rather than --text-secondary,
+       which flips dark in light theme and would nearly vanish here. */
+    color: var(--ink-dim);
     /* Keeps the block off the header's right edge, roughly where it sat when the
        menu button was still its neighbour. Trimmed when a third clock widens the
        centre column, so the countdowns stay affordable in that layout too. */
@@ -261,12 +310,21 @@
 .usage-rows {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    /* Tighter than before because the capsule itself grew, and because the
+       markers overhang each row — this keeps the three-row block within the
+       height the 64px Pomodoro button already sets for the header. */
+    gap: 3px;
 }
 
+/* The label track is 6px wider than the text needs. Because the widget is
+   right-anchored in the header zone, that extra 6px is absorbed on the LEFT:
+   the labels and the "Claude Usage Tracker" title both shift 6px away from the
+   gauges, while the gauges and countdowns stay exactly where they were. Padding
+   or a margin on .usage-label could not do this — the track width is fixed, so
+   only the track itself can open the gap. */
 .usage-row {
     display: grid;
-    grid-template-columns: 74px 120px auto;
+    grid-template-columns: 80px 120px auto;
     align-items: center;
     gap: 6px;
 }
@@ -276,50 +334,98 @@
     text-align: left;
 }
 
+/* Segmented gauge: a heavy dark capsule holding ten colour blocks that run cool
+   to hot, with a grey slider marking where this limit currently sits. The bar is
+   a fixed scale — it always shows the whole 0-100 range — so the reading is the
+   marker's POSITION, not a length. That is the opposite of the old fill bar and
+   it is why the marker overhangs the capsule top and bottom: it has to read as
+   an indicator laid across the scale rather than as part of it.
+
+   No overflow:hidden here, or the overhang would be clipped; the ::before below
+   rounds and clips the colour blocks itself. */
 .usage-bar {
     position: relative;
-    height: 16px;
-    border-radius: 8px;
-    background: rgba(127, 127, 127, 0.3);
-    overflow: hidden;
+    height: 20px;
+    border-radius: 10px;
+    border: 2px solid #17394D;
+    background: #fff;              /* the white gutter between capsule and blocks */
 }
 
-.usage-fill {
-    height: 100%;
-    width: 0%;
-    background: #4caf50;
-    transition: width 0.4s ease, background 0.3s ease;
+/* Two stacked gradients: the colour ramp underneath, and white separators over
+   it at every 10%, which is what makes ten discrete blocks out of one ramp
+   rather than ten elements. */
+.usage-bar::before {
+    content: "";
+    position: absolute;
+    inset: 1.5px;
+    border-radius: 7px;
+    background:
+        repeating-linear-gradient(90deg,
+            rgba(255,255,255,0) 0,
+            rgba(255,255,255,0) calc(10% - 1.5px),
+            #fff calc(10% - 1.5px),
+            #fff 10%),
+        linear-gradient(90deg,
+            #57C4E8 0 20%,
+            #A3C55F 20% 40%,
+            #FBC94B 40% 60%,
+            #F0912B 60% 80%,
+            #C0392B 80% 100%);
 }
 
-/* Black on a white halo in light mode; the halo is what keeps it readable over
-   the grey track and all three fill colors (var(--text-primary) failed contrast
-   on the fills). */
+/* The reading. Sits at the marker's percentage along the scale; the translate
+   keeps it centred on the marker, and the clamp on `left` stops it hanging off
+   either cap at 0% or 100%. */
+.usage-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: 0;
+    width: 5px;
+    transform: translateX(-50%);
+    border-radius: 3px;
+    background: rgba(120, 120, 120, 0.92);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.45);
+    transition: left 0.4s ease;
+}
+
+/* Centred IN the capsule rather than under it. Because it is centred and not
+   tracking the marker, the colour behind it is always the middle of the ramp
+   (yellow-green) — so this is dark ink on a light halo, which no longer has to
+   survive being dragged across the red end. */
 .usage-pct {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    color: #000;
-    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.75);
-}
-
-/* Dark mode inverts both: white text needs the dark halo, or it would vanish
-   into the yellow and green fills. */
-[data-theme="dark"] .usage-pct {
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.75);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #12303F;
+    text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.95),
+        0 0 6px rgba(255, 255, 255, 0.8),
+        0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 .usage-resets {
     white-space: nowrap;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
 
-/* Green ≤49%, yellow 50–79%, red ≥80% (classes set by 8-usage.js). */
-.usage-row.is-warn .usage-fill { background: #fdd835; }
-.usage-row.is-danger .usage-fill { background: #f44336; }
+/* Severity classes are still set by 8-usage.js, but the gauge already encodes
+   it: on a fixed 0-100 scale the marker is standing on the amber or red blocks
+   by the time those thresholds hit. They only deepen the marker now, so a
+   glance at the widget reads the same without relying on colour alone. */
+.usage-row.is-warn .usage-marker { background: rgba(90, 90, 90, 0.95); }
+.usage-row.is-danger .usage-marker {
+    background: rgba(60, 60, 60, 0.97);
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+}
 
 /* Dim the whole widget when the data file hasn't been refreshed lately
    (updater stopped, PC asleep, or the Claude Code token expired). A .sr-only
@@ -331,11 +437,13 @@
    before the side zones can crowd the centered clocks (mobile stacking takes
    over at 768px and brings the widget back full-width).
 
-   The arithmetic behind the numbers: the full widget costs 333px (252px without
-   the countdowns) now that the menu button no longer shares the zone, plus its
-   margin-right; the right zone gets (viewport − 96px − centre) / 2, where the
-   centre column is ~355px with two clocks and ~545px with three (after the 1pt
-   clock trim). Two clocks + 60px margin therefore needs ~1237px. */
+   The arithmetic behind the numbers: the full widget costs 339px (258px without
+   the countdowns) now that the menu button no longer shares the zone and the
+   label track carries its extra 6px, plus its margin-right; the right zone gets
+   (viewport − 96px − centre) / 2, where the centre column is ~355px with two
+   clocks and ~545px with three (after the 1pt clock trim). Two clocks + 60px
+   margin therefore needs ~1243px, which the 1240px breakpoint below still
+   covers — the widget sheds its countdowns a hair before it would crowd. */
 @media (max-width: 1240px) {
     .header .usage-resets,
     .header .usage-title { display: none; }
@@ -343,7 +451,7 @@
 
 /* A third clock eats ~190px of the centre. Rather than dropping the countdowns
    the moment that happens, give back most of the widget's left nudge — the nudge
-   is cosmetic, the countdowns are the point. 333 + 24 fits from ~1340px up.
+   is cosmetic, the countdowns are the point. 339 + 24 fits from ~1340px up.
    Class is set by AppInit.updateClock(); clock3 is hidden with an inline style,
    which CSS can't see. */
 .header.has-three-clocks .usage-widget { margin-right: 24px; }
@@ -381,7 +489,9 @@
 
 .search-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    /* rgba mirrors --accent (#5B9DFF) — box-shadow can't consume the custom
+       property directly at a given alpha. */
+    box-shadow: 0 0 0 2px rgba(91, 157, 255, 0.2);
 }
 
 .search-input::placeholder {
@@ -423,13 +533,20 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0.15rem;
-    padding: 0 1.25rem;
+    /* Vertical padding lives on EVERY clock, not just the selected one, so the
+       plate below can appear and disappear without the header row resizing. */
+    padding: 0.3rem 1.25rem;
     text-align: left;
     user-select: none;
+    min-width: 0;
     /* Clickable: each clock sets the calendar's grouping to its own zone. */
     cursor: pointer;
     border-radius: 8px;
     transition: background-color 0.15s ease;
+    /* City and time are now the same size (see .clock-city/.clock-time below) —
+       hierarchy comes from voice/weight/colour instead. Driving both from one
+       custom property here is what guarantees they can never drift apart. */
+    --clock-fs: 1.45rem;
 }
 
 .digital-clock:hover {
@@ -437,7 +554,7 @@
 }
 
 .digital-clock:focus-visible {
-    outline: 2px solid var(--accent, #4CAF50);
+    outline: 2px solid var(--accent, #5B9DFF);
     outline-offset: 2px;
 }
 
@@ -445,50 +562,71 @@
     border-left: 2px solid var(--border-color);
 }
 
-/* All three clock text sizes are 1pt below their original rem value — kept as
-   calc() so the relationship stays visible instead of baking in odd decimals. */
-.clock-city {
-    font-size: calc(1.25rem - 1pt);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-primary);
-    white-space: nowrap;
+/* The clock whose zone the calendar is currently grouped by sits on a frosted
+   plate, so the chosen zone is identifiable at rest — the colour cycle already
+   marks it, but that reads as decoration and stops entirely under reduced
+   motion. Declared after :hover so it wins on the selected clock; the hover
+   state is restated below rather than lost. */
+.digital-clock.clock-rainbow {
+    background-color: rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.clock-details {
+.digital-clock.clock-rainbow:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+/* City and time now share one baseline row (the date moved to its own line
+   below) — min-width: 0 is what lets the city ellipsis instead of forcing
+   this row, and the header, wider. */
+.clock-headline {
     display: flex;
-    flex-direction: row;
     align-items: baseline;
     gap: 0.5rem;
-    line-height: 1.25;
+    min-width: 0;
+}
+
+/* Label voice: Space Grotesk, uppercase, wide tracking, medium weight, dim
+   ink — a caption sitting beside the data rather than a bigger, bolder
+   headline over it. Truncates so a long zone name ("Buenos Aires") can never
+   overflow the clock card or push the header layout apart. */
+.clock-city {
+    font-family: var(--font-ui);
+    font-size: var(--clock-fs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-dim);
+    min-width: 0;
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .clock-date {
-    font-size: calc(0.72rem - 1pt);
+    font-size: 0.72rem;
     font-weight: 500;
-    color: var(--text-secondary);
-    letter-spacing: 0.4px;
-    margin-bottom: 0;
+    color: var(--ink-dim);
+    letter-spacing: 0.03em;
     white-space: nowrap;
 }
 
+/* Data voice: JetBrains Mono, light weight, full ink, tight tracking. Large +
+   light reads as a premium readout; large + bold (the old style) reads as a
+   warning. Tabular figures stop the row jittering sideways as digits with
+   different widths tick over every second. */
 .clock-time {
-    font-size: calc(1.05rem - 1pt);
-    font-weight: 700;
-    color: var(--text-primary);
-    font-family: 'Courier New', Courier, monospace;
-    letter-spacing: 1px;
+    font-family: var(--font-mono);
+    font-size: var(--clock-fs);
+    font-weight: 300;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
-}
-
-.clock-time::before {
-    content: "|";
-    margin-right: 0.5rem;
-    font-family: inherit;
-    font-weight: 400;
-    color: var(--text-secondary);
+    flex: none;
 }
 
 /* When this clock's zone is the calendar's active grouping zone (Settings →
@@ -516,8 +654,8 @@
         animation: clock-roygbiv 7s linear infinite;
     }
 
-    /* Drop the fixed primary/secondary colours so the children inherit the
-       container's animated colour. The "|" separator keeps its own colour. */
+    /* Drop the fixed label/data colours so the children inherit the
+       container's animated colour instead. */
     .digital-clock.clock-rainbow .clock-city,
     .digital-clock.clock-rainbow .clock-date,
     .digital-clock.clock-rainbow .clock-time {
@@ -529,8 +667,11 @@
    with a static ring instead — otherwise it's indistinguishable. */
 @media (prefers-reduced-motion: reduce) {
     .digital-clock.clock-rainbow {
-        box-shadow: inset 0 0 0 2px var(--accent, #4caf50);
-        border-radius: 8px;
+        /* Keeps the plate (set above) and adds an accent ring on top of it —
+           with the colour cycle switched off, the ring is what still marks
+           this clock as the selected one. */
+        box-shadow: inset 0 0 0 2px var(--accent, #5B9DFF);
+        border-radius: 12px;
     }
 }
 
@@ -555,10 +696,18 @@ button:hover {
     opacity: 0.9;
 }
 
-/* Hamburger Button */
+/* Hamburger Button — the base rule. 6-minimap.css restyles this button again,
+   more specifically, once Minimap.init() adopts it into the tab rail; this one
+   is what shows before that runs, so it carries the same glass so the button
+   never flashes as an opaque circle first. */
 .hamburger-btn {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    color: var(--ink);
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -567,12 +716,18 @@ button:hover {
     justify-content: center;
     font-size: 1.2rem;
     padding: 0;
+    box-shadow: var(--glass-inset);
 }
 
 /* Theme Toggle Button (lives in the dropdown menu's View section) */
 .theme-toggle {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    color: var(--ink);
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -580,6 +735,7 @@ button:hover {
     align-items: center;
     justify-content: center;
     font-size: 1.2rem;
+    box-shadow: var(--glass-inset);
 }
 
 /* ========================================
@@ -592,10 +748,21 @@ button:hover {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
-    background-color: var(--bg-card);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-    border: 1px solid var(--border-color);
+    /* Reads as the same dark glass in both themes, so everything inside it is
+       written in --ink/--ink-dim rather than the theme-flipping text tokens. */
+    background-color: var(--glass-group-fill);
+    background-image:
+        linear-gradient(var(--glass-fill), var(--glass-fill)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+                        transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    border-radius: var(--radius-group);
+    box-shadow: var(--glass-lift), var(--glass-inset);
+    border: 1px solid transparent;
+    color: var(--ink);
     padding: 1.25rem;
     min-width: 300px;
     max-width: 320px;
@@ -624,7 +791,7 @@ button:hover {
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     margin-bottom: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -632,24 +799,25 @@ button:hover {
 
 .dropdown-item {
     width: 100%;
-    background-color: transparent;
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background-color: var(--glass-fill);
+    color: var(--ink);
+    border: 1px solid var(--glass-edge);
     padding: 0.75rem 1rem;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     text-align: left;
     margin-bottom: 0.5rem;
-    transition: background-color 0.2s, transform 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
 }
 
 .dropdown-item:hover {
-    background-color: var(--bg-secondary);
+    background-color: var(--glass-fill-hover);
+    border-color: var(--glass-edge-hi);
     transform: translateX(4px);
 }
 
 .dropdown-divider {
     height: 1px;
-    background-color: var(--border-color);
+    background-color: var(--glass-edge);
     margin: 1rem 0;
 }
 
@@ -664,7 +832,7 @@ button:hover {
 }
 
 .dropdown-menu .dropdown-control-row label {
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     font-size: 0.85rem;
     margin-bottom: 0;
     cursor: pointer;
@@ -677,9 +845,10 @@ button:hover {
 .view-toggle {
     display: flex;
     gap: 0.5rem;
-    background-color: var(--bg-secondary);
+    background-color: var(--glass-fill);
+    border: 1px solid var(--glass-edge);
     padding: 0.25rem;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
 }
 
 /* Gap to the Icon Size control below it — spacing belongs to the menu layout,
@@ -690,7 +859,7 @@ button:hover {
 
 .view-toggle button {
     background-color: transparent;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     padding: 0.5rem;
     font-size: 1.2rem;
     width: 40px;
@@ -733,7 +902,7 @@ button:hover {
    this keeps the dropdown's un-wrapped copy visually in line without
    touching that shared Settings-modal rule. */
 .dropdown-menu .size-slider-header label {
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     font-size: 0.85rem;
 }
 
@@ -776,7 +945,9 @@ button:hover {
 
 .size-slider::-webkit-slider-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.55);
+    /* rgba mirrors --accent (#5B9DFF) — box-shadow can't consume the custom
+       property directly at a given alpha. */
+    box-shadow: 0 2px 6px rgba(91, 157, 255, 0.55);
 }
 
 .size-slider::-webkit-slider-thumb:active {
@@ -813,7 +984,7 @@ button:hover {
 
 .size-slider::-moz-range-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.55);
+    box-shadow: 0 2px 6px rgba(91, 157, 255, 0.55);
 }
 
 .size-slider::-moz-range-thumb:active {
@@ -848,8 +1019,8 @@ button:hover {
 }
 
 /* Keyboard focus: ring the thumb (the input box itself is transparent). Uses
-   --text-primary (not accent green, which can't clear 3:1 on a light surface at
-   any opacity) so the indicator is clearly visible in both themes. */
+   --text-primary rather than --accent so the indicator has its own identity
+   and is clearly visible in both themes regardless of the accent hue. */
 .size-slider:focus-visible::-webkit-slider-thumb {
     box-shadow: 0 0 0 3px var(--text-primary);
 }
@@ -860,17 +1031,20 @@ button:hover {
 
 /* Size label - the current-value indicator. A quiet accent-tinted pill rather
    than a heavy solid badge, so it reads as a readout beside the control instead
-   of competing with it. Text is --text-primary (not accent green) so it clears
-   WCAG AA on the faint tint in both light and dark themes. */
+   of competing with it. Text is --text-primary (not the accent hue) so it
+   clears WCAG AA on the faint tint in both light and dark themes. */
 .size-label {
     flex-shrink: 0;
     text-align: center;
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--text-primary);
-    background-color: rgba(76, 175, 80, 0.14);
+    /* rgba mirrors --accent (#5B9DFF) — background-color can't consume the
+       custom property directly at a given alpha. */
+    background-color: rgba(91, 157, 255, 0.14);
     padding: 0.12rem 0.55rem;
     border-radius: 999px;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.3px;
     line-height: 1.4;
@@ -887,7 +1061,8 @@ button:hover {
        line up with the thumb's travel at the slider's extremes */
     padding: 0 8px;
     margin-top: 0.35rem;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     opacity: 1;
     user-select: none;
 }

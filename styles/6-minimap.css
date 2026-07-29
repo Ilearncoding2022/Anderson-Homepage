@@ -35,8 +35,20 @@
     top: 50%;
     right: 44px;
     width: 286px;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(12px);
+    /* Two-layer background: the panel's own dark tint (unchanged from before)
+       plus the directional 148deg edge gradient baked into the border via
+       background-clip, so the popover reads as a lit pane of glass rather than
+       a flat dark rectangle. saturate() is required alongside blur() — blur
+       alone desaturates whatever is behind the panel. */
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
     border-radius: 12px;
     padding: 1rem;
     max-height: 80vh;
@@ -80,12 +92,21 @@
     gap: 2px;
 }
 
+/* Same directional-edge glass treatment as .minimap-content. Hover brightens the
+   fill and the edge together (the fill can't be a separate background-color once
+   the edge lives in background-image — a `background-color` layer would just sit
+   invisibly underneath the opaque fill gradient). */
 .minimap-toggle {
     width: 36px;
     height: 64px;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(12px);
-    border: none;
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    border: 1px solid transparent;
     border-radius: 8px 0 0 8px;
     color: rgba(255, 255, 255, 0.7);
     font-size: 1.2rem;
@@ -93,12 +114,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s, color 0.2s;
+    transition: background-image 0.2s, color 0.2s;
     padding: 0;
 }
 
 .minimap-toggle:hover {
-    background-color: rgba(0, 0, 0, 0.7);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     color: white;
     transform: none;
 }
@@ -130,25 +153,37 @@
     width: 36px;
     height: 48px;
     border-radius: 8px 0 0 8px;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(12px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
     color: rgba(255, 255, 255, 0.7);
     font-size: 1.2rem;
     padding: 0;
 }
 
 .minimap-tabs .hamburger-btn:hover {
-    background-color: rgba(0, 0, 0, 0.7);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     color: white;
     transform: none;
 }
 
 [data-theme="light"] .minimap-tabs .hamburger-btn {
-    background: rgba(18, 18, 22, 0.9);
+    background-image:
+        linear-gradient(rgba(18, 18, 22, 0.9), rgba(18, 18, 22, 0.9)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
 }
 
 [data-theme="light"] .minimap-tabs .hamburger-btn:hover {
-    background-color: rgba(18, 18, 22, 0.97);
+    background-image:
+        linear-gradient(rgba(18, 18, 22, 0.97), rgba(18, 18, 22, 0.97)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
 }
 
 /* Opens leftward from the rail and vertically centred, rather than dropping from
@@ -173,11 +208,16 @@
    base in light mode. Block tints sit over this, so they stay readable too. */
 [data-theme="light"] .minimap-content,
 [data-theme="light"] .minimap-toggle {
-    background: rgba(18, 18, 22, 0.9);
+    background-image:
+        linear-gradient(rgba(18, 18, 22, 0.9), rgba(18, 18, 22, 0.9)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
 }
 
 [data-theme="light"] .minimap-toggle:hover {
-    background-color: rgba(18, 18, 22, 0.97);
+    background-image:
+        linear-gradient(rgba(18, 18, 22, 0.97), rgba(18, 18, 22, 0.97)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
 }
 
 .minimap-header {

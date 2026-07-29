@@ -235,9 +235,11 @@
     border-color: rgba(176, 190, 197, 0.5);
     color: rgba(255, 255, 255, 0.85);
 }
+/* "Trivial" used to be the low-urgency green; green is reserved for the Today &
+   Now beam now, so the lowest rung reads as calm/neutral instead. */
 .todo-urgency.urg-trivial {
-    background: rgba(76, 175, 80, 0.4);
-    border-color: rgba(129, 199, 132, 0.6);
+    background: rgba(127, 168, 201, 0.4);
+    border-color: rgba(127, 168, 201, 0.6);
 }
 .todo-urgency.urg-medium {
     background: rgba(255, 152, 0, 0.45);
@@ -292,21 +294,29 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
+    /* One of these renders per row, so it gets the fill+edge recipe rather than
+       .glass-surface's blur — a per-row backdrop-filter here would mean one
+       compositing pass per task, for a control this small. */
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
     color: rgba(255, 255, 255, 0.9);
     font-size: var(--todo-fs-date, 0.78rem);
     zoom: var(--todo-z-date, 1);
     padding: 0.2rem 0.5rem;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background-image 0.15s ease;
 }
 
 .todo-schedule-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.3);
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
 }
 
 .todo-schedule-btn:focus-visible {
@@ -323,11 +333,23 @@
 }
 .todo-schedule-btn .ts-empty { opacity: 0.65; }   /* the 📅 placeholder */
 
-/* Overdue due date reads red, matching the old inline field. */
+/* Overdue due date reads red, matching the old inline field. Expressed as the
+   same two layers as the base rule, not a `background:` shorthand — a shorthand
+   here resets background-image to none and takes the lit edge with it. */
 .todo-schedule-btn.overdue {
-    border-color: rgba(244, 67, 54, 0.85);
-    background: rgba(244, 67, 54, 0.18);
+    background-image:
+        linear-gradient(rgba(255, 107, 107, 0.20), rgba(255, 107, 107, 0.20)),
+        linear-gradient(148deg, rgba(255, 107, 107, 0.85) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
     color: #ffcdd2;
+}
+
+/* .overdue and :hover have equal specificity and .overdue is declared later, so
+   without this an overdue chip would be the one chip in the list that gives no
+   hover feedback at all. */
+.todo-schedule-btn.overdue:hover {
+    background-image:
+        linear-gradient(rgba(255, 107, 107, 0.32), rgba(255, 107, 107, 0.32)),
+        linear-gradient(148deg, rgba(255, 150, 150, 0.95) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
 }
 
 /* Tiny ⟳ chip on the row (only rendered when the task actually repeats). */
@@ -396,15 +418,26 @@
 
 .todo-schedule-clear {
     flex: 0 0 auto;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
     color: rgba(255, 255, 255, 0.85);
     font-size: 0.8rem;
     padding: 0.4rem 0.6rem;
     cursor: pointer;
+    transition: background-image 0.15s ease, box-shadow 0.15s ease;
 }
-.todo-schedule-clear:hover { background: rgba(255, 255, 255, 0.2); }
+.todo-schedule-clear:hover {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+}
 
 .todo-schedule-today {
     flex: 0 0 auto;
@@ -675,18 +708,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.12);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     color: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
     font-size: 1rem;
     line-height: 1;
     cursor: pointer;
     user-select: none;
+    transition: background-image 0.15s ease, box-shadow 0.15s ease;
 }
 
 .font-step-btn:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
 }
 
 .font-step-btn:active {
@@ -712,17 +754,26 @@
 
 .font-reset-btn {
     align-self: flex-start;
-    background: rgba(255, 255, 255, 0.1);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
     padding: 0.35rem 0.75rem;
     font-size: 0.85rem;
     cursor: pointer;
+    transition: background-image 0.15s ease, box-shadow 0.15s ease;
 }
 
 .font-reset-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
 }
 
 .font-step-btn:focus-visible,
@@ -833,13 +884,13 @@
 }
 
 .todo-archive-action.restore {
-    background: rgba(76, 175, 80, 0.35);
-    border-color: rgba(129, 199, 132, 0.6);
+    background: rgba(127, 168, 201, 0.35);
+    border-color: rgba(127, 168, 201, 0.6);
     color: #fff;
 }
 
 .todo-archive-action.restore:hover {
-    background: rgba(76, 175, 80, 0.55);
+    background: rgba(127, 168, 201, 0.55);
 }
 
 .todo-archive-action.del-forever {

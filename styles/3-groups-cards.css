@@ -19,31 +19,45 @@
 
 .app-group {
     width: 100%;
-    border-radius: 16px;
     padding: 0.75rem;
     position: relative;
-    /* The group's colour is a translucent tint supplied via --card-tint. It is
-       painted as a layer here so a dark base can sit BEHIND it in light mode. */
-    background-image: linear-gradient(var(--card-tint, transparent), var(--card-tint, transparent));
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    /* Three background-image layers, front to back: the group's own colour tint
+       (--card-tint, set by JS per group), the shared glass pane fill, and the
+       directional edge gradient. The tint and fill are clipped to padding-box
+       (interior only); the gradient is clipped to border-box — so it only shows
+       through in the 1px ring the other two don't reach, painting a lit hairline
+       without spending a pseudo-element (this element's ::before/::after are
+       free, but children below use their own). */
+    background-image:
+        linear-gradient(var(--card-tint, transparent), var(--card-tint, transparent)),
+        linear-gradient(var(--glass-group-fill), var(--glass-group-fill)),
+        linear-gradient(148deg,
+            var(--glass-edge-hi) 0%,
+            var(--glass-edge-lo) 42%,
+            transparent 62%,
+            var(--glass-edge-lo) 88%,
+            rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-group);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    box-shadow: var(--glass-lift), var(--glass-inset);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border: 2px solid transparent;
     overflow: hidden;
 }
 
-/* Cards are dark-native glass (white text). In dark mode the tint sits over the
-   dark page and reads fine. In light mode the page is white, so without a dark
-   base the white text would vanish — give every card a dark glass base so the
-   cards stay readable "dark glass" in light mode too. Dark mode is unchanged. */
-[data-theme="light"] .app-group {
-    background-color: rgba(20, 20, 24, 0.86);
-}
+/* Cards are dark-native glass (white text) in both themes. Light mode used to
+   need an extra background-color here on top of the identical background-image
+   layer, because --glass-group-fill was *lighter* in light theme than in dark;
+   the token now carries the higher alpha for light itself, so this compensation
+   is gone and the dropdown and modal (which never had it) get it too. */
 
 /* Full-width groups render outside the two-column layout */
 
 .app-group:hover {
-    box-shadow: 0 6px 30px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 30px rgba(0,0,0,0.15), var(--glass-inset);
 }
 
 /* ========================================
@@ -107,7 +121,8 @@
     align-items: center;
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
-    border-bottom: 2px solid rgba(255,255,255,0.2);
+    /* A hairline, not a rule — the type does the separating. */
+    border-bottom: 1px solid rgba(255,255,255,0.10);
 }
 
 .group-title-container {
@@ -148,23 +163,36 @@
 }
 
 .group-action-btn {
-    background-color: rgba(255,255,255,0.2);
     color: white;
-    border: 1px solid rgba(255,255,255,0.3);
     width: 32px;
     height: 32px;
-    border-radius: 8px;
     font-size: 0.9rem;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    backdrop-filter: blur(5px);
+    /* .glass-control recipe (see 1-core.css): raised fill + lit edge painted via
+       the padding-box/border-box clip split, so the 1px border reads as a hairline
+       instead of a flat stroke. */
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    backdrop-filter: blur(5px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(5px) saturate(var(--glass-sat));
+    transition: background-image 0.18s ease, box-shadow 0.18s ease;
 }
 
+/* Hover brightens the fill and edge rather than growing the button. */
 .group-action-btn:hover {
-    background-color: rgba(255,255,255,0.3);
-    transform: scale(1.1);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
 }
 
 .delete-group-btn:hover {
@@ -310,15 +338,35 @@ body.card-resizing .app-group {
 }
 
 .website-card {
-    background-color: var(--bg-card);
-    border-radius: 12px;
+    /* Glass recipe (1-core.css): this is the most-repeated surface on the page,
+       sitting inside an already-blurred .app-group — an opaque --bg-card here
+       used to punch a hole clean through the group's material. */
+    background-image:
+        linear-gradient(var(--glass-fill), var(--glass-fill)),
+        linear-gradient(148deg,
+            var(--glass-edge-hi) 0%,
+            var(--glass-edge-lo) 42%,
+            transparent 62%,
+            var(--glass-edge-lo) 88%,
+            rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    /* Concentric radii: 16px group, 12px padding, so the tile inside is 6px —
+       three identical 12px radii at three nesting depths is what made the old
+       card stack look stamped rather than layered. */
+    border-radius: var(--radius-card);
     text-align: center;
     cursor: grab;
-    transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s;
-    box-shadow: var(--shadow);
+    transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s, background-image 0.3s;
+    box-shadow: var(--glass-lift-sm), var(--glass-inset);
     position: relative;
     text-decoration: none;
-    color: var(--text-primary);
+    /* --text-primary flips dark in light theme, which relied on --bg-card being
+       an opaque white card to sit on. Now that the card is translucent glass
+       over the group's own dark-glass fill (both themes), it needs the same
+       always-light ink the group text uses, not a theme-flipping colour. */
+    color: var(--ink);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -355,9 +403,19 @@ body.card-resizing .app-group {
     }
 }
 
+/* Brighten the fill and edge rather than scaling — scaling a glass pane blurs
+   its favicon and reads as a balloon, not a lit surface. */
 .website-card:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg,
+            var(--glass-edge-hi) 0%,
+            var(--glass-edge-lo) 42%,
+            transparent 62%,
+            var(--glass-edge-lo) 88%,
+            rgba(255,255,255,0.14) 100%);
+    box-shadow: var(--glass-lift-sm), var(--glass-inset-hi);
 }
 
 .website-card.list-view {
@@ -373,9 +431,16 @@ body.card-resizing .app-group {
    ======================================== */
 
 .website-icon {
-    border-radius: 12px;
+    /* One radius step tighter than the 6px card it sits in — no token exists for
+       this fourth nesting depth, so it's hardcoded rather than repeating the
+       card's own --radius-card and flattening the two back into one radius. */
+    border-radius: 4px;
     object-fit: cover;
-    background-color: var(--bg-secondary);
+    /* The tile behind this is dark glass in BOTH themes, so the favicon's
+       backing plate can't use --bg-secondary — that flips to near-white in
+       light theme and punches bright squares through the card. A faint glass
+       fill reads as a recess under the icon in either theme instead. */
+    background-color: rgba(255,255,255,0.06);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -409,7 +474,8 @@ body.card-resizing .app-group {
 
 .website-version {
     font-size: 0.75rem;
-    color: var(--text-secondary);
+    /* See .website-card's colour comment — same reasoning for the dimmed text. */
+    color: var(--ink-dim);
     margin-top: 0.25rem;
     opacity: 0.8;
 }
@@ -453,7 +519,8 @@ body.card-resizing .app-group {
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
     padding: 4px;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
@@ -530,7 +597,7 @@ body.card-resizing .app-group {
     z-index: 5;
 }
 
-.version-age-green { background-color: #4CAF50; }
+.version-age-green { background-color: var(--ok-neutral); }
 .version-age-yellow { background-color: #FFC107; }
 .version-age-red { background-color: #F44336; }
 
@@ -618,7 +685,7 @@ body.card-resizing .app-group {
    ======================================== */
 
 .calendar-group {
-    border: 2px solid rgba(76, 175, 80, 0.3);
+    border: 2px solid var(--structural);
     font-family: var(--cal-font-family, inherit);
 }
 
@@ -703,7 +770,7 @@ body.card-resizing .app-group {
     padding: 0.5rem 0.75rem;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    border-left: 3px solid #4CAF50;
+    border-left: 3px solid var(--structural);
     transition: background 0.2s;
 }
 
@@ -711,8 +778,9 @@ body.card-resizing .app-group {
     background: rgba(255, 255, 255, 0.14);
 }
 
+/* Paler rule distinguishes an all-day entry from a timed one. */
 .calendar-event-item.all-day {
-    border-left-color: #66BB6A;
+    border-left-color: var(--structural-soft);
 }
 
 /* Stacked per-timezone date + time rows */
@@ -752,6 +820,7 @@ body.card-resizing .app-group {
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
     line-height: 1.3;
+    font-variant-numeric: tabular-nums;
 }
 
 .calendar-event-details {
@@ -875,7 +944,7 @@ body.card-resizing .app-group {
 
 /* Urgency tiers (colour applies to every placement) */
 .event-countdown.tier-neutral {
-    color: #BCE6BD;
+    color: var(--ok-neutral);
 }
 
 .event-countdown.tier-warning {
@@ -887,8 +956,10 @@ body.card-resizing .app-group {
     animation: ec-pulse 1.1s ease-in-out infinite;
 }
 
+/* rgb(127,168,201) is --ok-neutral's own value — no translucent-tint token
+   exists for it, so its channels are hardcoded here rather than adding one. */
 .ec-pill.tier-neutral {
-    background: rgba(76, 175, 80, 0.18);
+    background: rgba(127, 168, 201, 0.18);
 }
 
 .ec-pill.tier-warning {
@@ -938,6 +1009,7 @@ body.card-resizing .app-group {
 .calendar-last-updated {
     font-size: 0.55rem;
     color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
 }
 
 .calendar-error-dot {
@@ -954,23 +1026,32 @@ body.card-resizing .app-group {
 }
 
 .calendar-refresh-btn {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 0.7);
     width: 28px;
     height: 28px;
-    border-radius: 6px;
     font-size: 1rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    transition: all 0.2s;
+    /* .glass-control recipe (see 1-core.css). */
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.2s ease, box-shadow 0.2s ease, color 0.2s, transform 0.2s;
 }
 
 .calendar-refresh-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
     color: white;
     transform: rotate(90deg);
 }
@@ -983,18 +1064,28 @@ body.card-resizing .app-group {
 .calendar-header-meta .card-width-btn {
     width: 28px;
     height: 28px;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     font-size: 0.9rem;
 }
 
+/* Matches the refresh button's glass-control fill so the always-visible
+   header cluster reads as one group. */
 .calendar-header-meta .card-width-btn:not(.is-full) {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
     color: rgba(255, 255, 255, 0.7);
 }
 
 .calendar-header-meta .card-width-btn:hover:not(.is-full) {
-    background: rgba(255, 255, 255, 0.25);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
     color: #fff;
     transform: none;
 }
@@ -1092,24 +1183,33 @@ body.card-resizing .app-group {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
     color: rgba(255, 255, 255, 0.7);
     height: 22px;
     padding: 0 0.5rem;
-    border-radius: 6px;
     font-size: 0.6rem;
     font-weight: 600;
     letter-spacing: 0.3px;
     text-transform: uppercase;
     white-space: nowrap;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    /* .glass-control recipe (see 1-core.css). */
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.2s ease, box-shadow 0.2s ease, color 0.2s;
 }
 
 .calendar-group-toggle:hover,
 .calendar-view-toggle:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
     color: white;
 }
 
@@ -1397,12 +1497,14 @@ body.card-resizing .app-group {
     background: rgba(244, 67, 54, 0.4);
 }
 
+/* rgb(91,157,255) is --accent's own value — no translucent-tint token exists
+   for it, so its channels are hardcoded here rather than adding one. */
 .calendar-add-btn {
     width: 100%;
     padding: 0.5rem;
-    background: rgba(76, 175, 80, 0.15);
-    color: #4CAF50;
-    border: 1px dashed rgba(76, 175, 80, 0.4);
+    background: rgba(91, 157, 255, 0.15);
+    color: var(--accent);
+    border: 1px dashed rgba(91, 157, 255, 0.4);
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.85rem;
@@ -1410,7 +1512,7 @@ body.card-resizing .app-group {
 }
 
 .calendar-add-btn:hover {
-    background: rgba(76, 175, 80, 0.25);
+    background: rgba(91, 157, 255, 0.25);
 }
 
 /* ---- (i) legend popover ---- */
@@ -1543,19 +1645,27 @@ body.card-resizing .app-group {
     /* Solid-ish dark backdrop (matches the card's own light-mode glass base) so
        chips scrolled underneath the sticky bar don't show through it. */
     background: rgba(20, 20, 24, 0.92);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(6px) saturate(var(--glass-sat));
 }
 
+/* .glass-control recipe (see 1-core.css). */
 .cal-nav-btn,
 .cal-nav-today {
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.85);
-    border-radius: 6px;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
+    border-radius: var(--radius-control);
     cursor: pointer;
     font-size: 0.75rem;
     padding: 0.1rem 0.5rem;
     line-height: 1.4;
+    transition: background-image 0.18s ease, box-shadow 0.18s ease;
 }
 
 /* Double the flex gap (0.5rem) on each side of Today & Now so it stands clear of
@@ -1567,7 +1677,10 @@ body.card-resizing .app-group {
 
 .cal-nav-btn:hover:not(:disabled),
 .cal-nav-today:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
 }
 
 .cal-nav-btn:disabled,
@@ -1592,15 +1705,18 @@ body.card-resizing .app-group {
     letter-spacing: 0.5px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.6);
+    font-variant-numeric: tabular-nums;
 }
 
 /* ---- Upcoming-event bar (above the day-view nav) ---- */
+/* rgb(91,157,255) is --accent's own value — no translucent-tint token exists
+   for it, so its channels are hardcoded here rather than adding one. */
 .cal-upcoming-bar {
     flex-shrink: 0;
     margin-bottom: 0.35rem;
     border-radius: 8px;
-    background: rgba(76, 175, 80, 0.10);
-    border: 1px solid rgba(76, 175, 80, 0.22);
+    background: rgba(91, 157, 255, 0.10);
+    border: 1px solid rgba(91, 157, 255, 0.22);
 }
 
 .cal-upcoming-dot {
@@ -1623,7 +1739,7 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-tz, 1);
     font-variant-numeric: tabular-nums;
     font-weight: 700;
-    color: #BCE6BD;
+    color: var(--ok-neutral);
     white-space: nowrap;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
@@ -1790,6 +1906,7 @@ body.card-resizing .app-group {
     zoom: var(--cal-z-tz, 1);
     color: rgba(255, 255, 255, 0.6);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* ---- Day columns ---- */
@@ -1812,8 +1929,8 @@ body.card-resizing .app-group {
 }
 
 .calendar-day-col.is-today {
-    background: rgba(76, 175, 80, 0.12);
-    outline: 1px solid rgba(76, 175, 80, 0.4);
+    background: var(--structural-soft);
+    outline: 1px solid var(--structural);
 }
 
 .calendar-day-col-header {
@@ -1829,7 +1946,7 @@ body.card-resizing .app-group {
 }
 
 .calendar-day-col.is-today .calendar-day-col-header {
-    color: #A5D6A7;
+    color: var(--accent);
 }
 
 .calendar-day-col-events {
@@ -1840,7 +1957,7 @@ body.card-resizing .app-group {
 
 .calendar-day-chip {
     background: rgba(255, 255, 255, 0.08);
-    border-left: 3px solid #4CAF50;
+    border-left: 3px solid var(--structural);
     border-radius: 6px;
     padding: 0.3rem 0.4rem;
     cursor: pointer;
@@ -1861,7 +1978,7 @@ body.card-resizing .app-group {
 }
 
 .calendar-day-chip.all-day {
-    border-left-color: #66BB6A;
+    border-left-color: var(--structural-soft);
 }
 
 .calendar-chip-time {
@@ -1871,6 +1988,7 @@ body.card-resizing .app-group {
     color: rgba(255, 255, 255, 0.65);
     white-space: nowrap;   /* keep the time range together; the title wraps after it */
     display: inline;
+    font-variant-numeric: tabular-nums;
 }
 
 .calendar-chip-title {
@@ -1935,7 +2053,8 @@ body.card-resizing .app-group {
     top: 0;
     z-index: 6;
     background: rgba(20, 20, 24, 0.92);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(6px) saturate(var(--glass-sat));
 }
 
 .cal-tl-dayhead {
@@ -1952,7 +2071,7 @@ body.card-resizing .app-group {
 }
 
 .cal-tl-dayhead.is-today {
-    color: #A5D6A7;
+    color: var(--accent);
 }
 
 /* Row 2: all-day band (label in the gutter column, chips per day). */
@@ -1977,7 +2096,7 @@ body.card-resizing .app-group {
 }
 
 .cal-tl-allday-cell.is-today {
-    background: rgba(76, 175, 80, 0.12);
+    background: var(--structural-soft);
 }
 
 /* Row 3, column 1: left hour axis. Labels are absolutely positioned at their
@@ -2001,6 +2120,7 @@ body.card-resizing .app-group {
        pull the labels off the events/gridlines. Font-size alone is safe. */
     color: rgba(255, 255, 255, 0.45);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Each day column: a positioned canvas for the event blocks. Hour gridlines are
@@ -2017,8 +2137,8 @@ body.card-resizing .app-group {
 }
 
 .cal-tl-col.is-today {
-    background-color: rgba(76, 175, 80, 0.1);
-    outline: 1px solid rgba(76, 175, 80, 0.35);
+    background-color: var(--structural-soft);
+    outline: 1px solid var(--structural);
 }
 
 /* "Jump to today" flash (UIRenderer._flashTodayColumn, fired by the Today
@@ -2027,8 +2147,8 @@ body.card-resizing .app-group {
    stay readable. Applied to today's timeline column + its header/all-day cell,
    or the chip grid's day column. */
 @keyframes cal-today-flash {
-    0%, 100% { box-shadow: inset 0 0 0 9999px rgba(76, 175, 80, 0); }
-    50%      { box-shadow: inset 0 0 0 9999px rgba(76, 175, 80, 0.5); }
+    0%, 100% { box-shadow: inset 0 0 0 9999px rgba(120, 160, 220, 0); }
+    50%      { box-shadow: inset 0 0 0 9999px var(--structural); }
 }
 
 .cal-today-flash {
@@ -2095,6 +2215,7 @@ body.card-resizing .app-group {
     font-weight: 600;
     opacity: 0.9;
     white-space: nowrap;   /* keep the time range together; the title wraps after it */
+    font-variant-numeric: tabular-nums;
 }
 
 .cal-tl-event-title {
@@ -2104,16 +2225,19 @@ body.card-resizing .app-group {
 }
 
 /* Current-time indicator on the today column: a two-stripe black/white bar under
-   a red glow. The stripes swap twice a second, so it reads as a blinking marker
-   rather than just another coloured rule among the event blocks; the black/white
-   pair also separates it from the green event blocks it sits against. */
+   a --signal glow. The stripes swap twice a second, so it reads as a blinking
+   marker rather than just another coloured rule among the event blocks. This is
+   one of the two sanctioned homes for --signal app-wide (the other is the Today
+   & Now beam) — its glow used to be red specifically to stay legible against the
+   calendar's old green event blocks, which is no longer a concern now that green
+   isn't a UI colour here. */
 .cal-tl-now {
     position: absolute;
     left: 0;
     right: 0;
     height: 4px;
     background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%);
-    box-shadow: 0 0 6px 1px rgba(255, 23, 68, 0.85);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
     z-index: 2;
     animation: cal-now-blink 1s steps(1, end) infinite;
     pointer-events: none;
@@ -2130,7 +2254,7 @@ body.card-resizing .app-group {
     background: #000;
     border: 2px solid #fff;
     box-sizing: border-box;
-    box-shadow: 0 0 6px 1px rgba(255, 23, 68, 0.85);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
     animation: cal-now-dot-blink 1s steps(1, end) infinite;
 }
 
@@ -2247,6 +2371,7 @@ body.card-resizing .app-group {
 .cal-detail-tz-when {
     color: rgba(255, 255, 255, 0.85);
     font-weight: 500;
+    font-variant-numeric: tabular-nums;
 }
 
 .cal-detail-loc,
@@ -2265,7 +2390,7 @@ body.card-resizing .app-group {
 }
 
 .cal-detail-gcal-link {
-    color: #81C784;
+    color: var(--accent);
     font-size: 0.85rem;
     text-decoration: none;
     display: inline-flex;
@@ -2275,7 +2400,7 @@ body.card-resizing .app-group {
 }
 
 .cal-detail-gcal-link:hover {
-    color: #A5D6A7;
+    color: var(--ink);
     text-decoration: underline;
 }
 
@@ -2296,8 +2421,8 @@ body.card-resizing .app-group {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: rgba(46, 125, 50, 0.55);
-    border: 1px solid rgba(129, 199, 132, 0.7);
+    background: rgba(91, 157, 255, 0.55);
+    border: 1px solid var(--accent);
     color: #fff;
     font-weight: 600;
     font-size: 0.9rem;
@@ -2306,7 +2431,7 @@ body.card-resizing .app-group {
     border-radius: 8px;
     transition: background 0.2s;
 }
-.cal-detail-join-link:hover { background: rgba(46, 125, 50, 0.8); }
+.cal-detail-join-link:hover { background: rgba(91, 157, 255, 0.8); }
 
 /* Compact "🎥 Join" link shown on an event row when it has a video-call link. */
 .calendar-event-join {
@@ -2316,17 +2441,17 @@ body.card-resizing .app-group {
     margin-top: 0.2rem;
     font-size: 0.78rem;
     font-weight: 600;
-    color: #A5D6A7;
+    color: var(--accent);
     text-decoration: none;
     width: fit-content;
     padding: 0.05rem 0.4rem 0.05rem 0;
     border-radius: 6px;
 }
-.calendar-event-join:hover { color: #C8E6C9; text-decoration: underline; }
+.calendar-event-join:hover { color: var(--ink); text-decoration: underline; }
 
 .calendar-event-join:focus-visible,
 .cal-detail-join-link:focus-visible {
-    outline: 2px solid rgba(129, 199, 132, 0.95);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 

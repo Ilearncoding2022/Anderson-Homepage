@@ -5,6 +5,94 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.13] — 2026-07-29
+
+### A glass design language, applied everywhere
+
+- **Website tiles are made of glass (change):** every tile used to be an opaque
+  white or dark-grey slab sitting inside a translucent card, which punched a
+  hole straight through the frosted material around it. Tiles now share the
+  card's own glass, catch light along their top-left edge, and their corners
+  follow the nesting properly instead of repeating one 12px radius at three
+  different depths. Hovering brightens a tile rather than growing it, so
+  favicons stay sharp.
+- **Every pane is lit from the same direction (new):** cards, menus and buttons
+  carry a fine hairline that runs bright at the top-left and fades away toward
+  the bottom-right, so the whole page reads as though one light source is
+  behind you. Blur is also paired with a saturation boost now, which is what
+  keeps a frosted surface from turning grey.
+- **The header finally joined in (change):** the sticky bar was the last opaque
+  brick in the app, and pure white in light theme. It is now the most heavily
+  blurred surface on the page, and its bottom edge feathers into the content
+  instead of cutting a hard line across it.
+- **The usage bars became a segmented gauge (change):** the three Claude usage
+  readouts are now a ten-block scale running cool to hot inside a dark capsule,
+  with a grey slider showing where the current figure falls and the percentage
+  printed in the middle of the bar. The scale is always the full 0 to 100, so
+  the reading is where the slider sits rather than how far a fill has grown.
+- **The selected time zone sits on a plate (new):** the clock the calendar is
+  currently grouped by now has a soft translucent panel behind it, so the chosen
+  zone is obvious at rest instead of resting on the colour cycle alone — which
+  also means it stays marked when reduced motion turns that cycle off.
+- **Menus, modals, the minimap and the Pomodoro card (change):** all rebuilt in
+  the same material, so the app reads as one designed object rather than a
+  collection of panels.
+
+### Colour
+
+- **Green is reserved (change):** green had been doing fourteen different jobs
+  at once — card borders, event rules, healthy meters, badges, buttons, the
+  drag-target glow — which left the running light around Today & Now competing
+  with everything near it. Green now appears in exactly two places: that
+  running light, and the calendar's current-time bar. Everything else moved to
+  a cool blue or a neutral tone. Nothing about the running light itself was
+  changed; it simply has the stage to itself now.
+- **Group colours are six hues at two strengths (change):** the picker used to
+  offer twelve Material swatches at one identical strength, which gave no way
+  to say that one group matters more than another. It is now six hues in a calm
+  and a bold version. Groups already using an old colour are moved to the
+  nearest new hue automatically, and a colour you set by hand is left alone.
+
+### Type
+
+- **Two typefaces, bundled with the app (new):** Space Grotesk for labels and
+  chrome, JetBrains Mono for anything that counts — clocks, timers, countdowns,
+  usage figures. Both files live in the app folder, so nothing is fetched from
+  the internet and the app still works entirely offline.
+- **The clock reads the right way round (change):** the time-zone label used to
+  be printed larger than the time itself. Label and time are now exactly the
+  same size, told apart by weight, typeface and tone instead of by scale. The
+  digits are tabular, so the clock no longer twitches sideways as the minutes
+  tick over, and the date line is no longer below a readable size.
+- **Fewer, better font choices (change):** the card font picker dropped from
+  fourteen options to five. If you had picked one of the retired fonts, it maps
+  to the closest replacement rather than resetting.
+
+### Icons
+
+- **Emoji replaced with drawn icons (change):** roughly forty interface emoji
+  became a matched set of monochrome stroke icons. Emoji cannot take on the
+  colour of the control they sit in, and they look different on every machine;
+  these dim, highlight and change theme along with their button.
+
+### Fixes
+
+- **Controls that rendered as solid blue chips (fix):** collapse arrows, group
+  edit buttons, Pomodoro presets, the theme toggle and the font steppers were
+  showing an opaque accent fill leaking out from underneath their new glass.
+- **Light theme legibility (fix):** several places still assumed the surface
+  behind them changed colour with the theme, when those surfaces are now dark
+  in both. That left near-black text on near-black glass in the menu, the
+  storage line, the header's Pomodoro countdown and the favicon plates.
+- **A group could silently lose its colour (fix):** a group whose stored colour
+  collided with a built-in object property name could have that colour dropped
+  the next time settings were saved.
+- **The Pomodoro button announced the wrong action (fix):** the start button
+  changed its label between Start, Pause and Resume, but always announced
+  itself as "Start Timer" to a screen reader.
+- **Overdue to-do dates had no hover feedback (fix):** the overdue style was
+  cancelling out the hover style it shared a rank with.
+
 ## [v4.12] — 2026-07-29
 
 ### Calendar card

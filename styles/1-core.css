@@ -1,13 +1,60 @@
 /* ==========================================
    1-CORE.CSS - Foundation Styles
    Anderson Homepage v1.9
-   
+
    Contents:
+   0. Typefaces (self-hosted, offline)
    1. CSS Variables (Theme System)
    2. Base Styles & Reset
    3. Background Overlay System
    4. Layout Containers
    ========================================== */
+
+/* ========================================
+   0. TYPEFACES
+
+   Self-hosted in /fonts as variable woff2 (weight 300-700 in a single file),
+   so there is no CDN and no network at runtime. Two subsets each: `latin`
+   covers the app, `latin-ext` covers accented city names in the clock row
+   (Zürich, São Paulo). unicode-range means the ext file is only fetched when a
+   glyph actually needs it.
+   ======================================== */
+
+@font-face {
+    font-family: 'Space Grotesk';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('../fonts/SpaceGrotesk-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Space Grotesk';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('../fonts/SpaceGrotesk-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('../fonts/JetBrainsMono-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('../fonts/JetBrainsMono-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 /* ========================================
    1. CSS VARIABLES - THEME SYSTEM
@@ -20,9 +67,91 @@
     --text-primary: #333333;
     --text-secondary: #666666;
     --border-color: #e0e0e0;
-    --shadow: 0 2px 8px rgba(0,0,0,0.1);
-    --accent: #4CAF50;
+    --shadow: 0 10px 30px rgba(6,10,20,0.18);
     --hover-scale: 1.05;
+
+    /* ---- Typefaces ----
+       --font-ui   : all chrome, labels, body copy
+       --font-mono : anything that is a NUMBER THAT CHANGES — clocks, timers,
+                     countdowns, usage figures. Has true tabular figures, so
+                     digits never shift width as they tick. */
+    --font-ui: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, Consolas, 'Cascadia Mono', monospace;
+
+    /* ---- Palette ----
+       Two hues carry the whole app: a near-black blue-cast surface family and
+       a cool structural blue. Green is NOT a UI colour here — see --signal. */
+    --surface-deep: #0B0E14;
+    --surface: #141922;
+    --ink: #E8ECF2;          /* off-white, not #FFF — pure white halates on glass */
+    /* Secondary text. Lightened from #8A94A6, which measured 4.33:1 on the
+       dropdown glass — just under AA — and worse over a bright wallpaper.
+       Still clearly recessive against --ink; it just clears 4.5:1 now. */
+    --ink-dim: #9AA5B8;
+
+    /* Cool structural hue: card borders, event rules, day-column tint, the
+       accent for focus rings and controls. This replaced green everywhere that
+       green was decoration rather than meaning. */
+    --accent: #5B9DFF;
+    --structural: rgba(120,160,220,0.5);
+    --structural-soft: rgba(120,160,220,0.18);
+
+    /* ---- Reserved signal ----
+       --signal may appear in EXACTLY TWO places app-wide:
+         1. the Today & Now running-light beam (3-groups-cards.css)
+         2. the calendar's current-time "now" bar (.cal-tl-now)
+       Its whole job is to be the only green on the page, so that the eye goes
+       to it and nothing else. Do not reach for it for success states, healthy
+       meters, badges, or hovers — use --ok-neutral or --ink-dim instead. */
+    --signal: #7DFF5A;
+
+    --warn: #FFB454;
+    --danger: #FF6B6B;
+    --ok-neutral: #7FA8C9;   /* what "green = fine" used to mean, minus the green */
+
+    /* ---- Glass material ----
+       Blur alone averages neighbouring pixels and DESATURATES the backdrop,
+       which is what made the old surfaces read as grey plastic. The saturate()
+       companion is not optional — it is what makes this read as glass.
+
+       Every glass surface gets: fill + blur/saturate + edge + lift.
+       A surface raised above another uses --glass-fill-raised. */
+    --glass-blur: 18px;
+    --glass-sat: 1.7;
+    --glass-fill: rgba(255,255,255,0.05);
+    --glass-fill-raised: rgba(255,255,255,0.09);
+    --glass-fill-hover: rgba(255,255,255,0.13);
+    --glass-edge: rgba(255,255,255,0.09);
+    --glass-edge-hi: rgba(255,255,255,0.34);   /* light source sits top-left */
+    --glass-edge-lo: rgba(255,255,255,0.04);
+    --glass-inset: inset 0 1px 0 rgba(255,255,255,0.16);
+    --glass-inset-hi: inset 0 1px 0 rgba(255,255,255,0.24);
+    --glass-lift: 0 16px 40px rgba(0,0,0,0.42);
+    --glass-lift-sm: 0 10px 28px rgba(0,0,0,0.38);
+
+    /* Alpha for a glass pane — group, dropdown, modal. Light theme used to sit
+       at 0.86, which is not glass, it is a dark box. Both themes are genuinely
+       translucent now; the text on these panes is light in both.
+       Light carries MORE tint than dark (same reasoning as --header-fill): the
+       page behind it is bright, so a dark-native pane needs more of its own
+       colour to stay dark. At the dark-theme alpha the dropdown composited to
+       mid-grey and took --ink-dim below AA with it. */
+    --glass-group-fill: rgba(20,24,33,0.62);
+
+    /* The sticky header reads the photo behind it, not the theme's surface
+       colour, so it stays dark in both themes. It needs MORE tint in light
+       theme, where the page behind it is bright — at the dark-theme alpha it
+       washed out to mid-grey and took --ink-dim down with it. */
+    --header-fill: rgba(11,14,20,0.72);
+
+    /* ---- Radii ----
+       Concentric rule: an inner radius = outer radius - the gap between them.
+       The group is 16px with 12px padding, so a tile inside it is 6px, not 12.
+       Three identical 12px radii at three nesting depths is what made the old
+       stack look stamped rather than layered. */
+    --radius-group: 16px;
+    --radius-card: 6px;
+    --radius-control: 8px;
 }
 
 [data-theme="dark"] {
@@ -32,7 +161,9 @@
     --text-primary: #ffffff;
     --text-secondary: #b0b0b0;
     --border-color: #404040;
-    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow: 0 14px 36px rgba(6,10,20,0.55);
+    --glass-group-fill: rgba(11,14,20,0.46);
+    --header-fill: rgba(11,14,20,0.5);
 }
 
 /* ========================================
@@ -46,7 +177,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: var(--font-ui);
     background-color: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
@@ -152,6 +283,115 @@ body {
    can end up underneath it. Keep that band clear. */
 html {
     scroll-padding-top: 120px;
+}
+
+/* ========================================
+   5. MATERIAL UTILITIES
+
+   The shared glass recipe. Both classes below use a two-layer background with
+   `background-clip: padding-box, border-box`, which paints a DIRECTIONAL
+   gradient hairline into the 1px border without needing a pseudo-element —
+   important because most surfaces in this app already spend ::before/::after
+   on something else (the Today & Now beam, ticker masks, timer rings).
+
+   The gradient runs from --glass-edge-hi at the top-left to near-transparent
+   at the bottom-right, so every pane appears lit from one consistent direction
+   instead of being outlined by a flat stroke.
+   ======================================== */
+
+.glass-surface {
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill), var(--glass-fill)),
+        linear-gradient(148deg,
+            var(--glass-edge-hi) 0%,
+            var(--glass-edge-lo) 42%,
+            transparent 62%,
+            var(--glass-edge-lo) 88%,
+            rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-group);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    box-shadow: var(--glass-lift), var(--glass-inset);
+}
+
+/* Micro-controls: refresh / nav / view-toggle / group-action buttons.
+   On hover these brighten their EDGE rather than growing — a pane of glass
+   catching more light, not a button inflating. */
+.glass-control {
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+/* The base `button` rule (2-components.css) paints an opaque var(--accent)
+   fill. A glass control replaces the background *image* layers but not that
+   colour, so the accent leaks underneath a 5-9% translucent fill and the
+   control renders as a solid blue disc instead of glass.
+   Resetting it here rather than on `button` is deliberate: several buttons
+   (Export/Import, DB connect, Restore…) genuinely want that solid accent fill,
+   and neutralising the base rule would strip it from them too. */
+.hamburger-btn,
+.theme-toggle,
+.group-action-btn,
+.calendar-refresh-btn,
+.card-width-btn:not(.is-full),
+.calendar-group-toggle,
+.calendar-view-toggle,
+.cal-nav-btn,
+.cal-nav-today,
+.toast-undo-btn,
+.pomodoro-toolbar-btn,
+.pomodoro-btn,
+.pomodoro-preset,
+.minimap-toggle,
+.todo-schedule-btn,
+.todo-schedule-clear,
+.font-step-btn,
+.font-reset-btn {
+    background-color: transparent;
+}
+
+.glass-control:hover {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+}
+
+/* ---- Icons ----
+   Stroke icons from the sprite. They take their colour from the text colour of
+   whatever contains them, so a disabled or dimmed control dims its icon too.
+   Size with --ico-size (or a plain width/height) on the element or its parent. */
+.ico {
+    width: var(--ico-size, 1.15em);
+    height: var(--ico-size, 1.15em);
+    flex: none;
+    display: inline-block;
+    vertical-align: -0.18em;
+    color: inherit;
+    pointer-events: none;
+}
+
+.ico-sm { --ico-size: 0.95em; }
+.ico-lg { --ico-size: 1.4em; }
+
+/* Icon sitting beside a text label inside a menu item or button. */
+.has-ico {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55em;
 }
 
 /* ========== Empty State ========== */

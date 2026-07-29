@@ -448,7 +448,11 @@ const CalendarManager = {
         calendarColors: [
             { name: 'Blue', value: '#2196F3' },
             { name: 'Red', value: '#F44336' },
-            { name: 'Green', value: '#4CAF50' },
+            // WAS Green (#4CAF50) — green is reserved app-wide for the Today &
+            // Now beam and the calendar "now" bar. Matches the structural blue
+            // ui-renderer.js falls back to for an invalid/missing colour, so
+            // the two files agree on what a colourless calendar looks like.
+            { name: 'Sky', value: '#5B9DFF' },
             { name: 'Orange', value: '#FF9800' },
             { name: 'Purple', value: '#9C27B0' },
             { name: 'Teal', value: '#009688' },

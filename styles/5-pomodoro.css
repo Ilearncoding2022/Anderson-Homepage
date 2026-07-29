@@ -19,14 +19,24 @@
    1. TOOLBAR STYLES
    ======================================== */
 
+/* Directional-edge glass on the rail: same two-layer trick as everywhere else —
+   the dark tint stays a plain background-image layer (not background-color) so
+   hover can restate both the fill and the lit edge together. saturate() pairs
+   with blur() because blur alone desaturates whatever's behind the rail. */
 .pomodoro-toolbar {
     position: fixed;
     left: 0;
     top: 50%;
     transform: translateY(-50%);
     width: 50px;
-    background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     border-radius: 0 12px 12px 0;
     padding: 10px 0;
     z-index: 9999;
@@ -38,7 +48,9 @@
 }
 
 .pomodoro-toolbar:hover {
-    background: rgba(0, 0, 0, 0.3);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     width: 60px;
 }
 
@@ -46,8 +58,12 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
     color: white;
     font-size: 20px;
     cursor: pointer;
@@ -55,7 +71,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(5px) saturate(var(--glass-sat));
     padding: 5px;            /* inset the icon image from the round edge */
 }
 
@@ -71,15 +88,20 @@
 }
 
 .pomodoro-toolbar-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     transform: scale(1.1);
-    border-color: rgba(255, 255, 255, 0.4);
 }
 
+/* "Active" is an interactive toggle state (this panel is open), not a running
+   timer — but it's still an accent/active-control state, so it takes the cool
+   accent rather than the reserved green. */
 .pomodoro-toolbar-btn.active {
-    background: rgba(76, 175, 80, 0.3);
-    border-color: rgba(76, 175, 80, 0.6);
-    box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+    background-image:
+        linear-gradient(rgba(91, 157, 255, 0.3), rgba(91, 157, 255, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    box-shadow: 0 0 10px rgba(91, 157, 255, 0.4);
 }
 
 /* ----------------------------------------
@@ -117,6 +139,15 @@
     backdrop-filter: none;
 }
 
+/* The toolbar always lives in .header-left now, and the rule above has the same
+   specificity as .pomodoro-toolbar-btn.active while being declared later — so
+   without this the "panel is open" state lost its fill and survived only as a
+   bare glow. Restated here at a higher specificity so the state reads again. */
+.header-left .pomodoro-toolbar-btn.active {
+    background: rgba(91, 157, 255, 0.3);
+    box-shadow: 0 0 10px rgba(91, 157, 255, 0.4);
+}
+
 .header-left .pomodoro-toolbar-btn:hover {
     background: rgba(127, 127, 127, 0.18);
     border-color: transparent;
@@ -143,13 +174,13 @@
 /* Live countdown shown beside the icon while the timer runs with the card hidden.
    Styled like the pomodoro card's clock: same monospace font, but black and 2x bigger. */
 .pomodoro-mini-time {
-    font-family: 'Courier New', Courier, monospace;
+    font-family: var(--font-mono);
     font-size: 3rem;                 /* 2x bigger (was 1.5rem) */
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1;
     letter-spacing: 0.1em;           /* match the card clock */
-    color: var(--text-primary);      /* black in light theme (matches the header clocks) */
+    color: var(--ink);               /* header is dark glass in BOTH themes — see .header */
     margin-left: 5px;                /* extra gap from the icon */
 }
 
@@ -171,11 +202,17 @@
 
 /* Left Panel - Time Selection */
 .pomodoro-time-selection {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(20px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(20px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(20px) saturate(var(--glass-sat));
     border-radius: 20px;
     padding: 2rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Center - Timer Display */
@@ -188,11 +225,17 @@
 
 /* Right Panel - Settings & History */
 .pomodoro-right-panel {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(20px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(20px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(20px) saturate(var(--glass-sat));
     border-radius: 20px;
     padding: 2rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     flex-direction: column;
     gap: 2rem;
@@ -254,7 +297,10 @@
 .pomodoro-time-display {
     font-size: 5rem;
     font-weight: 700;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: var(--font-mono);
+    /* This number changes every second — tabular figures stop the digits from
+       shifting width as they tick, so the ring's center doesn't jitter. */
+    font-variant-numeric: tabular-nums;
     letter-spacing: 0.1em;
     line-height: 1;
     text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -269,19 +315,20 @@
     text-transform: uppercase;
 }
 
-/* Pulse animation for completion */
+/* Pulse animation for completion — the ring's own bump, so it shares the
+   running ring's accent rather than the reserved green. */
 @keyframes pulseTimer {
     0% {
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+        box-shadow: 0 0 0 0 rgba(91, 157, 255, 0.7);
     }
     50% {
         transform: scale(1.05);
-        box-shadow: 0 0 30px 10px rgba(76, 175, 80, 0);
+        box-shadow: 0 0 30px 10px rgba(91, 157, 255, 0);
     }
     100% {
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+        box-shadow: 0 0 0 0 rgba(91, 157, 255, 0);
     }
 }
 
@@ -301,9 +348,14 @@
 
 .pomodoro-btn {
     padding: 1rem 2rem;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 2px solid transparent;
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     border-radius: 50px;
     color: white;
     font-size: 1rem;
@@ -318,28 +370,38 @@
 }
 
 .pomodoro-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     transform: translateY(-2px);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+/* Start — the primary action, so it takes the accent rather than the reserved
+   green (it sits right beside the ring, which must not compete with the beam). */
 .pomodoro-btn.primary {
-    background: rgba(76, 175, 80, 0.3);
-    border-color: rgba(76, 175, 80, 0.5);
+    background-image:
+        linear-gradient(rgba(91, 157, 255, 0.3), rgba(91, 157, 255, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
 }
 
 .pomodoro-btn.primary:hover {
-    background: rgba(76, 175, 80, 0.4);
-    box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+    background-image:
+        linear-gradient(rgba(91, 157, 255, 0.4), rgba(91, 157, 255, 0.4)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: 0 10px 30px rgba(91, 157, 255, 0.3);
 }
 
 .pomodoro-btn.pause {
-    background: rgba(255, 152, 0, 0.3);
-    border-color: rgba(255, 152, 0, 0.5);
+    background-image:
+        linear-gradient(rgba(255, 152, 0, 0.3), rgba(255, 152, 0, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
 }
 
 .pomodoro-btn.pause:hover {
-    background: rgba(255, 152, 0, 0.4);
+    background-image:
+        linear-gradient(rgba(255, 152, 0, 0.4), rgba(255, 152, 0, 0.4)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     box-shadow: 0 10px 30px rgba(255, 152, 0, 0.3);
 }
 
@@ -370,8 +432,14 @@
 
 .pomodoro-preset {
     padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* One of nine in a grid, so it gets fill+edge only — no backdrop-filter,
+       which would otherwise mean nine extra offscreen compositing passes. */
+    background-image:
+        linear-gradient(var(--glass-fill), var(--glass-fill)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
     border-radius: 12px;
     color: white;
     font-size: 0.9rem;
@@ -383,15 +451,20 @@
 }
 
 .pomodoro-preset:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
     transform: translateY(-2px);
 }
 
+/* The selected duration is an active control, so it takes the accent — a
+   green ring here would look like a second running-timer indicator. */
 .pomodoro-preset.active {
-    background: rgba(76, 175, 80, 0.4);
-    border-color: rgba(76, 175, 80, 0.8);
-    box-shadow: 0 0 20px rgba(76, 175, 80, 0.4),
-                inset 0 0 10px rgba(76, 175, 80, 0.2);
+    background-image:
+        linear-gradient(rgba(91, 157, 255, 0.4), rgba(91, 157, 255, 0.4)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    box-shadow: 0 0 20px rgba(91, 157, 255, 0.4),
+                inset 0 0 10px rgba(91, 157, 255, 0.2);
     transform: scale(1.05);
 }
 
@@ -431,7 +504,7 @@
 
 .pomodoro-time-input:focus {
     outline: none;
-    border-color: rgba(76, 175, 80, 0.6);
+    border-color: rgba(91, 157, 255, 0.6);
     background: rgba(255, 255, 255, 0.1);
 }
 
@@ -453,7 +526,7 @@
     height: 6px;
     border-radius: 3px;
     background: linear-gradient(to right,
-        #4CAF50 0 var(--fill, 0%),
+        var(--accent) 0 var(--fill, 0%),
         rgba(255, 255, 255, 0.15) var(--fill, 0%) 100%);
 }
 
@@ -466,7 +539,7 @@
 .pomodoro-time-slider::-moz-range-progress {
     height: 6px;
     border-radius: 3px;
-    background: #4CAF50;
+    background: var(--accent);
 }
 
 .pomodoro-time-slider::-webkit-slider-thumb {
@@ -476,7 +549,7 @@
     height: 16px;
     margin-top: -7px;
     border-radius: 50%;
-    background: #4CAF50;
+    background: var(--accent);
     cursor: pointer;
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -486,7 +559,7 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #4CAF50;
+    background: var(--accent);
     cursor: pointer;
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -497,11 +570,17 @@
    ======================================== */
 
 .pomodoro-settings {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     border-radius: 16px;
     padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pomodoro-sound-group {
@@ -536,7 +615,7 @@
 
 .pomodoro-sound-select:focus {
     outline: none;
-    border-color: rgba(76, 175, 80, 0.6);
+    border-color: rgba(91, 157, 255, 0.6);
     background: rgba(255, 255, 255, 0.15);
 }
 
@@ -549,7 +628,7 @@
 }
 
 .pomodoro-sound-select option:hover {
-    background: rgba(76, 175, 80, 0.3);
+    background: rgba(91, 157, 255, 0.3);
 }
 
 /* For better visibility on all browsers */
@@ -568,8 +647,8 @@
 
 .pomodoro-test-sound {
     padding: 0.5rem 1rem;
-    background: rgba(76, 175, 80, 0.2);
-    border: 1px solid rgba(76, 175, 80, 0.4);
+    background: rgba(91, 157, 255, 0.2);
+    border: 1px solid rgba(91, 157, 255, 0.4);
     border-radius: 8px;
     color: white;
     font-size: 0.8rem;
@@ -581,10 +660,10 @@
 }
 
 .pomodoro-test-sound:hover {
-    background: rgba(76, 175, 80, 0.4);
-    border-color: rgba(76, 175, 80, 0.6);
+    background: rgba(91, 157, 255, 0.4);
+    border-color: rgba(91, 157, 255, 0.6);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    box-shadow: 0 4px 12px rgba(91, 157, 255, 0.3);
 }
 
 .pomodoro-test-sound:active {
@@ -617,7 +696,7 @@
     height: 6px;
     border-radius: 3px;
     background: linear-gradient(to right,
-        #4CAF50 0 var(--fill, 0%),
+        var(--accent) 0 var(--fill, 0%),
         rgba(255, 255, 255, 0.15) var(--fill, 0%) 100%);
 }
 
@@ -630,7 +709,7 @@
 .pomodoro-volume-slider::-moz-range-progress {
     height: 6px;
     border-radius: 3px;
-    background: #4CAF50;
+    background: var(--accent);
 }
 
 .pomodoro-volume-slider::-webkit-slider-thumb {
@@ -640,7 +719,7 @@
     height: 16px;
     margin-top: -7px;
     border-radius: 50%;
-    background: #4CAF50;
+    background: var(--accent);
     cursor: pointer;
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -650,7 +729,7 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #4CAF50;
+    background: var(--accent);
     cursor: pointer;
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -682,13 +761,19 @@
    ======================================== */
 
 .pomodoro-history {
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     border-radius: 16px;
     padding: 1.5rem;
     max-height: 300px;
     overflow-y: auto;
-    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pomodoro-history-header {
@@ -725,15 +810,17 @@
     border-radius: 8px;
     color: rgba(255, 255, 255, 0.9);
     font-size: 0.85rem;
-    font-family: 'Courier New', Courier, monospace;
-    border-left: 3px solid rgba(76, 175, 80, 0.5);
+    font-family: var(--font-mono);
+    /* Decorative rule, not a status — the reserved green is a signal color, this
+       is just a divider, so it takes the structural hue like any other rule. */
+    border-left: 3px solid var(--structural);
     transition: all 0.3s ease;
     margin-bottom: 0.5rem;
 }
 
 .pomodoro-history-item:hover {
     background: rgba(255, 255, 255, 0.12);
-    border-left-color: rgba(76, 175, 80, 0.8);
+    border-left-color: rgba(120, 160, 220, 0.75);
     transform: translateX(3px);
 }
 
@@ -802,12 +889,15 @@
     }
 }
 
+/* The running-timer glow — the single most prominent animated element in the
+   app besides the Today & Now beam, so it must NOT be green: two competing
+   green pulses would split the eye's attention that the beam is meant to own. */
 @keyframes pulseGlow {
     0%, 100% {
-        box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+        box-shadow: 0 0 20px rgba(91, 157, 255, 0.3);
     }
     50% {
-        box-shadow: 0 0 40px rgba(76, 175, 80, 0.6);
+        box-shadow: 0 0 40px rgba(91, 157, 255, 0.6);
     }
 }
 
@@ -852,7 +942,9 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(76, 175, 80, 0.9);
+    /* Session-complete message — a "done" outcome, not the running state, so it
+       takes the neutral success tone rather than the reserved green. */
+    background: var(--ok-neutral);
     color: white;
     padding: 1.5rem 3rem;
     border-radius: 50px;
@@ -861,7 +953,8 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
     z-index: 10000;
     animation: toastPop 0.4s ease;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
 }
 
 @keyframes toastPop {
@@ -966,18 +1059,27 @@
 }
 
 /* Dark mode compatibility */
+/* These dark-theme variants restate the full two-layer background-image (rather
+   than just background-color) because the edge gradient lives in that same
+   property — a plain `background:` override here would silently erase it. */
 [data-theme="dark"] .pomodoro-toolbar {
-    background: rgba(0, 0, 0, 0.4);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
 }
 
 [data-theme="dark"] .pomodoro-toolbar-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
 }
 
 [data-theme="dark"] .pomodoro-time-selection,
 [data-theme="dark"] .pomodoro-right-panel {
-    background: rgba(0, 0, 0, 0.5);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
 }
 
 /* Accessibility improvements */
@@ -993,7 +1095,7 @@
 .pomodoro-btn:focus,
 .pomodoro-preset:focus,
 .pomodoro-toolbar-btn:focus {
-    outline: 2px solid rgba(76, 175, 80, 0.6);
+    outline: 2px solid rgba(91, 157, 255, 0.6);
     outline-offset: 2px;
 }
 
@@ -1017,9 +1119,15 @@
     margin: 0 auto 1.5rem; /* centered */
     padding: 0.5rem 1.75rem 0.5rem 2.5rem; /* tight top/bottom; left trimmed by 1.5rem to bring the timer closer to the curved border without breaching it */
     box-sizing: border-box;
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(10px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(10px) saturate(var(--glass-sat));
     /* Curvy left edge: large left corner radii that meet at mid-height,
        giving the left side a smooth outward bulge; right stays squared-off. */
     border-radius: 120px 18px 18px 120px / 50% 18px 18px 50%;
@@ -1030,9 +1138,14 @@
 
 /* The timer card is dark-native (white text). On the white light-mode page its
    translucent-black fill turns pale grey and the text disappears — give it a
-   dark glass base in light mode so it stays readable. Dark mode is unchanged. */
+   dark glass base in light mode so it stays readable. Dark mode is unchanged.
+   Restates the full background-image (not just background-color) so the edge
+   gradient survives the theme swap. */
 [data-theme="light"] .pomodoro-card {
-    background: rgba(20, 20, 24, 0.86);
+    background-image:
+        linear-gradient(rgba(20, 20, 24, 0.86), rgba(20, 20, 24, 0.86)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
 }
 
 /* Two zones: [clock + controls]  |  [Quick Timer over Custom Time] */
@@ -1197,10 +1310,15 @@
 
 /* Pomodoro widgets use white text throughout, so keep the sub-panels solidly
    dark inside the (light-theme) modal to preserve contrast. */
+/* Restates the full background-image (base fill + edge gradient) rather than
+   just swapping background-color, so the directional edge survives this
+   deeper, more opaque tint used inside the Settings modal. */
 #settingsTabPomodoro .pomodoro-settings,
 #settingsTabPomodoro .pomodoro-history {
-    background: rgba(28, 32, 38, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background-image:
+        linear-gradient(rgba(28, 32, 38, 0.92), rgba(28, 32, 38, 0.92)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255,255,255,0.14) 100%);
 }
 
 @media (max-width: 768px) {

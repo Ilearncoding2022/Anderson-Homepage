@@ -15,18 +15,32 @@
 // ========================================
 
 const Theme = {
+    // The glyph used to BE the state indicator (sun = currently dark, click for
+    // light / moon = currently light, click for dark). The sprite icon is
+    // aria-hidden, so the accessible name has to carry that same meaning now —
+    // both title and aria-label are rewritten alongside the icon.
+    _paintToggle(theme) {
+        const btn = document.getElementById('themeToggle');
+        if (!btn) return;
+        const isDark = theme === 'dark';
+        const label = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+        btn.innerHTML = `<svg class="ico" aria-hidden="true"><use href="#${isDark ? 'ico-sun' : 'ico-moon'}"></use></svg>`;
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+    },
+
     toggle() {
         const currentTheme = document.documentElement.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', newTheme);
         Utils.safeLocalStorageSet('theme', newTheme);
-        document.getElementById('themeToggle').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        this._paintToggle(newTheme);
     },
 
     load() {
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
-        document.getElementById('themeToggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        this._paintToggle(savedTheme);
     }
 };
 

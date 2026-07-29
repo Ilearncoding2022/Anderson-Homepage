@@ -17,12 +17,15 @@ const App = {
 
     // Stamps APP_VERSION / APP_RELEASE_DATE into the three places they surface,
     // so a release only ever edits the constants in 1-core-managers.js. Uses
-    // textContent throughout — these strings are never parsed as markup.
+    // textContent throughout, except the menu item below — its icon is a
+    // sprite reference, which only innerHTML can render. APP_VERSION is a
+    // trusted build-time constant, never user input, so that's safe here.
     applyVersionStamp() {
         document.title = `Anderson Homepage ${APP_VERSION} (${APP_RELEASE_DATE})`;
 
         const menuItem = document.getElementById('changelogBtn');
-        if (menuItem) menuItem.textContent = `📋 What's new (${APP_VERSION})`;
+        if (menuItem) menuItem.innerHTML =
+            `<svg class="ico" aria-hidden="true"><use href="#ico-clipboard"></use></svg> What's new (${APP_VERSION})`;
 
         const meta = document.querySelector('.changelog-meta');
         if (meta) meta.textContent = `Anderson Homepage ${APP_VERSION} · ${APP_RELEASE_DATE}`;
@@ -221,7 +224,7 @@ const App = {
             if (CalendarManager.isEmbedUrl(url)) {
                 if (!warning) {
                     urlInput.insertAdjacentHTML('afterend',
-                        '<div class="cal-src-embed-warning">⚠ Embed URLs are not supported. Use the ICS URL from Google Calendar Settings → calendar → "Public address in iCal format"</div>');
+                        '<div class="cal-src-embed-warning"><svg class="ico" aria-hidden="true"><use href="#ico-alert"></use></svg> Embed URLs are not supported. Use the ICS URL from Google Calendar Settings → calendar → "Public address in iCal format"</div>');
                 }
                 return; // Don't save or fetch with embed URL
             } else if (warning) {
@@ -257,7 +260,7 @@ const App = {
                 <div class="cal-src-row">
                     <input type="text" class="cal-src-name" value="${Utils.sanitizeHTML(cal.name)}" placeholder="Calendar name">
                     <div class="cal-src-color-group">
-                        <span class="cal-src-swatch" style="background: ${Utils.sanitizeHTML(cal.color)};"></span>
+                        <span class="cal-src-swatch" style="background: ${Utils.isValidColor(cal.color) ? cal.color : 'transparent'};"></span>
                         <select class="cal-src-color">
                             ${colors.map(c =>
                                 `<option value="${c.value}" ${c.value === cal.color ? 'selected' : ''}>${c.name}</option>`
@@ -717,12 +720,15 @@ const App = {
             ...options, hour: '2-digit', minute: '2-digit', hour12: false
         });
 
+        // City and time share one baseline row (.clock-headline) now that size
+        // no longer carries their hierarchy — see 2-components.css. The date
+        // drops to its own small line below rather than sitting beside the time.
         clockElement.innerHTML = `
-            <div class="clock-city">${Utils.sanitizeHTML(timezoneName)}</div>
-            <div class="clock-details">
-                <div class="clock-date">${dateStr}</div>
-                <div class="clock-time">${timeStr}</div>
+            <div class="clock-headline">
+                <span class="clock-city">${Utils.sanitizeHTML(timezoneName)}</span>
+                <span class="clock-time">${timeStr}</span>
             </div>
+            <div class="clock-date">${dateStr}</div>
         `;
     },
 
