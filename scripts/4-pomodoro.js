@@ -1094,7 +1094,11 @@ const PomodoroUI = {
         const card = document.getElementById('pomodoroScreen');
         const main = document.querySelector('main.container');
         if (card && main && card.parentElement !== main) {
-            main.prepend(card);
+            // Keep the status row directly below the header: insert after
+            // #projectsRow when it exists, otherwise fall back to prepend.
+            const row = document.getElementById('projectsRow');
+            if (row) row.after(card);
+            else main.prepend(card);
         }
         const panel = document.getElementById('pomodoroSettingsPanel');
         const tab = document.getElementById('settingsTabPomodoro');

@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="styles/5-pomodoro.css">
     <link rel="stylesheet" href="styles/6-minimap.css">
     <link rel="stylesheet" href="styles/7-todo.css">
+    <link rel="stylesheet" href="styles/8-projects.css">
 </head>
 <body>
     <!-- ============================================ -->
@@ -493,6 +494,17 @@
 
     <!-- Main Content Container -->
     <main class="container">
+        <!-- Project status bar (v4.14) — populated by scripts/9-projects.js from
+             claude-projects.js at the app root. Hidden entirely when no live
+             Claude Code sessions are reporting. -->
+        <section id="projectsRow" class="projects-row-wrap" aria-labelledby="projectsRowLabel" hidden>
+            <h2 id="projectsRowLabel" class="sr-only">Active Claude projects</h2>
+            <ul class="projects-row" role="list" data-count="0"></ul>
+        </section>
+        <!-- Outside the collapsible wrapper on purpose: a role="status" write
+             into a still-hidden subtree is dropped by assistive tech, and a
+             later unrelated reveal would replay stale text. -->
+        <span id="projectsAlert" class="sr-only" role="status"></span>
         <div class="empty-state" id="emptyState" style="display: none;">
             <h2>No websites added yet</h2>
             <p>Click "Add Website" or "Add Group" to get started!</p>
@@ -529,6 +541,7 @@
                 <button class="settings-tab" id="settingsTabBtnCalendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="settingsTabCalendar">Calendar</button>
                 <button class="settings-tab" id="settingsTabBtnTodo" data-tab="todo" role="tab" aria-selected="false" aria-controls="settingsTabTodo">To-Do</button>
                 <button class="settings-tab" id="settingsTabBtnPomodoro" data-tab="pomodoro" role="tab" aria-selected="false" aria-controls="settingsTabPomodoro">Pomodoro</button>
+                <button class="settings-tab" id="settingsTabBtnProjects" data-tab="projects" role="tab" aria-selected="false" aria-controls="settingsTabProjects">Projects</button>
                 <button class="settings-tab" id="settingsTabBtnData" data-tab="data" role="tab" aria-selected="false" aria-controls="settingsTabData">Data</button>
             </div>
             <div class="settings-tab-content active" id="settingsTabAppearance" data-tab="appearance" role="tabpanel" aria-labelledby="settingsTabBtnAppearance">
@@ -851,6 +864,44 @@
             </div>
             <!-- Pomodoro sound settings + session history are moved here at runtime -->
             <div class="settings-tab-content" id="settingsTabPomodoro" data-tab="pomodoro" role="tabpanel" aria-labelledby="settingsTabBtnPomodoro"></div>
+            <div class="settings-tab-content" id="settingsTabProjects" data-tab="projects" role="tabpanel" aria-labelledby="settingsTabBtnProjects">
+                <h3 class="settings-subhead">Project status bar</h3>
+                <div class="projects-settings-check-row">
+                    <label class="projects-settings-check" for="projectsEnabled">
+                        <input type="checkbox" id="projectsEnabled" checked>
+                        <span>Show the project status row</span>
+                    </label>
+                </div>
+                <div class="settings-2col">
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="projectsIdleMin">Idle After</label>
+                            <select id="projectsIdleMin">
+                                <option value="1">1 minute</option>
+                                <option value="3" selected>3 minutes</option>
+                                <option value="5">5 minutes</option>
+                                <option value="10">10 minutes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="projectsHideMin">Hide After</label>
+                            <select id="projectsHideMin">
+                                <option value="10">10 minutes</option>
+                                <option value="30" selected>30 minutes</option>
+                                <option value="60">60 minutes</option>
+                                <option value="120">120 minutes</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <h3 class="settings-subhead">Project names</h3>
+                <div class="form-group">
+                    <p class="settings-hint">Names default to the project's folder name. Set a custom name below — clear an input to go back to the folder name.</p>
+                    <div id="projectNamesList"></div>
+                </div>
+            </div>
             <div class="settings-tab-content" id="settingsTabData" data-tab="data" role="tabpanel" aria-labelledby="settingsTabBtnData">
                 <h3 class="settings-subhead">Backup &amp; restore</h3>
                 <div class="form-group">
@@ -924,6 +975,10 @@
     <!-- Claude token-usage header widget (v4.9). Reads the generated usage-data.js
          via <script> injection (works from file://) — see scripts/8-usage.js. -->
     <script src="scripts/8-usage.js"></script>
+
+    <!-- Project status bar (v4.14). Reads the generated claude-projects.js via
+         the same <script> injection pattern — see scripts/9-projects.js. -->
+    <script src="scripts/9-projects.js"></script>
 
     <!-- SQLite Database Persistence (sql-wasm-binary.js is ~850 KB). These are
          lazy-loaded by App.loadDbModule() after first paint so they don't block

@@ -824,7 +824,7 @@ const App = {
         // ui-renderer.js (UIRenderer._attachTodoHandlers), alongside the code that
         // opens it, so it shares the same lifecycle and never depends on this file.
 
-        // Settings tab switching (Appearance / Calendar / To-Do / Pomodoro / Data)
+        // Settings tab switching (Appearance / Calendar / To-Do / Pomodoro / Projects / Data)
         document.querySelectorAll('.settings-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const targetTab = tab.dataset.tab;

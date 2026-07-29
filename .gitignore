@@ -20,6 +20,11 @@ anderson-homepage-backup-*.json
 /usage-data.js
 /usage-data.js.tmp
 
+# Live Claude Code session status written by tools/claude-status-hook.js for the
+# project status bar (session ids, project dirs, states — machine-generated).
+/claude-projects.js
+/claude-projects.tmp-*.js
+
 # ==========================================================================
 # Machine-specific / OS cruft
 # ==========================================================================
