@@ -5,6 +5,34 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.12] — 2026-07-29
+
+### Calendar card
+- **A tighter hour grid (change):** with the timeline on, each hour row is 15%
+  shorter and the times down the left edge (09:00, 18:00 …) are two points
+  smaller, so more of the day fits in the card without scrolling.
+- **The upcoming-events ticker gets its own row (change):** on a
+  column-width card the scrolling strip of upcoming events no longer squeezes
+  into the header beside the title and the buttons. It now runs full width on
+  its own row, directly below the header and above the calendar. A full-width
+  card keeps it in the header as before.
+- **"Today & Now" moved out of the way (change):** on a column-width card the
+  button sat in the middle of the header and overlapped the controls to its
+  left. It now sits at the far right end of the header row. On a full-width
+  card, where there is room, it stays centered.
+- **The calendar icon opens a background tab (change):** clicking the 📅 icon in
+  the card header used to leave your homepage and load Google Calendar in its
+  place. It now opens Google Calendar in a new tab behind this one, so the
+  homepage stays where it is.
+
+### To-Do card
+- **Long tasks wrap instead of scrolling out of sight (change):** a task or
+  subtask whose text is too long for one line now continues onto a second line
+  instead of running off the edge of the field. Two lines is the limit —
+  anything past that is hidden, and the row grows only as much as it needs, so
+  short tasks stay exactly as tall as before. The full text is still there while
+  you edit.
+
 ## [v4.11] — 2026-07-28
 
 ### Calendar card

@@ -169,6 +169,11 @@ const FontManager = {
                 }
             }
         }
+
+        // How many rows a To-Do task's text needs depends on these sizes, and a
+        // size change doesn't re-render the card — re-fit the fields here.
+        // No-op before the first render (there is no card to find yet).
+        window.UIRenderer?.matchTodoHeight?.();
     },
 
     // ---- Mutations ----
