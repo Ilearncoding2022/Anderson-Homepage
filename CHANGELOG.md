@@ -5,6 +5,46 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.15] — 2026-07-29
+
+### Multi-agent project status
+
+- **Every conversation in a project is now visible (new):** a project running
+  several Claude Code conversations counts them and expands to list them,
+  each labelled with the opening line of what you asked, with its own state
+  and clock. Two or three windows on the same folder used to collapse into
+  one anonymous bar; now you can tell which conversation is the one waiting
+  on you, and the chevron remembers whether you left a project open.
+- **A bar only grows a chevron when there is something to see (new):** one
+  conversation with no helpers is just the project, and one helper needs no
+  list of its own, so those bars stay a single line and say everything on it.
+  The detail view appears when a project is running several conversations, or
+  a conversation is running several agents.
+- **Agents appear under the conversation that spawned them (new):** when
+  Claude delegates work, each worker is listed by kind — general-purpose,
+  code-reviewer, debugger — with what it is doing and how long it has been
+  going. A project bar carries an agent count while collapsed, so a quiet
+  bar with nine workers behind it can no longer look idle; with a single
+  worker its name simply joins the bar. Past eight the rest are summarised
+  rather than dropped.
+- **A project no longer loses its name to an agent (fix):** an agent running
+  in its own worktree reported that worktree as its location, which renamed
+  the project bar to something like "agent-a4dd5006d9fa3c78d" and made the
+  real project vanish until the agent finished.
+- **An approval prompt can no longer stop blinking while it waits (fix):**
+  with several agents running at once, one agent finishing a command would
+  clear another agent's pending permission, so the amber blink stopped while
+  Claude was still blocked. Each agent now owns its own approval state, and
+  two agents waiting at once both stay visible.
+- **"Your turn" no longer appears while work is still running (fix):** a
+  conversation whose main thread had finished but whose background agents
+  were still going reported itself as finished. It now reports working until
+  the last agent stops.
+- **What it records:** one addition, deliberately — the first line of the
+  first message you send in a conversation, kept only as its label. Tool
+  names, project paths and timings as before; still never command text, file
+  contents or any later message, still nothing leaving the machine.
+
 ## [v4.14] — 2026-07-29
 
 ### Live Claude Code project status

@@ -188,6 +188,9 @@
       <symbol id="ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="m4.8 12.6 4.8 4.8L19.2 6.6"/>
       </symbol>
+      <symbol id="ico-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 9.5 6 6 6-6"/>
+      </symbol>
 
       <symbol id="ico-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M13.2 3.6c3.6 0 7.2 3.6 7.2 7.2 0 3.2-3.4 6.3-6 8.2H9.6c-2.6-1.9-6-5-6-8.2 0-3.6 3.6-7.2 7.2-7.2Z"/>
@@ -494,8 +497,10 @@
 
     <!-- Main Content Container -->
     <main class="container">
-        <!-- Project status bar (v4.14) — populated by scripts/9-projects.js from
-             claude-projects.js at the app root. Hidden entirely when no live
+        <!-- Project status bar (v4.14, multi-agent since v4.15) — populated by
+             scripts/9-projects.js from claude-projects.js at the app root.
+             Every bar, and the conversation/agent rows inside it, are built
+             there; this is only the empty shell. Hidden entirely when no live
              Claude Code sessions are reporting. -->
         <section id="projectsRow" class="projects-row-wrap" aria-labelledby="projectsRowLabel" hidden>
             <h2 id="projectsRowLabel" class="sr-only">Active Claude projects</h2>
@@ -976,8 +981,9 @@
          via <script> injection (works from file://) — see scripts/8-usage.js. -->
     <script src="scripts/8-usage.js"></script>
 
-    <!-- Project status bar (v4.14). Reads the generated claude-projects.js via
-         the same <script> injection pattern — see scripts/9-projects.js. -->
+    <!-- Project status bar (v4.14, multi-agent since v4.15). Reads the
+         generated claude-projects.js via the same <script> injection pattern —
+         see scripts/9-projects.js. -->
     <script src="scripts/9-projects.js"></script>
 
     <!-- SQLite Database Persistence (sql-wasm-binary.js is ~850 KB). These are

@@ -21,7 +21,10 @@ anderson-homepage-backup-*.json
 /usage-data.js.tmp
 
 # Live Claude Code session status written by tools/claude-status-hook.js for the
-# project status bar (session ids, project dirs, states — machine-generated).
+# project status bar (session ids, project dirs, states, agent types —
+# machine-generated). Since v4.15 it ALSO holds one line of user text per
+# session: a <=64-char snippet of that conversation's first prompt, used as its
+# label. Treat this file as sensitive — never commit it, and don't paste it.
 /claude-projects.js
 /claude-projects.tmp-*.js
 
