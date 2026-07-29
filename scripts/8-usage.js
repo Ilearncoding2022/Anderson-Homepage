@@ -1,7 +1,7 @@
 // ==========================================
-// 8-USAGE.JS - Claude Token-Usage Header Widget (v4.9)
+// 8-USAGE.JS - Claude Token-Usage Header Widget (v4.13)
 //
-// Renders three small progress bars in the header (Session / Week /
+// Renders three small segmented gauges in the header (Session / Week /
 // Fable (Week)) from `usage-data.js` at the app root — a machine-generated,
 // gitignored file written every 10 minutes by tools/update-claude-usage.ps1
 // (a Task Scheduler job that polls Anthropic's usage endpoint with the local
@@ -63,8 +63,12 @@ const UsageWidget = {
             if (!row) continue;
             seen.add(limit.kind);
             const pct = Math.max(0, Math.min(100, Number(limit.percent) || 0));
-            const fill = row.querySelector('.usage-fill');
-            if (fill) fill.style.width = `${pct}%`;
+            // The gauge is a fixed 0-100 scale, so the reading is where the
+            // marker SITS, not how much of the bar is filled. Inset the travel
+            // by half the marker's width at each end so it stays fully inside
+            // the capsule's rounded caps at 0% and 100%.
+            const marker = row.querySelector('.usage-marker');
+            if (marker) marker.style.left = `calc(3px + ${pct} * (100% - 6px) / 100)`;
             const pctEl = row.querySelector('.usage-pct');
             if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
             const bar = row.querySelector('.usage-bar');

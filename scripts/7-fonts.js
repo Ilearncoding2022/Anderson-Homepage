@@ -21,24 +21,40 @@ const FontManager = {
     MIN: 5,
     MAX: 40,
 
-    // Offline-safe stacks only (no web fonts / CDNs). Empty value = inherit.
+    // Curated, not exhaustive — every option here is a deliberate choice, not
+    // just "whatever fonts happen to exist". The two self-hosted variable
+    // fonts (already in /fonts, @font-face already declared in 1-core.css)
+    // cover display and mono duty; two system fallbacks are offered only
+    // because they read genuinely differently (clean grotesque, classic
+    // serif). Empty value = inherit the card's normal font.
     FONT_FAMILIES: [
         { label: 'System Default', value: '' },
-        { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
-        { label: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
-        { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
-        { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
-        { label: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
+        { label: 'Display — Space Grotesk', value: 'var(--font-ui)' },
+        { label: 'Mono — JetBrains Mono', value: 'var(--font-mono)' },
         { label: 'Segoe UI', value: '"Segoe UI", Roboto, Helvetica, sans-serif' },
-        { label: 'Calibri', value: 'Calibri, Candara, Segoe, sans-serif' },
         { label: 'Georgia', value: 'Georgia, "Times New Roman", serif' },
-        { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
-        { label: 'Garamond', value: 'Garamond, "Times New Roman", serif' },
-        { label: 'Palatino', value: '"Palatino Linotype", "Book Antiqua", Palatino, serif' },
-        { label: 'Courier New', value: '"Courier New", Courier, monospace' },
-        { label: 'Consolas', value: 'Consolas, "Lucida Console", monospace' },
-        { label: 'Comic Sans MS', value: '"Comic Sans MS", "Comic Sans", cursive' },
     ],
+
+    // Legacy fonts removed from FONT_FAMILIES map onto their nearest curated
+    // replacement so a saved pick doesn't just vanish to System Default. Any
+    // legacy stack built on a serif face keeps a serif (Georgia); anything
+    // monospace becomes the new mono; everything else (the sans-serif grab
+    // bag, plus Comic Sans) becomes the new display face. Applied once in
+    // _validFamily() before falling back to ''.
+    LEGACY_FAMILY_MAP: {
+        'Arial, Helvetica, sans-serif': 'var(--font-ui)',
+        'Helvetica, Arial, sans-serif': 'var(--font-ui)',
+        'Verdana, Geneva, sans-serif': 'var(--font-ui)',
+        'Tahoma, Geneva, sans-serif': 'var(--font-ui)',
+        '"Trebuchet MS", Helvetica, sans-serif': 'var(--font-ui)',
+        'Calibri, Candara, Segoe, sans-serif': 'var(--font-ui)',
+        '"Times New Roman", Times, serif': 'Georgia, "Times New Roman", serif',
+        'Garamond, "Times New Roman", serif': 'Georgia, "Times New Roman", serif',
+        '"Palatino Linotype", "Book Antiqua", Palatino, serif': 'Georgia, "Times New Roman", serif',
+        '"Courier New", Courier, monospace': 'var(--font-mono)',
+        'Consolas, "Lucida Console", monospace': 'var(--font-mono)',
+        '"Comic Sans MS", "Comic Sans", cursive': 'var(--font-ui)',
+    },
 
     // Per-card text groups: CSS variable + original-default px + display label.
     // The default px values mirror the original rem font-sizes in the CSS.
@@ -106,7 +122,16 @@ const FontManager = {
     // ---- Validation / persistence ----
 
     _validFamily(v) {
-        return this.FONT_FAMILIES.some(f => f.value === v) ? v : '';
+        if (this.FONT_FAMILIES.some(f => f.value === v)) return v;
+        // A pick from the old 14-font list: map it to its nearest curated
+        // replacement instead of silently resetting to System Default.
+        // hasOwn, not a bare lookup — a stored value of "constructor" or
+        // "toString" would otherwise resolve off Object.prototype and make this
+        // return a function, breaking its own string contract.
+        if (typeof v === 'string' && Object.hasOwn(this.LEGACY_FAMILY_MAP, v)) {
+            return this.LEGACY_FAMILY_MAP[v];
+        }
+        return '';
     },
 
     _clamp(n, fallback) {

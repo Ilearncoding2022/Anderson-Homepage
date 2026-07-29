@@ -4,6 +4,11 @@
 // Uses event delegation for click/drag handlers
 // ==========================================
 
+// Fallback swatch for a calendar with no configured colour. Green is reserved
+// for the Today & Now beam and the timeline "now" bar, so an uncoloured
+// calendar defaults to the structural blue instead.
+const DEFAULT_CAL_COLOR = '#5B9DFF';
+
 const UIRenderer = {
     _delegationAttached: false,
 
@@ -206,7 +211,7 @@ const UIRenderer = {
         const favorites = AppState.websites.filter(w => w.favorite);
         if (favorites.length > 0) {
             const fv = vPos['__favorites__'] || {};
-            const favGroup = { id: '__favorites__', name: '★ Favorites', color: 'rgba(255, 193, 7, 0.2)', position: Number(fv.position) || -3, column: fv.column ?? 1, collapsed: false, _virtual: true };
+            const favGroup = { id: '__favorites__', name: 'Favorites', color: 'rgba(255, 193, 7, 0.2)', position: Number(fv.position) || -3, column: fv.column ?? 1, collapsed: false, _virtual: true };
             allEntries.push({ group: favGroup, websites: favorites, type: 'standard' });
         }
 
@@ -217,7 +222,7 @@ const UIRenderer = {
             .slice(0, 3);
         if (recentlyOpened.length > 0) {
             const rv = vPos['__recent__'] || {};
-            const recentGroup = { id: '__recent__', name: '🕐 Recently Opened', color: 'rgba(33, 150, 243, 0.2)', position: Number(rv.position) || -2, column: rv.column ?? 1, collapsed: false, _virtual: true };
+            const recentGroup = { id: '__recent__', name: 'Recently Opened', color: 'rgba(33, 150, 243, 0.2)', position: Number(rv.position) || -2, column: rv.column ?? 1, collapsed: false, _virtual: true };
             allEntries.push({ group: recentGroup, websites: recentlyOpened, type: 'standard' });
         }
 
@@ -523,6 +528,9 @@ const UIRenderer = {
         const showCollapseButton = !isVirtual;
         const showActions = !isVirtual;
         const virtualClass = isVirtual ? 'virtual-group' : '';
+        const virtualIconId = group.id === '__favorites__' ? 'ico-star-filled'
+            : group.id === '__recent__' ? 'ico-clock'
+            : null;
 
         const websitesHTML = websites && websites.length > 0
             ? websites.map(w => this.createWebsiteCard(w, isVirtual)).join('')
@@ -541,14 +549,15 @@ const UIRenderer = {
                 <div class="group-header">
                     <div class="group-title-container">
                         ${showCollapseButton ? `<button class="group-action-btn collapse-btn" onclick="App.toggleGroupCollapse('${safeId}')" title="${collapseTitle}">${collapseIcon}</button>` : ''}
-                        <div class="group-title">
-                            ${isDefault ? '<span class="default-indicator">⚓</span>' : ''}
+                        <div class="group-title has-ico">
+                            ${isDefault ? '<span class="default-indicator"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-anchor"></use></svg></span>' : ''}
+                            ${virtualIconId ? `<svg class="ico ico-sm" aria-hidden="true"><use href="#${virtualIconId}"></use></svg>` : ''}
                             ${safeName}
                             <span class="group-count">(${websites ? websites.length : 0})</span>
                         </div>
                     </div>
                     ${showActions ? `<div class="group-actions">
-                        <button class="group-action-btn" onclick="App.editGroup('${safeId}')" title="Edit Group">✏️</button>
+                        <button class="group-action-btn" onclick="App.editGroup('${safeId}')" title="Edit Group" aria-label="Edit Group"><svg class="ico" aria-hidden="true"><use href="#ico-pencil"></use></svg></button>
                         ${showDeleteButton ? `<button class="group-action-btn delete-group-btn" onclick="App.deleteGroup('${safeId}')" title="Delete Group">×</button>` : ''}
                     </div>` : ''}
                 </div>
@@ -596,9 +605,9 @@ const UIRenderer = {
 
         const icon = website.icon
             ? `<img src="${iconSrc}" alt="${safeName}" class="website-icon" draggable="false" style="width: ${iconSize}px; height: ${iconSize}px;">`
-            : `<div class="website-icon" style="width: ${iconSize}px; height: ${iconSize}px; font-size: ${iconSize * 0.5}px;">🌐</div>`;
+            : `<div class="website-icon" style="width: ${iconSize}px; height: ${iconSize}px;"><svg class="ico" aria-hidden="true" style="width: ${iconSize * 0.5}px; height: ${iconSize * 0.5}px;"><use href="#ico-globe"></use></svg></div>`;
 
-        const favStar = website.favorite ? '★' : '☆';
+        const favStarIcon = website.favorite ? 'ico-star-filled' : 'ico-star';
         const favTitle = website.favorite ? 'Remove from favorites' : 'Add to favorites';
 
         return `
@@ -615,8 +624,8 @@ const UIRenderer = {
                     ${versionInfo}
                 </div>
                 <div class="card-actions">
-                    <button class="favorite-btn ${website.favorite ? 'is-favorite' : ''}" onclick="App.toggleFavorite(event, '${safeId}')" title="${favTitle}">${favStar}</button>
-                    <button class="edit-btn" onclick="App.editWebsite(event, '${safeId}')" title="Edit">✏️</button>
+                    <button class="favorite-btn ${website.favorite ? 'is-favorite' : ''}" onclick="App.toggleFavorite(event, '${safeId}')" title="${favTitle}" aria-label="${favTitle}"><svg class="ico" aria-hidden="true"><use href="#${favStarIcon}"></use></svg></button>
+                    <button class="edit-btn" onclick="App.editWebsite(event, '${safeId}')" title="Edit" aria-label="Edit website"><svg class="ico" aria-hidden="true"><use href="#ico-pencil"></use></svg></button>
                 </div>
                 <button class="new-tab-btn" title="Open in new tab">⧉</button>
             </div>
@@ -720,7 +729,7 @@ const UIRenderer = {
                 const tip = fetchError
                     ? `Couldn't refresh — showing data from ${lastFetchedLabel}`
                     : `Data may be stale — last refreshed ${lastFetchedLabel}`;
-                warningBadge = `<span class="calendar-stale-badge" title="${Utils.sanitizeHTML(tip)}" aria-label="${Utils.sanitizeHTML(tip)}" role="img">⚠</span>`;
+                warningBadge = `<span class="calendar-stale-badge" title="${Utils.sanitizeHTML(tip)}" aria-label="${Utils.sanitizeHTML(tip)}" role="img"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-alert"></use></svg></span>`;
             }
         }
 
@@ -742,16 +751,16 @@ const UIRenderer = {
             <div class="app-group virtual-group calendar-group"
                  data-group-id="__calendar__"
                  data-card-width="${calLayout.width}"
-                 style="--card-tint: rgba(76, 175, 80, 0.2);">
+                 style="--card-tint: rgba(120,160,220,0.18);">
                 <div class="group-header">
                     <div class="group-title-container">
-                        <div class="group-title">
+                        <div class="group-title has-ico">
                             <a class="calendar-icon-link" href="https://calendar.google.com" target="_blank" rel="noopener"
-                               title="Open Google Calendar in a background tab"
-                               onclick="UIRenderer.openInBackgroundTab(event, this)">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
+                               title="Open Google Calendar in a background tab" aria-label="Open Google Calendar in a background tab"
+                               onclick="UIRenderer.openInBackgroundTab(event, this)"><svg class="ico" aria-hidden="true"><use href="#ico-calendar"></use></svg></a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
                         </div>
                         <div class="calendar-header-meta">
-                            ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now">↻</button>` : ''}
+                            ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now" aria-label="Refresh now"><svg class="ico" aria-hidden="true"><use href="#ico-refresh"></use></svg></button>` : ''}
                             ${lastFetchedLabel ? `<span class="calendar-last-updated">${Utils.sanitizeHTML(lastFetchedLabel)}</span>` : ''}
                             ${warningBadge}
                             ${fetchError ? `<span class="calendar-error-dot" title="${Utils.sanitizeHTML(fetchError)}">!</span>` : ''}
@@ -845,7 +854,7 @@ const UIRenderer = {
             + `<span class="cal-switch-track" aria-hidden="true"><span class="cal-switch-knob"></span></span>`
             + `</button>`;
         return `<span class="calendar-view-dd">`
-            + `<button class="calendar-view-toggle" onclick="UIRenderer.toggleViewMenu(this)" aria-haspopup="menu" aria-expanded="false" aria-controls="calViewMenu" title="Change calendar view" aria-label="Change calendar view. Current: ${Utils.sanitizeHTML(viewLabel)}"><span class="calendar-group-toggle-icon" aria-hidden="true">▦</span>${Utils.sanitizeHTML(viewLabel)}<span class="calendar-view-caret" aria-hidden="true">▾</span></button>`
+            + `<button class="calendar-view-toggle" onclick="UIRenderer.toggleViewMenu(this)" aria-haspopup="menu" aria-expanded="false" aria-controls="calViewMenu" title="Change calendar view" aria-label="Change calendar view. Current: ${Utils.sanitizeHTML(viewLabel)}"><span class="calendar-group-toggle-icon" aria-hidden="true"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-grid"></use></svg></span>${Utils.sanitizeHTML(viewLabel)}<span class="calendar-view-caret" aria-hidden="true">▾</span></button>`
             + `<div class="calendar-view-menu" id="calViewMenu" role="menu" aria-label="Calendar view">${items}${tlRow}</div>`
             + `</span>`;
     },
@@ -860,7 +869,7 @@ const UIRenderer = {
             `<button class="calendar-view-menu-item" role="menuitemradio" aria-checked="${o.mode === current ? 'true' : 'false'}" onclick="CalendarManager.setGrouping('${o.mode}')">${Utils.sanitizeHTML(o.label)}</button>`
         ).join('');
         return `<span class="calendar-view-dd">`
-            + `<button class="calendar-view-toggle" onclick="UIRenderer.toggleViewMenu(this)" aria-haspopup="menu" aria-expanded="false" aria-controls="calGroupMenu" title="Change event grouping" aria-label="Change event grouping. Current: ${Utils.sanitizeHTML(groupLabel)}"><span class="calendar-group-toggle-icon" aria-hidden="true">⊞</span>${Utils.sanitizeHTML(groupLabel)}<span class="calendar-view-caret" aria-hidden="true">▾</span></button>`
+            + `<button class="calendar-view-toggle" onclick="UIRenderer.toggleViewMenu(this)" aria-haspopup="menu" aria-expanded="false" aria-controls="calGroupMenu" title="Change event grouping" aria-label="Change event grouping. Current: ${Utils.sanitizeHTML(groupLabel)}"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-grid"></use></svg>${Utils.sanitizeHTML(groupLabel)}<span class="calendar-view-caret" aria-hidden="true">▾</span></button>`
             + `<div class="calendar-view-menu" id="calGroupMenu" role="menu" aria-label="Event grouping">${items}</div>`
             + `</span>`;
     },
@@ -921,7 +930,7 @@ const UIRenderer = {
                 <ol>
                     <li>Deploy the Apps Script proxy (see 5-calendar.js for template)</li>
                     <li>Get your calendars' secret ICS URLs from Google Calendar Settings</li>
-                    <li>Open Settings (☰ menu) and paste the proxy URL, token, and ICS URLs (one per line)</li>
+                    <li>Open Settings (<svg class="ico ico-sm" aria-hidden="true"><use href="#ico-menu"></use></svg> menu) and paste the proxy URL, token, and ICS URLs (one per line)</li>
                 </ol>
             </div>
         `;
@@ -955,7 +964,7 @@ const UIRenderer = {
                 const value = hasIn ? cd.text.slice(3) : cd.text;
                 inner = `${prefix}<span class="ec-text">${Utils.sanitizeHTML(value)}</span>`;
             } else {
-                inner = `<span class="ec-icon" aria-hidden="true">⏳</span><span class="ec-text">${Utils.sanitizeHTML(cd.text)}</span>`;
+                inner = `<span class="ec-icon" aria-hidden="true"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-hourglass"></use></svg></span><span class="ec-text">${Utils.sanitizeHTML(cd.text)}</span>`;
             }
             return `<div class="event-countdown ec-${placement} tier-${cd.tier}" data-countdown-start="${cd.startMs}" data-countdown-end="${cd.endMs}" role="timer" aria-label="${Utils.sanitizeHTML(cd.ariaLabel)}">${inner}</div>`;
         };
@@ -968,8 +977,8 @@ const UIRenderer = {
                 </div>`).join('');
             const title = Utils.sanitizeHTML(ev.title || 'Untitled');
             const location = ev.location ? Utils.sanitizeHTML(ev.location) : '';
-            const rawCalColor = ev._calColor || '#4CAF50';
-            const calColor = Utils.isValidColor(rawCalColor) ? rawCalColor : '#4CAF50';
+            const rawCalColor = ev._calColor || DEFAULT_CAL_COLOR;
+            const calColor = Utils.isValidColor(rawCalColor) ? rawCalColor : DEFAULT_CAL_COLOR;
             const countdown = buildCountdown(ev);
 
             // Store event data in data attributes for the detail modal (item 13).
@@ -986,9 +995,9 @@ const UIRenderer = {
             const meetUrlSafe = meet ? Utils.sanitizeHTML(meet.url) : '';
             const meetLabelSafe = meet ? Utils.sanitizeHTML(meet.label) : '';
             const joinLink = meet
-                ? `<a class="calendar-event-join" href="${meetUrlSafe}" target="_blank" rel="noopener"
+                ? `<a class="calendar-event-join has-ico" href="${meetUrlSafe}" target="_blank" rel="noopener"
                        data-cal-join="1" title="${meetLabelSafe}"
-                       aria-label="${meetLabelSafe}: ${safeTitle}">🎥 Join</a>`
+                       aria-label="${meetLabelSafe}: ${safeTitle}"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-video"></use></svg> Join</a>`
                 : '';
 
             const startD = new Date(ev.start);
@@ -1082,8 +1091,8 @@ const UIRenderer = {
         const tz = cm.getAnchorTimezone();
 
         const dot = (ev) => {
-            const raw = ev._calColor || '#4CAF50';
-            const c = Utils.isValidColor(raw) ? raw : '#4CAF50';
+            const raw = ev._calColor || DEFAULT_CAL_COLOR;
+            const c = Utils.isValidColor(raw) ? raw : DEFAULT_CAL_COLOR;
             return `<span class="cal-upcoming-dot" style="background:${c}" aria-hidden="true"></span>`;
         };
         const timeText = (ev) => cm.formatBarCountdown(new Date(ev.start).getTime()) || '';
@@ -1129,8 +1138,8 @@ const UIRenderer = {
         const tz = cm.getAnchorTimezone();
 
         const dot = (ev) => {
-            const raw = ev._calColor || '#4CAF50';
-            const c = Utils.isValidColor(raw) ? raw : '#4CAF50';
+            const raw = ev._calColor || DEFAULT_CAL_COLOR;
+            const c = Utils.isValidColor(raw) ? raw : DEFAULT_CAL_COLOR;
             return `<span class="cal-upcoming-dot" style="background:${c}" aria-hidden="true"></span>`;
         };
         const timeText = (ev) => cm.formatBarCountdown(new Date(ev.start).getTime()) || '';
@@ -1174,8 +1183,8 @@ const UIRenderer = {
 
     _calendarDayChip(ev, tz, dayLabel) {
         const cm = window.CalendarManager;
-        const rawCalColor = ev._calColor || '#4CAF50';
-        const calColor = Utils.isValidColor(rawCalColor) ? rawCalColor : '#4CAF50';
+        const rawCalColor = ev._calColor || DEFAULT_CAL_COLOR;
+        const calColor = Utils.isValidColor(rawCalColor) ? rawCalColor : DEFAULT_CAL_COLOR;
 
         // _timeStr expects a Date; ev.start/ev.end are ISO strings.
         const startDate = new Date(ev.start);
@@ -1289,8 +1298,8 @@ const UIRenderer = {
         const cols = model.days.map((d, di) => {
             const blocks = d.timed.map(p => {
                 const ev = p.ev;
-                const rawColor = ev._calColor || '#4CAF50';
-                const color = Utils.isValidColor(rawColor) ? rawColor : '#4CAF50';
+                const rawColor = ev._calColor || DEFAULT_CAL_COLOR;
+                const color = Utils.isValidColor(rawColor) ? rawColor : DEFAULT_CAL_COLOR;
                 const safeTitle = Utils.sanitizeHTML(ev.title || 'Untitled');
                 const startD = new Date(ev.start);
                 const endD = ev.end ? new Date(ev.end) : startD;
@@ -1352,7 +1361,7 @@ const UIRenderer = {
     _calendarLegendItems(calendars) {
         const cm = window.CalendarManager;
         return calendars.map((cal, i) => {
-            const color = Utils.isValidColor(cal.color) ? cal.color : '#4CAF50';
+            const color = Utils.isValidColor(cal.color) ? cal.color : DEFAULT_CAL_COLOR;
             const hidden = cm ? cm.isCalendarHidden(cal.url) : false;
             const safeName = Utils.sanitizeHTML(cal.name);
             return `<li class="cal-legend-pop-item"><button type="button" class="cal-legend-toggle${hidden ? ' is-hidden' : ''}" role="switch" aria-checked="${hidden ? 'false' : 'true'}" onclick="CalendarManager.toggleCalendarVisibility(${i})" title="${hidden ? 'Show' : 'Hide'} ${safeName}"><span class="calendar-legend-dot" style="background:${color};"></span><span class="cal-legend-name">${safeName}</span></button></li>`;
@@ -1461,7 +1470,7 @@ const UIRenderer = {
         const meetUrl = decodeAttr(el.dataset.calMeet || '');
         const joinHTML = /^https:\/\//i.test(meetUrl)
             ? `<div class="cal-detail-section cal-detail-join">
-                   <a href="${Utils.sanitizeHTML(meetUrl)}" target="_blank" rel="noopener" class="cal-detail-join-link">🎥 Join video call</a>
+                   <a href="${Utils.sanitizeHTML(meetUrl)}" target="_blank" rel="noopener" class="cal-detail-join-link has-ico"><svg class="ico" aria-hidden="true"><use href="#ico-video"></use></svg> Join video call</a>
                </div>`
             : '';
         const locHTML = locDecoded
@@ -1492,8 +1501,8 @@ const UIRenderer = {
                     ${locHTML}
                     ${descHTML}
                     <div class="cal-detail-section cal-detail-gcal">
-                        <a href="https://calendar.google.com" target="_blank" rel="noopener" class="cal-detail-gcal-link">
-                            📅 Open Google Calendar
+                        <a href="https://calendar.google.com" target="_blank" rel="noopener" class="cal-detail-gcal-link has-ico">
+                            <svg class="ico" aria-hidden="true"><use href="#ico-calendar"></use></svg> Open Google Calendar
                         </a>
                     </div>
                 </div>
@@ -1558,12 +1567,12 @@ const UIRenderer = {
                  style="--card-tint: rgba(156, 39, 176, 0.18);">
                 <div class="group-header">
                     <div class="group-title-container">
-                        <div class="group-title">📝 To-Do <span class="group-count">(${remaining})</span></div>
+                        <div class="group-title has-ico"><svg class="ico" aria-hidden="true"><use href="#ico-note"></use></svg> To-Do <span class="group-count">(${remaining})</span></div>
                     </div>
                     <div class="group-actions">
                         ${this._cardWidthButton('__todo__')}
                         <button type="button" class="group-action-btn todo-archive-btn" data-todo-action="open-archive"
-                                title="View deleted-item archive" aria-label="View deleted-item archive">🗄</button>
+                                title="View deleted-item archive" aria-label="View deleted-item archive"><svg class="ico" aria-hidden="true"><use href="#ico-archive"></use></svg></button>
                     </div>
                 </div>
                 <div class="todo-list">
@@ -1623,9 +1632,9 @@ const UIRenderer = {
             + '. Activate to edit.';
         const dateFace = task.dueDate
             ? `<span class="ts-date">${Utils.sanitizeHTML(dateText)}</span>`
-            : `<span class="ts-date ts-empty" aria-hidden="true">📅</span>`;
+            : `<span class="ts-date ts-empty" aria-hidden="true"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-calendar"></use></svg></span>`;
         const recurChip = hasRecur
-            ? `<span class="ts-recur recur-${Utils.sanitizeHTML(recur)}" aria-hidden="true" title="Repeats ${Utils.sanitizeHTML(recurLabel)}">⟳</span>`
+            ? `<span class="ts-recur recur-${Utils.sanitizeHTML(recur)}" aria-hidden="true" title="Repeats ${Utils.sanitizeHTML(recurLabel)}"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-refresh"></use></svg></span>`
             : '';
         const scheduleBtn = `
                 <button type="button" class="todo-schedule-btn ${overdue}${hasRecur ? ' has-recur' : ''}" data-todo-action="schedule" ${ids}
@@ -1701,7 +1710,7 @@ const UIRenderer = {
         modal.innerHTML = `
             <div class="modal-content todo-schedule-content">
                 <div class="modal-header">
-                    <h2 id="todoScheduleTitle">🗓 Schedule</h2>
+                    <h2 id="todoScheduleTitle" class="has-ico"><svg class="ico" aria-hidden="true"><use href="#ico-calendar-days"></use></svg> Schedule</h2>
                     <button class="close-modal" id="closeTodoSchedule" aria-label="Close">×</button>
                 </div>
                 <div class="todo-schedule-body">

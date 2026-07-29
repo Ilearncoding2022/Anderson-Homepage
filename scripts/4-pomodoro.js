@@ -704,7 +704,9 @@ const PomodoroAudio = {
         // Add file sounds if any were found
         if (fileSounds.length > 0) {
             const fileGroup = document.createElement('optgroup');
-            fileGroup.label = `🎵 Custom Sounds (${fileSounds.length})`;
+            // optgroup.label is plain text in a native <select> — it can't host
+            // an <svg>, so the icon is just dropped rather than replaced.
+            fileGroup.label = `Custom Sounds (${fileSounds.length})`;
             
             fileSounds.forEach(({ sound, index }) => {
                 const option = document.createElement('option');
@@ -712,7 +714,8 @@ const PomodoroAudio = {
                 option.textContent = sound.name;
                 
                 if (!sound.loaded) {
-                    option.textContent += ' ⏳';
+                    // option.textContent is plain text too — no icon possible here.
+                    option.textContent += ' (loading)';
                 }
                 
                 fileGroup.appendChild(option);
@@ -729,7 +732,7 @@ const PomodoroAudio = {
         
         // Always add synthetic sounds as fallback
         const synthGroup = document.createElement('optgroup');
-        synthGroup.label = '🎹 Built-in Sounds';
+        synthGroup.label = 'Built-in Sounds';
         
         synthSounds.forEach(({ sound, index }) => {
             const option = document.createElement('option');
@@ -950,6 +953,8 @@ const PomodoroAudio = {
 
     // Completion notification. Shown whenever the browser permission is granted,
     // unless the user explicitly switched it off (settings.notify === 'off').
+    // The title keeps its emoji: OS Notification titles are plain text rendered
+    // outside our DOM, so a sprite <svg> icon isn't reachable here.
     showBrowserNotification(minutes) {
         if (PomodoroState.settings.notify === 'off') return;
         const m = (typeof minutes === 'number' && minutes > 0)
@@ -1027,9 +1032,14 @@ const PomodoroHistory = {
         const targetStr = `${targetMin}:${targetSec.toString().padStart(2, '0')}`;
         const elapsedStr = `${elapsedMin}:${elapsedSec.toString().padStart(2, '0')}`;
         
-        const status = session.wasSkipped ? '⏭' : '✓';
-        
-        return `Session #${session.number}: ${targetStr} → ${elapsedStr} (${session.completionRate}%) ${status}`;
+        const status = session.wasSkipped
+            ? '<svg class="ico ico-sm" aria-hidden="true"><use href="#ico-skip"></use></svg>'
+            : '<svg class="ico ico-sm" aria-hidden="true"><use href="#ico-check"></use></svg>';
+
+        // number/completionRate are coerced rather than interpolated raw: this
+        // string goes to an innerHTML sink, and an imported history record can
+        // carry any value at all — getHistory() does no per-record normalising.
+        return `Session #${Number(session.number) || 0}: ${targetStr} → ${elapsedStr} (${Number(session.completionRate) || 0}%) ${status}`;
     }
 };
 
@@ -1446,14 +1456,24 @@ const PomodoroUI = {
             } else {
                 this.elements.startBtn.disabled = false;
                 
+                // Static label text — no user input reaches this innerHTML.
+                // The aria-label is rewritten alongside the label on every
+                // state change: the button ships with a static "Start Timer"
+                // in the HTML, so without this a screen reader announces
+                // "Start Timer" even while the button visibly reads "Pause".
+                const playIco = '<svg class="ico" aria-hidden="true"><use href="#ico-play"></use></svg>';
+                const pauseIco = '<svg class="ico" aria-hidden="true"><use href="#ico-pause"></use></svg>';
                 if (!PomodoroState.isRunning) {
-                    this.elements.startBtn.textContent = '▶ Start';
+                    this.elements.startBtn.innerHTML = `${playIco} Start`;
+                    this.elements.startBtn.setAttribute('aria-label', 'Start Timer');
                     this.elements.startBtn.classList.remove('pause');
                 } else if (PomodoroState.isPaused) {
-                    this.elements.startBtn.textContent = '▶ Resume';
+                    this.elements.startBtn.innerHTML = `${playIco} Resume`;
+                    this.elements.startBtn.setAttribute('aria-label', 'Resume Timer');
                     this.elements.startBtn.classList.remove('pause');
                 } else {
-                    this.elements.startBtn.textContent = '⏸ Pause';
+                    this.elements.startBtn.innerHTML = `${pauseIco} Pause`;
+                    this.elements.startBtn.setAttribute('aria-label', 'Pause Timer');
                     this.elements.startBtn.classList.add('pause');
                 }
             }

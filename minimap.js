@@ -93,7 +93,7 @@ const Minimap = {
 
         // Calendar is always present
         const cv = vPos['__calendar__'] || {};
-        virtualGroups.push({ id: '__calendar__', name: 'Calendar', color: 'rgba(76, 175, 80, 0.2)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true, _full: cv.width === 'full' });
+        virtualGroups.push({ id: '__calendar__', name: 'Calendar', color: 'rgba(120, 160, 220, 0.18)', position: cv.position ?? -1, column: cv.column ?? 2, _virtual: true, _full: cv.width === 'full' });
 
         // To-Do is always present
         const tv = vPos['__todo__'] || {};
@@ -147,8 +147,13 @@ const Minimap = {
             block.classList.add('mm-collapsed');
         }
 
-        // Background color
-        block.style.background = group.color || 'rgba(100,100,100,0.3)';
+        // Background color. Gated through isValidColor because `background` is a
+        // shorthand: an imported group colour of `url(http://…)` is a legal value
+        // here and would fire an outbound request from an app that is meant to
+        // make none. ui-renderer.js gates the same field the same way.
+        block.style.background = Utils.isValidColor(group.color)
+            ? group.color
+            : 'rgba(100,100,100,0.3)';
 
         const name = Utils.sanitizeHTML(group.name);
         let websiteCount;

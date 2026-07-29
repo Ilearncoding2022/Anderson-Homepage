@@ -9,6 +9,53 @@ Offline HTML + CSS + vanilla JavaScript webapp. No build tools, no frameworks, n
 - Vanilla JavaScript (ES2023+, no frameworks/libraries)
 - No bundler, no npm, no node_modules — just open index.html in a browser
 
+## Design System (v4.13+)
+
+All tokens live in `styles/1-core.css`. Use them; don't hardcode colours, radii,
+or font stacks, and don't add new `:root` variables without a reason.
+
+**Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly two places
+app-wide: the Today & Now running-light beam and the calendar's current-time bar
+(`.cal-tl-now`). Green used to do fourteen different jobs, which left the beam
+competing with everything around it. For anything that used to be green, use
+`--ok-neutral` (healthy/done), `--structural` (borders, rules), `--accent`
+(interactive/active), or `--warn`/`--danger`.
+
+**Do not modify these three** without an explicit request — the user chose them:
+the Today & Now beam (`@property --cal-today-beam` and
+`.calendar-group .cal-header-today::before` in `styles/3-groups-cards.css`), the
+upcoming-events ticker, and the glass material generally.
+
+**Glass recipe.** A pane is a translucent fill + `blur()` **paired with
+`saturate()`** (blur alone desaturates the backdrop, which is what makes glass
+read as grey plastic) + a directional lit edge. The edge is painted into a 1px
+transparent border by a two-layer background with
+`background-clip: padding-box, border-box` — deliberately *not* a pseudo-element,
+because most surfaces here already spend `::before`/`::after` on something else.
+`.glass-surface` / `.glass-control` in `1-core.css` are the reference recipes.
+
+Three traps this system has already produced, all of which fail silently:
+- **`background-clip` value count must equal the `background-image` layer
+  count.** Extra values are truncated, which kills the edge gradient entirely.
+- **A later `background:` shorthand wipes the gradient layer.** Override with
+  `background-color:` / `background-image:` longhands, never the shorthand.
+- **Theme-flip.** Most surfaces are dark in *both* themes, so text on them must
+  use `--ink` / `--ink-dim`, never `--text-primary` / `--text-secondary`, which
+  invert and render dark-on-dark in light theme. Same for `--bg-card` /
+  `--bg-secondary` backgrounds sitting on glass.
+
+**Type.** `--font-ui` (Space Grotesk) for chrome; `--font-mono` (JetBrains Mono)
+for any number that changes — clocks, timers, countdowns, usage figures — always
+with `font-variant-numeric: tabular-nums` so digits don't shift width as they
+tick. Both are self-hosted variable woff2 in `fonts/`; never load a webfont from
+a CDN.
+
+**Icons.** Monochrome stroke icons from the sprite at the top of `<body>`:
+`<svg class="ico" aria-hidden="true"><use href="#ico-name"></use></svg>`. No
+colour emoji in the UI — they can't inherit `currentColor`, so they never dim,
+match the accent, or respond to hover, and they render differently per OS. A
+control whose only content is an icon needs a real `aria-label`.
+
 ## Agent Delegation
 
 When working on tasks, delegate to the appropriate specialist agent using the Agent tool. Match the task to the best-fit agent:
