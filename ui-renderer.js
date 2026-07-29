@@ -676,6 +676,26 @@ const UIRenderer = {
                 <span id="${descId}" class="sr-only">Arrow keys adjust the height, Page Up and Page Down move in larger steps, End is the tallest that fits, Home restores automatic height.</span>`;
     },
 
+    // Open a link in a BACKGROUND tab, leaving this page in front. `target=
+    // "_blank"` alone isn't enough — that opens a foreground tab and takes the
+    // user away from the homepage. What actually backgrounds a new tab is the
+    // platform's own modifier (Ctrl, or ⌘ on macOS), so re-dispatch the click
+    // with it held and let the browser do the rest.
+    //
+    // The synthetic click re-enters this handler; it carries the modifier, so
+    // the guard below returns early and the anchor's default action runs. A
+    // genuine modified click (or a middle-click) is passed straight through for
+    // the same reason — the user's own modifier already says what to do.
+    openInBackgroundTab(e, a) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        const mac = /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent || '');
+        a.dispatchEvent(new MouseEvent('click', {
+            bubbles: true, cancelable: true, view: window,
+            ctrlKey: !mac, metaKey: mac,
+        }));
+    },
+
     createCalendarSection(column) {
         const cm = window.CalendarManager;
         const isConfigured = cm?.state.isConfigured;
@@ -711,6 +731,13 @@ const UIRenderer = {
 
         const calLayout = this._getCardLayout('__calendar__');
 
+        // Only a full-width card has room to keep the ticker inline in the header
+        // beside the title cluster and the centered "Today & Now". At column width
+        // it gets its own row between the header and the events area instead.
+        // Safe to decide at render time: toggling the width re-renders the card.
+        const isFullWidth = calLayout.width === 'full';
+        const ticker = this._calendarHeaderTicker(isFullWidth ? 'header' : 'row');
+
         return `
             <div class="app-group virtual-group calendar-group"
                  data-group-id="__calendar__"
@@ -719,7 +746,9 @@ const UIRenderer = {
                 <div class="group-header">
                     <div class="group-title-container">
                         <div class="group-title">
-                            <a class="calendar-icon-link" href="https://calendar.google.com" title="Open Google Calendar">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
+                            <a class="calendar-icon-link" href="https://calendar.google.com" target="_blank" rel="noopener"
+                               title="Open Google Calendar in a background tab"
+                               onclick="UIRenderer.openInBackgroundTab(event, this)">📅</a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
                         </div>
                         <div class="calendar-header-meta">
                             ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now">↻</button>` : ''}
@@ -728,10 +757,11 @@ const UIRenderer = {
                             ${fetchError ? `<span class="calendar-error-dot" title="${Utils.sanitizeHTML(fetchError)}">!</span>` : ''}
                             ${this._cardWidthButton('__calendar__')}
                         </div>
-                        ${this._calendarHeaderTicker()}
+                        ${isFullWidth ? ticker : ''}
                         ${isConfigured && viewMode !== 'list' ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now (Enter)">Today &amp; Now</button>` : ''}
                     </div>
                 </div>
+                ${isFullWidth ? '' : ticker}
                 <div class="calendar-events-container">
                     ${contentHTML}
                 </div>
@@ -1084,7 +1114,12 @@ const UIRenderer = {
     // Same dot/time helpers and double-sequence loop trick as the ticker
     // branch this replaced; only the gating and the extra cal-upcoming-header
     // class (for header-scale sizing) differ.
-    _calendarHeaderTicker() {
+    //
+    // `placement` is 'header' (inline in the title row, full-width cards) or
+    // 'row' (its own full-width strip under the header, column-width cards).
+    // Only the slot wrapper's class changes — the ticker itself is identical, so
+    // _sizeUpcomingTicker measures and animates it the same way either way.
+    _calendarHeaderTicker(placement = 'header') {
         const cm = window.CalendarManager;
         if (!cm?.state.isConfigured) return '';
         if ((cm.getViewMode?.() || 'list') === 'list') return '';
@@ -1128,7 +1163,9 @@ const UIRenderer = {
         const dur = Math.max(16, Math.round(events.length * 7 / (0.85 * 0.9)));
         // Slot fills the header's remaining width and right-aligns the ticker,
         // which is itself only 57.8% wide (42.2% narrower than the full slot).
-        return `<div class="cal-upcoming-header-slot">
+        // In 'row' placement the slot is a full-width block instead and the
+        // ticker spans all of it.
+        return `<div class="cal-upcoming-header-slot${placement === 'row' ? ' cal-upcoming-row-slot' : ''}">
             <div class="cal-upcoming-bar cal-upcoming-ticker cal-upcoming-header" aria-label="Upcoming events">
                 <div class="cal-upcoming-track" style="--cal-ticker-dur:${dur}s">${seq(false)}${seq(true)}</div>
             </div>
@@ -1196,7 +1233,7 @@ const UIRenderer = {
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
-        const HOUR_H = 46;   // px per hour row
+        const HOUR_H = 39;   // px per hour row (15% tighter than the original 46)
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
         // one reduced-height row each, not their real length.
         const spanHours = model.displaySpanMin / 60;
@@ -1595,13 +1632,21 @@ const UIRenderer = {
                         title="Due date & repeat — click to edit"
                         aria-label="${scheduleAria}">${dateFace}${recurChip}</button>`;
 
+        // The text field is a <textarea>, not a text input, so a long task wraps
+        // onto a second line instead of scrolling out of sight sideways. It is
+        // written one row tall and _fitTodoText grows it to at most two; past
+        // that the text is clipped. Enter still commits the edit (the keydown
+        // handler blurs it), so no newline can be typed into a task. The value
+        // is element content here, not an attribute — nothing may sit between
+        // the tag's ">" and safeText or it would become leading whitespace.
         return `
             <div class="todo-item ${isSub ? 'todo-sub' : ''} ${task.done ? 'done' : ''}" ${ids}>
                 ${dragHandle}
                 <input type="checkbox" class="todo-check" data-todo-action="toggle" ${ids}
                        ${task.done ? 'checked' : ''} aria-label="${task.done ? 'Mark not done' : 'Mark done'}: ${name}">
-                <input type="text" class="todo-text" data-todo-action="text" ${ids}
-                       value="${safeText}" placeholder="${isSub ? 'Subtask' : 'Task'}…" aria-label="${isSub ? 'Subtask' : 'Task'} text">
+                <textarea class="todo-text" data-todo-action="text" ${ids} rows="1"
+                       placeholder="${isSub ? 'Subtask' : 'Task'}…" aria-label="${isSub ? 'Subtask' : 'Task'} text"
+                       >${safeText}</textarea>
                 <button type="button" class="todo-urgency urg-${urgency}" data-todo-action="urgency" ${ids}
                         title="Urgency: ${urgencyLabel} — click to change"
                         aria-label="Urgency for ${name}: ${urgencyLabel}. Activate to change.">${urgencyLabel}</button>
@@ -1792,6 +1837,14 @@ const UIRenderer = {
                 e.preventDefault();
                 this.openTodoArchive();
             }
+        });
+
+        // Re-wrap the edited field as it's typed in — the row only re-renders on
+        // commit (blur/Enter), so without this the field would stay at the row
+        // count it had when the card was built.
+        container.addEventListener('input', (e) => {
+            const el = e.target.closest('.todo-text');
+            if (el) this._fitTodoTextField(el);
         });
 
         container.addEventListener('keydown', (e) => {
@@ -2174,6 +2227,11 @@ const UIRenderer = {
         if (!todoGroup || !list) return;
         if (this._cardDragActive() && this._cardResize.id === '__todo__') return;
 
+        // Row heights depend on how the task text wraps, so settle that first —
+        // this runs on every path that re-evaluates the card's box (render,
+        // scoped To-Do re-render, debounced window resize, font-size change).
+        this._fitTodoText(todoGroup);
+
         const manual = this._getCardLayout('__todo__').height;
         if (manual == null) {
             this._clearCardHeightPx(list);
@@ -2181,6 +2239,32 @@ const UIRenderer = {
             return;
         }
         this._applyCardHeightPx(todoGroup, manual);
+    },
+
+    // ---- To-Do text wrapping -------------------------------------------------
+    // Task/subtask fields wrap and may take up to TODO_TEXT_MAX_ROWS lines; text
+    // past that is clipped (CSS overflow) rather than shown. A textarea has no
+    // content-driven auto-height in CSS, so the row count is set here.
+    TODO_TEXT_MAX_ROWS: 2,
+
+    _fitTodoText(scope) {
+        (scope || document).querySelectorAll('.todo-text')
+            .forEach(el => this._fitTodoTextField(el));
+    },
+
+    // Grow one field to the fewest rows that hold its text, capped at the max.
+    // Counting rows (rather than measuring a pixel height) keeps this correct
+    // under the card's font-size setting and its sub-1 `zoom` companion, whose
+    // scaling would otherwise have to be undone by hand. scrollHeight and
+    // clientHeight both include padding, so they compare directly; the 2px
+    // tolerance absorbs sub-pixel line-height rounding on a field that really
+    // does fit on one line.
+    _fitTodoTextField(el) {
+        if (!el) return;
+        for (let rows = 1; rows <= this.TODO_TEXT_MAX_ROWS; rows++) {
+            el.rows = rows;
+            if (el.scrollHeight <= el.clientHeight + 2) return;
+        }
     },
 
     // ---- Timeline scroll position -------------------------------------------

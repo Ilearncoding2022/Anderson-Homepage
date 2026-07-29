@@ -12,6 +12,7 @@
 /* Inputs and buttons don't inherit font-family by default, so the chosen card
    font reaches every piece of text (task fields, badges, the date picker). */
 .todo-group input,
+.todo-group textarea,
 .todo-group button,
 .todo-group .group-title {
     font-family: inherit;
@@ -133,10 +134,22 @@
     background: rgba(171, 71, 188, 0.28);
 }
 
-/* Editable text — looks like plain text, behaves like an input */
+/* Editable text — looks like plain text, behaves like an input. It is a
+   <textarea> so long text wraps onto a second line instead of scrolling out of
+   sight sideways; UIRenderer._fitTodoText sets rows to 1 or 2 from the content
+   (a textarea can't size itself to its text in CSS). At the 2-row cap the rest
+   is clipped by overflow:hidden — which also keeps the browser's textarea
+   scrollbar out of the row, while still scrolling the caret into view while
+   typing past the cap. */
 .todo-text {
     flex: 1 1 auto;
     min-width: 0;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.35;
+    /* Wrap mid-word only when a single "word" (a long URL) can't fit — normal
+       text still breaks at spaces. */
+    overflow-wrap: break-word;
     /* Grows to fill the space left of the fixed-width control group, which pushes
        the urgency badge + schedule + buttons to the row's right edge. Because the
        group is a fixed width and the row's right edge is the same for tasks and
