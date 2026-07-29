@@ -57,7 +57,8 @@ const DbManager = {
         'timezone1Label', 'timezone2Label', 'timezone3Label',
         'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive',
         'todoFontSettings', 'calendarFontSettings',
-        'virtualGroupPositions', 'minimapOpen'
+        'virtualGroupPositions', 'minimapOpen',
+        'claudeProjectsSettings', 'claudeProjectsNames'
     ],
 
     // ===================== "Effectively empty" localStorage detection =====================

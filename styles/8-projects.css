@@ -1,0 +1,327 @@
+/* ==========================================
+   8-PROJECTS.CSS - Project Status Bar
+   Anderson Homepage v4.14
+
+   A row of glass panes below the header, one per live Claude Code session
+   (grouped by working directory), fed by scripts/9-projects.js from the
+   machine-generated claude-projects.js at the app root. See that script's
+   header comment for the data pipeline.
+   ========================================== */
+
+/* ----------------------------------------
+   1. The row
+   ---------------------------------------- */
+
+.projects-row-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    opacity: 0;
+    transition: grid-template-rows 240ms ease, opacity 200ms ease;
+}
+
+.projects-row-wrap.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+/* display:grid above would defeat the UA's [hidden] rule without this —
+   same trap as .usage-widget[hidden] in 2-components.css. */
+.projects-row-wrap[hidden] {
+    display: none;
+}
+
+.projects-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding-bottom: 1rem;
+    min-height: 0;            /* required for the 0fr collapse */
+    list-style: none;
+}
+
+.projects-row[data-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.projects-row[data-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projects-more {
+    align-self: center;
+    justify-self: start;
+    padding-left: 4px;
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Not a glass pane, so it sits on the page background — --ink-dim is a
+   glass-only token and measures ~2.5:1 on the light theme's white. */
+[data-theme="light"] .projects-more {
+    color: var(--text-secondary);
+}
+
+/* ----------------------------------------
+   2. Each bar
+   ---------------------------------------- */
+
+.project-bar {
+    /* .glass-surface supplies the background-image layers + clip + blur;
+       override ONLY these. */
+    background-color: var(--glass-group-fill);
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-lift-sm), var(--glass-inset);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 14px 12px 20px;
+    min-height: 58px;
+    color: var(--ink);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    cursor: default;
+    transition: box-shadow 0.25s ease;
+    --pb-hue: var(--structural);
+}
+
+.pb-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.pb-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-count {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+}
+
+.pb-time {
+    flex: none;
+    margin-left: auto;
+    padding-left: 0.6rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+}
+
+.pb-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.pb-state {
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    color: var(--ink);
+}
+
+.pb-activity {
+    min-width: 0;
+    padding-left: 0.45rem;
+    border-left: 1px solid var(--structural);
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ----------------------------------------
+   3. State visual language (no green anywhere)
+   ---------------------------------------- */
+
+.project-bar.is-working   { --pb-hue: var(--accent); }
+.project-bar.is-needs-you { --pb-hue: var(--warn); }
+.project-bar.is-your-turn { --pb-hue: var(--ok-neutral); }
+.project-bar.is-idle      { --pb-hue: var(--structural); }
+
+/* Left rail — peripheral channel. */
+.project-bar::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 8px;
+    width: 3px;
+    border-radius: 2px;
+    background-color: var(--pb-hue);
+    transition: background-color 0.25s ease;
+}
+
+/* Indicator dot / alert glyph — focal channel. Both glyphs stay in the DOM
+   always; CSS toggles which one is visible so JS never touches display. */
+.pb-ind {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pb-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: var(--pb-hue);
+    transition: background-color 0.25s ease;
+}
+
+.pb-alert {
+    display: none;
+    --ico-size: 12px;
+    color: var(--warn);
+}
+
+.is-needs-you .pb-dot   { display: none; }
+.is-needs-you .pb-alert { display: block; }
+
+.project-bar.is-needs-you {
+    box-shadow: var(--glass-lift-sm), var(--glass-inset),
+        0 0 0 1px rgba(255, 180, 84, 0.45),
+        0 0 22px -6px rgba(255, 180, 84, 0.5);
+}
+
+.is-needs-you .pb-state, .is-needs-you .pb-time { color: var(--warn); }
+
+/* Idle recedes — no opacity, no filter (both would also mute --ink text). */
+.project-bar.is-idle { box-shadow: var(--glass-inset); }
+
+.is-idle .pb-name, .is-idle .pb-time, .is-idle .pb-state { color: var(--ink-dim); }
+
+/* ----------------------------------------
+   4. Needs-you blink
+   ---------------------------------------- */
+
+.projects-row { --pb-blink-dur: 1.2s; }
+
+.project-bar.is-needs-you .pb-ind { animation: pb-blink-ind var(--pb-blink-dur) linear infinite; }
+.project-bar.is-needs-you::before { animation: pb-blink-rail var(--pb-blink-dur) linear infinite; }
+
+@keyframes pb-blink-ind  { 0%, 42% { opacity: 1; } 50%, 92% { opacity: 0.14; } 100% { opacity: 1; } }
+@keyframes pb-blink-rail { 0%, 42% { opacity: 1; } 50%, 92% { opacity: 0.5; }  100% { opacity: 1; } }
+
+/* Reduced motion — MANDATORY !important. 5-pomodoro.css:1086 has a global
+   `* { animation-duration: 0.01ms !important; ... }` killer that would
+   otherwise silently disable this and leave needs-you with no attention
+   mechanism at all. */
+@keyframes pb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .project-bar.is-needs-you .pb-ind,
+    .project-bar.is-needs-you::before {
+        animation-name: pb-pulse !important;
+        animation-duration: 3.2s !important;
+        animation-timing-function: ease-in-out !important;
+        animation-iteration-count: infinite !important;
+    }
+}
+
+/* ----------------------------------------
+   5. New-bar enter animation
+   ---------------------------------------- */
+
+@keyframes pb-enter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.project-bar.is-new { animation: pb-enter 220ms ease-out; }
+
+/* ----------------------------------------
+   6. Settings tab — Project status bar
+   ---------------------------------------- */
+
+.projects-settings-check-row {
+    margin-bottom: 1.5rem;
+}
+
+.projects-settings-check {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.projects-settings-check input[type="checkbox"] {
+    width: auto;
+    flex: 0 0 auto;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+
+.projects-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.projects-name-row:last-child {
+    border-bottom: none;
+}
+
+/* #settingsTabProjects-scoped (not just the bare class) so these beat the
+   generic ".form-group label" / ".form-group input" rules in 4-interactions.css
+   (same specificity trap as the calendar-source rows) — otherwise the label
+   silently loses its flex sizing/colour and the input is forced to width:100%. */
+#settingsTabProjects .projects-name-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: default;
+}
+
+#settingsTabProjects .projects-name-input {
+    flex: 0 0 auto;
+    width: 220px;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.projects-names-empty {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-style: italic;
+}

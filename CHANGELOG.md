@@ -5,6 +5,31 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.14] — 2026-07-29
+
+### Live Claude Code project status
+
+- **A project status row under the header (new):** while Claude Code is working
+  in a VS Code window or a terminal, a glass bar appears for each project
+  showing its name, what Claude is doing right now (coding, testing, reading,
+  planning), and a live clock of time since its last activity. One project
+  fills the row, two or three share it, and past six the rest fold into a
+  quiet "+N more" note. The row slides away when every session ends.
+- **It blinks when Claude needs you (new):** the moment a session stops to ask
+  permission for a command, its bar turns amber, swaps its dot for a warning
+  glyph and blinks until you answer in that VS Code window. The clock switches
+  to how long Claude has been waiting on you. Under reduced motion the blink
+  becomes a slow breath rather than disappearing.
+- **Projects can be renamed (new):** Settings gained a Projects tab where every
+  project the tracker has seen can be given a friendlier display name than its
+  folder, and where the idle timing, hide timing and the on/off switch for the
+  whole feature live. Names and settings ride along in backups.
+- **How it works, and what it never records:** Claude Code hooks report session
+  events to a small local script that keeps one status file beside the app.
+  Only project paths, tool names and timings are kept — never prompts, command
+  text or file contents — nothing leaves the machine, and the status file is
+  invisible to git.
+
 ## [v4.13] — 2026-07-29
 
 ### A glass design language, applied everywhere

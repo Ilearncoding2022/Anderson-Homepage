@@ -18,7 +18,7 @@
 // adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
 // them into the <title>, the menu's "What's new" item, and the changelog modal
 // header, so those three spots can never drift out of sync.
-const APP_VERSION = 'v4.13';
+const APP_VERSION = 'v4.14';
 const APP_RELEASE_DATE = '2026-07-29';
 
 // Six hues, two intensities each. Intensity is the hierarchy tool now — a
@@ -100,6 +100,9 @@ const Storage = {
     // is also excluded from the JSON export — it will be rebuilt on next fetch.
     // 'calendarProxyToken' IS included in the key list so it round-trips through
     // the SQLite mirror, but is explicitly nulled in the JSON export for security.
+    // 'claudeProjectsSeen' is deliberately excluded: it's machine-derived (which
+    // project folders this machine has seen Claude Code sessions in) and would
+    // just be repopulated by the next hook event, so it never belongs in a backup.
     // ---------------------------------------------------------------------------
     ALL_APP_KEYS: [
         'websites', 'groups', 'theme', 'view', 'iconSize',
@@ -114,7 +117,8 @@ const Storage = {
         'timezone1Label', 'timezone2Label', 'timezone3Label',
         'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive',
         'todoFontSettings', 'calendarFontSettings',
-        'virtualGroupPositions', 'minimapOpen'
+        'virtualGroupPositions', 'minimapOpen',
+        'claudeProjectsSettings', 'claudeProjectsNames'
     ],
 
     // Current export format version. Bump when the shape changes in a
@@ -661,6 +665,43 @@ const Storage = {
                 Utils.safeLocalStorageSet(key, JSON.stringify(fs));
             }
         });
+
+        // ---- Claude Projects widget settings ----
+        // ProjectsWidget re-validates these on load too, but re-validating here
+        // (rather than trusting the backup) keeps a hand-edited/corrupt file
+        // from ever reaching localStorage with an out-of-range option.
+        if (data.claudeProjectsSettings) {
+            const cps = typeof data.claudeProjectsSettings === 'string'
+                ? Utils.safeJSONParse(data.claudeProjectsSettings, null)
+                : data.claudeProjectsSettings;
+            if (cps && typeof cps === 'object' && !Array.isArray(cps)) {
+                const clean = {
+                    enabled: cps.enabled !== false,
+                    idleMin: [1, 3, 5, 10].includes(Number(cps.idleMin)) ? Number(cps.idleMin) : 3,
+                    hideMin: [10, 30, 60, 120].includes(Number(cps.hideMin)) ? Number(cps.hideMin) : 30
+                };
+                Utils.safeLocalStorageSet('claudeProjectsSettings', JSON.stringify(clean));
+            }
+        }
+
+        // ---- Claude Projects custom names ----
+        // Rebuilt key by key rather than stored as given: own string values
+        // only, length-capped, and __proto__/constructor/prototype keys are
+        // dropped (same prototype-pollution guard as virtualGroupPositions above).
+        if (data.claudeProjectsNames) {
+            const cpn = typeof data.claudeProjectsNames === 'string'
+                ? Utils.safeJSONParse(data.claudeProjectsNames, null)
+                : data.claudeProjectsNames;
+            if (cpn && typeof cpn === 'object' && !Array.isArray(cpn)) {
+                const clean = {};
+                for (const [key, val] of Object.entries(cpn)) {
+                    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+                    if (typeof val !== 'string') continue;
+                    clean[key] = val.slice(0, 60);
+                }
+                Utils.safeLocalStorageSet('claudeProjectsNames', JSON.stringify(clean));
+            }
+        }
 
         // ---- Re-render in place then reload ----
         // Trigger a render so the UI reflects the imported state before the
