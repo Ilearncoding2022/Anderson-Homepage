@@ -295,16 +295,28 @@
 .usage-widget[hidden] { display: none; }
 .usage-row[hidden] { display: none; }
 
-/* Three stacked <span> lines — flex gap spaces them without inflating the
-   line box the way a larger line-height would. */
+/* The brand block: logo on top, two stacked <span> lines under it — flex gap
+   spaces them without inflating the line box the way a larger line-height
+   would. The whole rectangle is one anchor, so logo and label are a single
+   click target. */
 .usage-title {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 2px;
     line-height: 1.2;
-    text-align: left;
+    text-align: center;
     white-space: nowrap;
     font-weight: 600;
+}
+
+/* Intrinsically 497x502 — scaled down here. The margin is the "shift the
+   label down" gap between the logo and the first text line (adds to the 2px
+   flex gap). */
+.usage-logo {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 3px;
 }
 
 .usage-rows {
@@ -341,7 +353,7 @@
    it is why the marker overhangs the capsule top and bottom: it has to read as
    an indicator laid across the scale rather than as part of it.
 
-   No overflow:hidden here, or the overhang would be clipped; the ::before below
+   No overflow:hidden here, or the overhang would be clipped; .usage-segs below
    rounds and clips the colour blocks itself. */
 .usage-bar {
     position: relative;
@@ -351,26 +363,58 @@
     background: #fff;              /* the white gutter between capsule and blocks */
 }
 
-/* Two stacked gradients: the colour ramp underneath, and white separators over
-   it at every 10%, which is what makes ten discrete blocks out of one ramp
-   rather than ten elements. */
-.usage-bar::before {
-    content: "";
+/* Ten real segment elements (built once by 8-usage.js) instead of the old
+   gradient ramp — each one has to dim and pulse on its own, which a single
+   background can't do. The flex gap is the white separator; the capsule's
+   white background shows through it. */
+.usage-segs {
     position: absolute;
     inset: 1.5px;
     border-radius: 7px;
-    background:
-        repeating-linear-gradient(90deg,
-            rgba(255,255,255,0) 0,
-            rgba(255,255,255,0) calc(10% - 1.5px),
-            #fff calc(10% - 1.5px),
-            #fff 10%),
-        linear-gradient(90deg,
-            #57C4E8 0 20%,
-            #A3C55F 20% 40%,
-            #FBC94B 40% 60%,
-            #F0912B 60% 80%,
-            #C0392B 80% 100%);
+    overflow: hidden;
+    display: flex;
+    gap: 1.5px;
+}
+
+/* skewX makes each block a parallelogram. Unused segments keep their hue but
+   sit washed out until the reading passes them (.is-used, set from the same
+   pct that drives the marker). */
+.usage-seg {
+    flex: 1;
+    transform: skewX(-14deg);
+    opacity: 0.3;
+}
+
+/* The skew leaves white notches at the capsule caps; bleed the end segments
+   outward so the clip (overflow:hidden above) trims the notches instead.
+   tan(14°) × 17px of height ≈ 4.2px of lean, so 5px covers it. */
+.usage-seg:first-child { margin-left: -5px; }
+.usage-seg:last-child { margin-right: -5px; }
+
+/* Cool-to-hot ramp, two segments per colour; later rules override earlier so
+   each range only needs its lower bound. */
+.usage-seg { background: #57C4E8; }
+.usage-seg:nth-child(n+3) { background: #A3C55F; }
+.usage-seg:nth-child(n+5) { background: #FBC94B; }
+.usage-seg:nth-child(n+7) { background: #F0912B; }
+.usage-seg:nth-child(n+9) { background: #C0392B; }
+
+/* The wave: every used segment shares one cycle of used-count × 1s (set as
+   --pulse-cycle by 8-usage.js) and starts 1s later than its neighbour, so the
+   pulse walks segment 1 → current, then the cycle restarts at segment 1.
+   The envelope is percentage-based, so the blip is briefer on short cycles,
+   but the 1s spacing between segments is fixed by the delay.
+   The global reduced-motion animation killer stops this and leaves the
+   bright/dim split, which carries the reading on its own. */
+.usage-seg.is-used {
+    opacity: 1;
+    animation: usage-seg-pulse var(--pulse-cycle, 10s) linear infinite;
+    animation-delay: calc(var(--seg-i, 0) * 1s);
+}
+
+@keyframes usage-seg-pulse {
+    0%, 10%, 100% { transform: skewX(-14deg) scaleY(1); filter: none; }
+    5% { transform: skewX(-14deg) scaleY(1.18); filter: brightness(1.35) saturate(1.25); }
 }
 
 /* The reading. Sits at the marker's percentage along the scale; the translate
@@ -411,11 +455,31 @@
         0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
+/* Both halves of the widget are plain anchors (8-usage.js reroutes the click
+   to a background tab) — strip the UA link blue/underline so they keep reading
+   as widget chrome. No title attribute on them: the widget-level staleness
+   tooltip should show through. */
+.usage-widget a.usage-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.usage-title.usage-link:hover span { text-decoration: underline; }
+
+/* Word + one fixed slot per unit (d/h/m), units right-aligned, so "21h" and
+   "4h" line up vertically even when one row shows d+h and another h+m. The
+   slots are ch-sized — safe because the font is mono, where every glyph is
+   exactly 1ch. Empty slots keep their column, which is the whole point. */
 .usage-resets {
+    display: grid;
+    grid-template-columns: auto 2ch 3ch 3ch;
+    column-gap: 0.5ch;
     white-space: nowrap;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
 }
+
+.usage-resets .usage-unit { text-align: right; }
 
 /* Severity classes are still set by 8-usage.js, but the gauge already encodes
    it: on a fixed 0-100 scale the marker is standing on the amber or red blocks

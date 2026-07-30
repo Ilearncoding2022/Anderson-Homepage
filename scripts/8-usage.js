@@ -24,16 +24,38 @@ const UsageWidget = {
     KINDS: ['session', 'weekly_all', 'weekly_scoped'],
 
     _loaded: false,
+    _linksBound: false,
     _reloadTimer: null,
     _tickTimer: null,
 
     start() {
-        if (!document.getElementById('usageWidget')) return;
+        const widget = document.getElementById('usageWidget');
+        if (!widget) return;
+        this._bindLinks(widget);
         clearInterval(this._reloadTimer);
         clearInterval(this._tickTimer);
         this._load();
         this._reloadTimer = setInterval(() => this._load(), this.RELOAD_MS);
         this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
+    },
+
+    // Title → claude.ai/new, gauges/countdowns → usage settings. A plain
+    // anchor (or window.open) would open a FOREGROUND tab and yank focus off
+    // the homepage, so the click is intercepted and replayed as a synthetic
+    // ctrl/cmd+click, which Chromium honours as "open in background tab".
+    // Keyboard activation (Enter) fires a click event too, so this covers it.
+    _bindLinks(widget) {
+        if (this._linksBound) return;
+        this._linksBound = true;
+        widget.addEventListener('click', (e) => {
+            const link = e.target.closest('a.usage-link');
+            if (!link || !widget.contains(link)) return;
+            e.preventDefault();
+            const a = document.createElement('a');
+            a.href = link.href;
+            a.rel = 'noopener';
+            a.dispatchEvent(new MouseEvent('click', { ctrlKey: true, metaKey: true }));
+        });
     },
 
     // Re-inject the data script; ?t= busts the cache (works on file:// in
@@ -72,7 +94,10 @@ const UsageWidget = {
             const pctEl = row.querySelector('.usage-pct');
             if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
             const bar = row.querySelector('.usage-bar');
-            if (bar) bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+            if (bar) {
+                bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+                this._updateSegments(bar, pct);
+            }
             // Green ≤49%, yellow 50–79%, red ≥80% — or earlier if the API says so.
             const danger = pct >= 80 || limit.severity === 'danger' || limit.severity === 'exceeded';
             const warn = pct >= 50 || limit.severity === 'warn' || limit.severity === 'elevated';
@@ -92,6 +117,32 @@ const UsageWidget = {
         this._tick();
     },
 
+    // The ten colour blocks are real elements (styled/animated per segment in
+    // 2-components.css), built here on first render rather than repeated three
+    // times in the HTML. --seg-i feeds each segment's animation-delay;
+    // --pulse-cycle (used-count × 1s) makes the pulse walk 1 → current and
+    // restart. Purely decorative — aria-valuenow/valuetext carry the reading.
+    _updateSegments(bar, pct) {
+        let segs = bar.querySelector('.usage-segs');
+        if (!segs) {
+            segs = document.createElement('span');
+            segs.className = 'usage-segs';
+            for (let i = 0; i < 10; i++) {
+                const seg = document.createElement('span');
+                seg.className = 'usage-seg';
+                seg.style.setProperty('--seg-i', i);
+                segs.appendChild(seg);
+            }
+            bar.prepend(segs);   // before the marker/pct so it paints underneath
+        }
+        // ceil, so any non-zero usage lights (and pulses) at least segment 1.
+        const used = Math.min(10, Math.ceil(pct / 10));
+        segs.style.setProperty('--pulse-cycle', `${Math.max(1, used)}s`);
+        segs.querySelectorAll('.usage-seg').forEach((seg, i) => {
+            seg.classList.toggle('is-used', i < used);
+        });
+    },
+
     _tick() {
         if (!this._loaded) return;
         const data = window.ClaudeUsage;
@@ -102,9 +153,19 @@ const UsageWidget = {
             if (!this.KINDS.includes(limit.kind)) continue;
             const row = widget.querySelector(`.usage-row[data-kind="${limit.kind}"]`);
             if (!row) continue;
-            const resets = this._resetsLabel(limit.resetsAt);
+            const parts = this._resetsParts(limit.resetsAt);
             const el = row.querySelector('.usage-resets');
-            if (el) el.textContent = resets;
+            if (el) {
+                // Fixed sub-spans (word / d / h / m) instead of one string, so
+                // CSS can column-align the units across rows — otherwise the
+                // session's "4h 57m" sits under another row's "3d 21h" with
+                // hours over days.
+                el.querySelector('.usage-resets-word').textContent = parts ? parts.word : '';
+                el.querySelector('.usage-unit-d').textContent = parts ? parts.d : '';
+                el.querySelector('.usage-unit-h').textContent = parts ? parts.h : '';
+                el.querySelector('.usage-unit-m').textContent = parts ? parts.m : '';
+            }
+            const resets = parts ? parts.text : '';
             const bar = row.querySelector('.usage-bar');
             if (bar) {
                 const pctText = row.querySelector('.usage-pct')?.textContent || '';
@@ -124,16 +185,27 @@ const UsageWidget = {
         if (note) note.textContent = stale ? `Usage data outdated (from ${fetchedLabel})` : '';
     },
 
-    _resetsLabel(resetsAt) {
+    // Split into { word, d, h, m, text }: the sub-spans get the pieces, the
+    // aria-valuetext keeps the flat sentence. Empty slots stay empty strings —
+    // the CSS grid reserves their column so units align across rows.
+    _resetsParts(resetsAt) {
         const ms = Date.parse(resetsAt) - Date.now();
-        if (!Number.isFinite(ms)) return '';
-        if (ms <= 0) return 'resetting…';
+        if (!Number.isFinite(ms)) return null;
+        if (ms <= 0) return { word: 'resetting…', d: '', h: '', m: '', text: 'resetting…' };
         const mins = Math.ceil(ms / 60000);
-        if (mins < 60) return `Resets in ${mins}m`;
         const hours = Math.floor(mins / 60);
-        if (hours < 24) return `Resets in ${hours}h ${mins % 60}m`;
-        const days = Math.floor(hours / 24);
-        return `Resets in ${days}d ${hours % 24}h`;
+        let d = '', h = '', m = '';
+        if (mins < 60) {
+            m = `${mins}m`;
+        } else if (hours < 24) {
+            h = `${hours}h`;
+            m = `${mins % 60}m`;
+        } else {
+            d = `${Math.floor(hours / 24)}d`;
+            h = `${hours % 24}h`;
+        }
+        const text = `Resets in ${[d, h, m].filter(Boolean).join(' ')}`;
+        return { word: 'Resets in', d, h, m, text };
     }
 };
 

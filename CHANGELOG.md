@@ -5,6 +5,31 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.16] — 2026-07-30
+
+### Usage widget & project row polish
+
+- **The usage tracker is now a door to Claude (new):** the brand block — a new
+  Claude logo above a shortened "Claude Usage" label — opens claude.ai in a
+  background tab, and clicking anywhere on the gauges or countdowns opens the
+  usage settings page instead. Background means background: the homepage keeps
+  focus, and the tab is waiting when you want it.
+- **Countdowns line up (new):** the "Resets in" figures now keep days, hours
+  and minutes in fixed columns, so one row's hours no longer sit under another
+  row's days and the three timers can be compared at a glance.
+- **The gauges got a new look (new):** the ten colour blocks are now slanted
+  parallelogram segments; the ones past your current usage stay in their hue
+  but sit dimmed, and the used segments carry a pulse that walks from the
+  first segment up to the reading, one segment per second, then starts over.
+- **A project waiting on approval now runs lights around its pane (new):**
+  the blink alone was easy to miss, so a needs-approval bar borrows the
+  Today & Now running-light ring — in the same orange as the NEEDS APPROVAL
+  text, with two lights setting off from opposite corners and circling the
+  pane. Reduced-motion users get a steady orange ring instead.
+- **The project row introduces itself (new):** a small "Claude Projects"
+  header now sits to the left of the first bar, so the row of glass panes no
+  longer relies on context to say what it is.
+
 ## [v4.15] — 2026-07-29
 
 ### Multi-agent project status

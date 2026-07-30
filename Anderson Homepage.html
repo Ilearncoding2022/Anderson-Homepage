@@ -392,26 +392,31 @@
                  generated usage-data.js (written by tools/update-claude-usage.ps1).
                  Stays hidden until the data file loads successfully. -->
             <div id="usageWidget" class="usage-widget" hidden>
-                <!-- Three separate lines (not <br>) so .usage-title can space them
-                     with a flex gap instead of leaning on line-height. -->
-                <span class="usage-title"><span>Claude</span><span>Usage</span><span>Tracker</span></span>
-                <div class="usage-rows">
+                <!-- Separate lines (not <br>) so .usage-title can space them
+                     with a flex gap instead of leaning on line-height.
+                     Both halves are links (8-usage.js intercepts the click and
+                     opens the href in a background tab): the brand block
+                     (logo + label, one rectangle) → new chat, gauges/countdowns
+                     → usage settings. Decorative alt="" — the text lines
+                     already name the link. -->
+                <a class="usage-title usage-link" href="https://claude.ai/new"><img class="usage-logo" src="Claude logo.png" alt=""><span>Claude</span><span>Usage</span></a>
+                <a class="usage-rows usage-link" href="https://claude.ai/new#settings/usage" aria-label="Open Claude usage settings">
                     <div class="usage-row" data-kind="session">
                         <span class="usage-label">Session</span>
                         <div class="usage-bar" role="progressbar" aria-label="Session usage" aria-valuemin="0" aria-valuemax="100"><span class="usage-marker"></span><span class="usage-pct">--%</span></div>
-                        <span class="usage-resets"></span>
+                        <span class="usage-resets"><span class="usage-resets-word"></span><span class="usage-unit usage-unit-d"></span><span class="usage-unit usage-unit-h"></span><span class="usage-unit usage-unit-m"></span></span>
                     </div>
                     <div class="usage-row" data-kind="weekly_all">
                         <span class="usage-label">Week (All)</span>
                         <div class="usage-bar" role="progressbar" aria-label="Weekly usage" aria-valuemin="0" aria-valuemax="100"><span class="usage-marker"></span><span class="usage-pct">--%</span></div>
-                        <span class="usage-resets"></span>
+                        <span class="usage-resets"><span class="usage-resets-word"></span><span class="usage-unit usage-unit-d"></span><span class="usage-unit usage-unit-h"></span><span class="usage-unit usage-unit-m"></span></span>
                     </div>
                     <div class="usage-row" data-kind="weekly_scoped">
                         <span class="usage-label">Week (Fable)</span>
                         <div class="usage-bar" role="progressbar" aria-label="Weekly Fable usage" aria-valuemin="0" aria-valuemax="100"><span class="usage-marker"></span><span class="usage-pct">--%</span></div>
-                        <span class="usage-resets"></span>
+                        <span class="usage-resets"><span class="usage-resets-word"></span><span class="usage-unit usage-unit-d"></span><span class="usage-unit usage-unit-h"></span><span class="usage-unit usage-unit-m"></span></span>
                     </div>
-                </div>
+                </a>
                 <span id="usageStaleNote" class="sr-only" role="status"></span>
             </div>
         </div>
@@ -503,8 +508,15 @@
              there; this is only the empty shell. Hidden entirely when no live
              Claude Code sessions are reporting. -->
         <section id="projectsRow" class="projects-row-wrap" aria-labelledby="projectsRowLabel" hidden>
-            <h2 id="projectsRowLabel" class="sr-only">Active Claude projects</h2>
-            <ul class="projects-row" role="list" data-count="0"></ul>
+            <!-- .projects-row-inner keeps the wrap a single grid child so the
+                 0fr collapse animation still measures one row. The heading is
+                 now the visible label to the left of the first bar (it used to
+                 be .sr-only); the whitespace between the spans keeps the
+                 accessible name "Claude Projects", not "ClaudeProjects". -->
+            <div class="projects-row-inner">
+                <h2 id="projectsRowLabel" class="projects-row-label"><span>Claude</span> <span>Projects</span></h2>
+                <ul class="projects-row" role="list" data-count="0"></ul>
+            </div>
         </section>
         <!-- Outside the collapsible wrapper on purpose: a role="status" write
              into a still-hidden subtree is dropped by assistive tech, and a

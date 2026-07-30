@@ -39,6 +39,48 @@
     display: none;
 }
 
+/* Label + bars side by side. min-height:0 is what lets the 0fr grid row above
+   actually collapse this (same requirement .projects-row already carries). */
+.projects-row-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: 0;
+}
+
+.projects-row-inner .projects-row {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* What this display area is: stacked two-line header to the left of the first
+   bar. Not on glass — it sits on the page background like .projects-more, so
+   the same theme-flip rule applies (--ink-dim is a glass-only token). The
+   min-height matches a collapsed bar so the label centres against it and
+   stays put when a bar expands below. */
+.projects-row-label {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: 58px;
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    color: var(--ink-dim);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .projects-row-label {
+    color: var(--text-secondary);
+    text-shadow: none;
+}
+
 .projects-row {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -538,6 +580,70 @@
         animation-timing-function: ease-in-out !important;
         animation-iteration-count: infinite !important;
     }
+}
+
+/* ----------------------------------------
+   4b. Needs-you running lights
+   ---------------------------------------- */
+
+/* The Today & Now ring technique (3-groups-cards.css) recycled in --warn
+   orange — the blink alone wasn't salient enough. A conic gradient whose
+   start angle animates (the registered property below makes <angle>
+   interpolable) is masked down to a thin ring so only the pane's border
+   glows; drop-shadow gives the light its bloom. TWO heads 180° apart instead
+   of the calendar's one, so twin lights set off from opposite corners and
+   chase each other around the pane. ::after is free here — ::before is the
+   left rail. */
+@property --pb-beam {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 135deg;   /* heads sit on opposite corners, not edge midpoints */
+}
+
+.project-bar.is-needs-you::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;                 /* ring thickness */
+    background: conic-gradient(from var(--pb-beam),
+        transparent 0deg,
+        transparent 70deg,
+        rgba(255, 180, 84, 0.18) 120deg,
+        rgba(255, 180, 84, 0.55) 156deg,
+        #FFCF8A 172deg,
+        #FFF3E0 180deg,
+        transparent 180deg,
+        transparent 250deg,
+        rgba(255, 180, 84, 0.18) 300deg,
+        rgba(255, 180, 84, 0.55) 336deg,
+        #FFCF8A 352deg,
+        #FFF3E0 360deg);
+    /* Show only the border ring: full box minus the padded interior. */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 2px rgba(255, 180, 84, 0.85));
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .project-bar.is-needs-you::after {
+        animation: pb-beam-spin 4.8s linear infinite;
+    }
+}
+
+/* Reduced motion: no travelling lights — a static, even orange ring instead
+   (the pb-pulse fallback above still breathes the rail and indicator). */
+@media (prefers-reduced-motion: reduce) {
+    .project-bar.is-needs-you::after {
+        background: rgba(255, 180, 84, 0.4);
+    }
+}
+
+@keyframes pb-beam-spin {
+    to { --pb-beam: 495deg; }
 }
 
 /* ----------------------------------------
