@@ -165,6 +165,96 @@ resurrect an agent, same rule as the session tombstone.
   deliberate collapse — without the second one, a collapse is undone by the
   very next poll while the approval is still outstanding).
 
+## Remote Approve (v4.17)
+
+Sits on top of the status bar: a `PreToolUse` hook
+(`tools/claude-approve-hook.js`, registered in `~/.claude/settings.json` with
+`timeout: 180` for `Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|WebFetch`)
+long-polls a loopback broker (`tools/claude-approve-broker.js`, 127.0.0.1:8765,
+started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
+2 s, paints held requests onto the bars as Allow/Deny rows, and answers via
+`/decide`. Rules that must survive any refactor:
+
+- **The only path to "allow" is a human click.** Every other outcome —
+  timeout (broker 150 s < hook deadline 170 s < settings 180 s, innermost
+  releases first), dead broker, malformed anything, oversized stdin, bad
+  token — must resolve to *no hook output*, which is Claude Code's normal
+  permission flow. The hook never exits 2 (PreToolUse's blocking-error
+  code): a bug here must never be able to block a tool call.
+- **Loopback is not a trust boundary, and the first cut of this was
+  exploitable end to end.** Any website the user visits can reach
+  127.0.0.1, and a `text/plain` POST is a CORS *simple request* — so a
+  drive-by page could approve every held call and read every command
+  summary. Four defences, none of which may be relaxed without re-reading
+  the threat model at the top of the broker: (1) a per-start secret in
+  `X-Approve-Token`, a non-safelisted header, so sending it forces a
+  preflight a foreign origin cannot pass — published as `approve-token.json`
+  at the app root (JSON, never a `.js` that assigns a global, which would be
+  readable cross-origin via `<script>`); (2) the Origin allowlist is a
+  *rejection* and excludes `"null"` — a sandboxed iframe on any site
+  produces that origin, so a `file://` homepage cannot use this feature at
+  all; (3) `/request` refuses anything carrying `Origin` or
+  `Sec-Fetch-Site`, since only the hook may call it; (4) JSON content-type
+  required, Host checked. **Never answer
+  `Access-Control-Allow-Private-Network`** — only a public page reaching
+  into localhost ever asks for it. The heartbeat is recorded only *after*
+  auth, or a hostile page could hold the gate open and stall every tool
+  call. The page also refuses to run framed (clickjacking) and ignores
+  untrusted events; released ids are tombstoned 5 min against replay.
+- **Homepage closed ⇒ feature off — but *hidden* is not closed.** The
+  `/pending` poll is the heartbeat, and a page that goes away releases
+  everything at once via `POST /bye` on `pagehide` (`_wireApproveGoodbye`,
+  `keepalive: true`; `sendBeacon` can't carry the auth header). Do not gate
+  the poll on `document.hidden` — that was the original design and it was
+  wrong: `hidden` also means *occluded*, so working in VS Code with the
+  homepage behind it stopped the poll and bounced every request back to a
+  dialog after 16 s (the log records this as cause `homepage-gone`; that is
+  the fingerprint if it regresses). A hidden page keeps polling and marks
+  itself `?hidden=1`, which switches the broker to `HIDDEN_LIVE_MS` (75 s)
+  because Chromium throttles background timers to once per second, and to
+  once per *minute* after five minutes hidden. Residual gap, accepted: a page
+  killed while hidden still looks alive for up to 75 s, so a request arriving
+  in that window can be held (capped by `HOLD_MS`) before falling back.
+  Don't add a server-side "on" state that outlives the page beyond that.
+- **Break-glass beats everything.** The sentinel file
+  `%LOCALAPPDATA%\AndersonHomepage\approve-disable` (written by
+  `tools/approve-off.cmd`) is checked FIRST by the hook on every invocation
+  and by the broker per request — it works mid-session with every other
+  component broken. Verified live: it cut in instantly while a session's own
+  tool calls were being held.
+- **Privacy matches the status hook's whitelist.** The command/path summary
+  (first line, sanitized, 120 chars) exists in broker memory and localhost
+  HTTP only. `approve-log.jsonl` records tool name + decision + timing,
+  never the summary; nothing approval-related is ever written into
+  `claude-projects.js`. The front end treats broker JSON as untrusted:
+  textContent-only sinks, coerced fields, `CSS.escape` in selectors.
+- **Per-thread, per-request.** Requests are keyed by `tool_use_id`; each held
+  hook process is its own HTTP response, so approving one can never release
+  a sibling (the same rule `clearPendingIfTool` enforces in the spool).
+  Overlay attaches to the right thread (`agentId` match, falling back to the
+  main thread so a request always surfaces somewhere) *before* state
+  derivation, so needs-you precedence, auto-expand and the announcement all
+  apply unchanged.
+- The strip renders on the **bar**, outside `.pb-detail`, because collapsed
+  projects render no detail rows at all — buttons must be clickable without
+  expanding. `.pb-approvals[hidden]` needs its explicit `display: none`
+  (same trap as `.pb-toggle[hidden]`).
+- **This hook is only usable alongside `claude-status-hook.js`.** A held
+  request is rendered onto a *bar*, so a session missing from
+  `claude-projects.js` (status hook not installed for that project, or the
+  session aged past `hideMin`) has nowhere to put buttons. The front end
+  detects that after two polls and POSTs `decision: 'passthrough'` to hand
+  the call back to VS Code — without that, the user would watch Claude
+  freeze for 150 s with neither a button nor a dialog, the worst failure
+  this design can produce.
+- **Approval-driven needs-you must not auto-expand.** The strip lives on the
+  bar, so expanding adds nothing, and with remote approve on, needs-you goes
+  from rare-and-long-lived to several-times-a-minute — the row would open
+  and re-collapse on every mediated tool call.
+- The hook config is snapshotted per session, but was observed applying to
+  an already-running session in this environment — don't rely on either
+  behavior.
+
 ## Agent Delegation
 
 When working on tasks, delegate to the appropriate specialist agent using the Agent tool. Match the task to the best-fit agent:

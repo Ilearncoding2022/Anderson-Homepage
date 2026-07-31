@@ -383,7 +383,7 @@ body.card-resizing .app-group {
 
 .website-card .card-actions,
 .website-card .card-actions *,
-.website-card .new-tab-btn,
+.website-card .same-tab-btn,
 .website-card .favorite-btn {
     pointer-events: auto;
 }
@@ -550,10 +550,14 @@ body.card-resizing .app-group {
     background: rgba(244, 67, 54, 0.2);
 }
 
-.new-tab-btn {
+/* The card itself opens a background tab; this corner button is the "take me
+   there instead" escape hatch, so it carries an arrow rather than the old
+   new-window glyph. */
+.same-tab-btn {
     position: absolute;
     bottom: 0.5rem;
     right: 0.5rem;
+    --ico-size: 0.95rem;
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -571,11 +575,11 @@ body.card-resizing .app-group {
     padding: 0;
 }
 
-.website-card:hover .new-tab-btn {
+.website-card:hover .same-tab-btn {
     opacity: 1;
 }
 
-.new-tab-btn:hover {
+.same-tab-btn:hover {
     background-color: var(--accent);
     color: white;
 }

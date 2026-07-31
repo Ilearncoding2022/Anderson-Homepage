@@ -5,6 +5,96 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.18] — 2026-07-31
+
+### Approve Claude Code from the homepage
+
+- **Allow / Deny buttons on the project bar (new):** when Claude Code asks
+  permission to run a command, the request can now appear on the project's
+  status bar — tool name, the first line of what it wants to run, and two
+  buttons — instead of a dialog in VS Code. One click unblocks the session,
+  even for a subagent deep in a parallel fan-out. Off by default; the switch
+  lives in Settings → Projects under "Permission approvals".
+- **The homepage only answers while it's open (new):** the page's own polling
+  is what tells Claude Code the buttons are there. Close it and every pending
+  request falls straight back to the ordinary VS Code dialog — so a broken or
+  closed homepage can never strand Claude, and the feature needs no
+  turning-off before a restart. Being covered by another window does not
+  count as closed: requests keep waiting for you while the homepage sits
+  behind VS Code, which is where it usually is when one arrives.
+- **Everything fails toward VS Code (new):** a request nobody clicks falls
+  back to the dialog after 2½ minutes; a dead broker, a dead page, or a
+  corrupted setting all mean Claude Code behaves exactly as before. The one
+  and only way a tool call is approved is a real click on Allow.
+- **Allow all, in one click (new):** when more than one request is waiting —
+  a fan-out of agents blocking together, say — a button under the "Claude
+  Projects" title clears the lot, counting what it is about to allow. It
+  appears only while something is actually waiting, and still approves each
+  request individually underneath, so it can never release something that
+  arrived after you looked.
+- **Ctrl+Enter allows everything (new):** the same as pressing "Allow all",
+  without reaching for the mouse. It works when nothing on the page has the
+  keyboard, or when an Allow button already does — but deliberately not from
+  a focused Deny button, not from a text field, and not while a dialog is
+  open, so it can only ever mean the one thing.
+- **A sound when something needs you (new):** a short tone plays when a
+  project starts waiting, whether the buttons appear here or the prompt went
+  to VS Code. Settings → Projects sets its volume (0 silences it, and moving
+  the slider plays the new level so you can hear it) and how often it may
+  repeat — any whole number of seconds from 1 to 60, so a burst of agents
+  blocking at once is one sound, not six.
+- **A panic switch that needs nothing working (new):** double-clicking
+  `tools\approve-off.cmd` disables the whole feature machine-wide, mid-
+  session, without the homepage, Claude, or a terminal. `approve-on.cmd`
+  brings it back.
+- **What it runs on:** a small loopback-only broker (`tools\
+  claude-approve-broker.js`, started alongside the page server by
+  `serve-hidden.vbs` / `serve.bat`) holds each request while the page shows
+  its buttons; a Claude Code hook (`tools\claude-approve-hook.js`) delivers
+  the verdict. Command text is shown on the buttons from memory only — the
+  decision log on disk records tool names and verdicts, never what was typed.
+
+### The project names list is a list of projects again
+
+- **Agents no longer appear among the projects (fix):** a subagent working in
+  its own copy of a repo was being remembered as though it were a project of
+  its own, leaving `agent-3f9c1a…` entries that can't usefully be renamed and
+  never go away. They are filtered out and the ones already saved are cleared,
+  along with any name given to them.
+- **Hovering a name shows where it is (change):** the full directory path
+  appears as a tooltip anywhere along the row, not only over the name itself —
+  useful when two checkouts share a folder name.
+- **Each entry can be removed (new):** a small bin button drops a project and
+  its custom name from the list. A project that is still running comes back
+  under its folder name, since it is, in fact, still there.
+
+### Website cards
+
+- **Opening a site no longer takes the homepage with it (change):** clicking
+  a card now opens the site in a new tab *behind* this one, so the homepage
+  stays where it is and the tabs pile up in the order you clicked them.
+  Middle-click does the same rather than jumping to a foreground tab.
+- **The corner button is now "open in this tab" (change):** it used to be the
+  new-tab button, which the card itself now does; it replaces the homepage
+  with the site instead, and wears an arrow rather than the old new-window
+  glyph.
+
+### Elsewhere
+
+- **The menu and the Layout panel stop overlapping (fix):** both hang off the
+  same right-edge tab rail and open leftward into the same strip of screen.
+  Opening the menu now closes the Layout panel first. Opening Layout already
+  closed the menu.
+- **The project row refreshes every 6 seconds instead of 10 (change):** the
+  bars, their conversation rows and their clocks. Permission requests were
+  never on that clock — those still arrive within about two seconds.
+- **The menu and Layout buttons moved to the top-right corner (change):** the
+  pair used to float at the middle of the right edge; they now sit just under
+  the header, level with the top of the page's content. The rail measures the
+  header rather than assuming its height, so it stays put as the clocks
+  reflow. Both panels open downward from there, which also means the menu has
+  the full page height instead of being centred on a mid-screen tab.
+
 ## [v4.17] — 2026-07-31
 
 ### The header makes room for the clocks

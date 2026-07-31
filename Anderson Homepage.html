@@ -192,6 +192,15 @@
         <path d="m6 9.5 6 6 6-6"/>
       </symbol>
 
+      <symbol id="ico-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.8 12h14.4M13.2 6l6 6-6 6"/>
+      </symbol>
+
+      <symbol id="ico-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.5 6.5h15M9.75 6.5V4.75h4.5V6.5M6.5 6.5l.8 12.1a1.4 1.4 0 0 0 1.4 1.3h6.6a1.4 1.4 0 0 0 1.4-1.3l.8-12.1"/>
+        <path d="M10.4 10.2v6.2M13.6 10.2v6.2"/>
+      </symbol>
+
       <symbol id="ico-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M13.2 3.6c3.6 0 7.2 3.6 7.2 7.2 0 3.2-3.4 6.3-6 8.2H9.6c-2.6-1.9-6-5-6-8.2 0-3.6 3.6-7.2 7.2-7.2Z"/>
         <circle cx="12" cy="10" r="2.2"/>
@@ -512,7 +521,13 @@
                  be .sr-only); the whitespace between the spans keeps the
                  accessible name "Claude Projects", not "ClaudeProjects". -->
             <div class="projects-row-inner">
-                <h2 id="projectsRowLabel" class="projects-row-label"><span>Claude</span> <span>Projects</span></h2>
+                <!-- The label column also carries the bulk-approve control, which
+                     stays hidden until something is actually waiting — see
+                     _syncAllowAll() in scripts/9-projects.js. -->
+                <div class="projects-row-side">
+                    <h2 id="projectsRowLabel" class="projects-row-label"><span>Claude</span> <span>Projects</span></h2>
+                    <button type="button" id="projectsAllowAll" class="projects-allow-all glass-control" hidden></button>
+                </div>
                 <ul class="projects-row" role="list" data-count="0"></ul>
             </div>
         </section>
@@ -926,9 +941,51 @@
                         </div>
                     </div>
                 </div>
+                <h3 class="settings-subhead">Permission approvals</h3>
+                <div class="projects-settings-check-row">
+                    <label class="projects-settings-check" for="projectsApproveEnabled">
+                        <input type="checkbox" id="projectsApproveEnabled">
+                        <span>Approve Claude Code permissions from the homepage</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <p class="settings-hint">While this page is open, permission requests from Claude Code appear
+                        as Allow / Deny buttons on the project bar instead of VS Code dialogs. Whenever the page
+                        is closed — or anything in this feature breaks — VS Code prompts as usual.
+                        Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to allow everything waiting, as long as nothing
+                        else on the page has the keyboard.
+                        Panic switch: <code>tools\approve-off.cmd</code>.
+                        <span id="projectsApproveStatus"></span></p>
+                </div>
+                <h3 class="settings-subhead">Notification sound</h3>
+                <div class="settings-2col">
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="projectsSoundVolume">Volume</label>
+                            <div class="projects-sound-row">
+                                <input type="range" id="projectsSoundVolume" min="0" max="100" step="5" value="60">
+                                <output id="projectsSoundVolumeOut" for="projectsSoundVolume">60%</output>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-col">
+                        <div class="form-group">
+                            <label for="projectsSoundCooldown">Play At Most Once Every</label>
+                            <div class="projects-sound-row">
+                                <input type="number" id="projectsSoundCooldown" min="1" max="60" step="1" value="10" inputmode="numeric">
+                                <span class="projects-sound-unit">seconds</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <p class="settings-hint">A sound plays when a project needs your approval — whether the buttons
+                        appear here or the prompt goes to VS Code. Set the volume to 0 to silence it. Whole seconds, 1 to 60.</p>
+                </div>
                 <h3 class="settings-subhead">Project names</h3>
                 <div class="form-group">
-                    <p class="settings-hint">Names default to the project's folder name. Set a custom name below — clear an input to go back to the folder name.</p>
+                    <p class="settings-hint">Names default to the project's folder name. Set a custom name below — clear an input to go back to the folder name.
+                        Hover a name to see its full path. Remove drops a project and its custom name from this list; one that is still running reappears with its folder name.</p>
                     <div id="projectNamesList"></div>
                 </div>
             </div>
