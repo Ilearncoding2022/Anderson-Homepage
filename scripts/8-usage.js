@@ -120,8 +120,9 @@ const UsageWidget = {
     // The ten colour blocks are real elements (styled/animated per segment in
     // 2-components.css), built here on first render rather than repeated three
     // times in the HTML. --seg-i feeds each segment's animation-delay;
-    // --pulse-cycle (used-count × 1s) makes the pulse walk 1 → current and
-    // restart. Purely decorative — aria-valuenow/valuetext carry the reading.
+    // --pulse-cycle (used-count × 0.5s, matching the 0.5s per-segment delay in
+    // the CSS) makes the pulse walk 1 → current and restart. Purely
+    // decorative — aria-valuenow/valuetext carry the reading.
     _updateSegments(bar, pct) {
         let segs = bar.querySelector('.usage-segs');
         if (!segs) {
@@ -137,7 +138,7 @@ const UsageWidget = {
         }
         // ceil, so any non-zero usage lights (and pulses) at least segment 1.
         const used = Math.min(10, Math.ceil(pct / 10));
-        segs.style.setProperty('--pulse-cycle', `${Math.max(1, used)}s`);
+        segs.style.setProperty('--pulse-cycle', `${Math.max(1, used) * 0.5}s`);
         segs.querySelectorAll('.usage-seg').forEach((seg, i) => {
             seg.classList.toggle('is-used', i < used);
         });

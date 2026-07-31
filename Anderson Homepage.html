@@ -357,12 +357,11 @@
                     <span id="pomodoroMiniTime" class="pomodoro-mini-time" role="timer" aria-label="Pomodoro time remaining" style="display: none;"></span>
                 </div>
             </div>
-            <div class="header-search">
-                <form id="searchForm" class="search-form">
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search Google..." aria-label="Search Google" aria-keyshortcuts="/ Control+K" autocomplete="off">
-                    <button type="submit" class="search-button" aria-label="Search"><svg class="ico" aria-hidden="true"><use href="#ico-search"></use></svg></button>
-                </form>
-            </div>
+            <!-- Landing slot for the non-primary clocks while a clock is selected
+                 as primary — AppInit._applyClockGroupingHighlight() reparents them
+                 here (and back to .header-center) with a FLIP animation. Must stay
+                 free of whitespace/text nodes: CSS hides it via :empty. -->
+            <div class="header-side-clocks" id="headerSideClocks"></div>
         </div>
         <div class="header-center">
             <div id="clock" class="digital-clock" role="button" tabindex="0" aria-keyshortcuts="1" title="Group the calendar by this time zone (press 1) — again for Today &amp; Now">
@@ -392,14 +391,13 @@
                  generated usage-data.js (written by tools/update-claude-usage.ps1).
                  Stays hidden until the data file loads successfully. -->
             <div id="usageWidget" class="usage-widget" hidden>
-                <!-- Separate lines (not <br>) so .usage-title can space them
-                     with a flex gap instead of leaning on line-height.
-                     Both halves are links (8-usage.js intercepts the click and
+                <!-- Both halves are links (8-usage.js intercepts the click and
                      opens the href in a background tab): the brand block
                      (logo + label, one rectangle) → new chat, gauges/countdowns
-                     → usage settings. Decorative alt="" — the text lines
-                     already name the link. -->
-                <a class="usage-title usage-link" href="https://claude.ai/new"><img class="usage-logo" src="Claude logo.png" alt=""><span>Claude</span><span>Usage</span></a>
+                     → usage settings. The logo's alt carries "Claude" so the
+                     link still reads "Claude Usage" to assistive tech while
+                     showing only "Usage". -->
+                <a class="usage-title usage-link" href="https://claude.ai/new"><img class="usage-logo" src="Claude logo.png" alt="Claude"><span>Usage</span></a>
                 <a class="usage-rows usage-link" href="https://claude.ai/new#settings/usage" aria-label="Open Claude usage settings">
                     <div class="usage-row" data-kind="session">
                         <span class="usage-label">Session</span>
@@ -542,7 +540,22 @@
                 </div>
                 <button class="close-modal" id="closeChangelog" aria-label="Close">×</button>
             </div>
-            <div id="changelogBody" class="changelog-body"></div>
+            <!-- Recent = releases from the past 30 days, Archive = everything
+                 older. The split is computed from the dates in CHANGELOG.md at
+                 render time (AppInit._buildChangelog), so a release ages across
+                 on its own; the tablist hides itself until something has. -->
+            <div class="changelog-tabs" id="changelogTabs" role="tablist" aria-label="Changelog sections" hidden>
+                <button type="button" class="changelog-tab active" id="changelogTabRecent" data-tab="recent"
+                        role="tab" aria-selected="true" aria-controls="changelogPanelRecent">Recent<span class="changelog-tab-count"></span></button>
+                <button type="button" class="changelog-tab" id="changelogTabArchive" data-tab="archive"
+                        role="tab" aria-selected="false" aria-controls="changelogPanelArchive">Archive<span class="changelog-tab-count"></span></button>
+            </div>
+            <div id="changelogBody" class="changelog-body">
+                <div class="changelog-panel" id="changelogPanelRecent" data-tab="recent"
+                     role="tabpanel" aria-labelledby="changelogTabRecent" tabindex="0"></div>
+                <div class="changelog-panel" id="changelogPanelArchive" data-tab="archive"
+                     role="tabpanel" aria-labelledby="changelogTabArchive" tabindex="0" hidden></div>
+            </div>
         </div>
     </div>
 

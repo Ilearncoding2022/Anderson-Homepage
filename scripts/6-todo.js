@@ -231,6 +231,40 @@ const TodoManager = {
         this._rerender();
     },
 
+    // Enter-to-continue: insert a new EMPTY task directly below an existing one
+    // and hand it focus (via the renderer's pending-focus queue). Unlike
+    // addTask, empty text is the point — the user types into the new row next.
+    insertTaskAfter(afterId) {
+        const i = this.state.todos.findIndex(t => t.id === afterId);
+        if (i === -1) return;
+        const task = {
+            id: crypto.randomUUID(), text: '', done: false,
+            dueDate: null, urgency: 'tbd', recur: 'none', subtasks: []
+        };
+        this.state.todos.splice(i + 1, 0, task);
+        if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'edit', id: task.id };
+        this.save();
+        this._rerender();
+    },
+
+    // Enter-to-continue for a subtask: new empty sibling below it, same parent.
+    insertSubtaskAfter(parentId, afterSubId) {
+        const parent = this._find(parentId);
+        if (!parent) return;
+        const i = parent.subtasks.findIndex(s => s.id === afterSubId);
+        if (i === -1) return;
+        const sub = {
+            id: crypto.randomUUID(), text: '', done: false,
+            dueDate: null, urgency: 'tbd', recur: 'none'
+        };
+        parent.subtasks.splice(i + 1, 0, sub);
+        // A fresh, unchecked subtask means the parent can no longer be fully done.
+        parent.done = parent.subtasks.every(s => s.done);
+        if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'edit', id: parentId, sub: sub.id };
+        this.save();
+        this._rerender();
+    },
+
     delete(id, subId) {
         if (subId) {
             // Subtasks are archived too (recoverable), remembering their parent so

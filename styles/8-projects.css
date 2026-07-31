@@ -72,12 +72,14 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     line-height: 1.2;
-    color: var(--ink-dim);
+    /* Claude-logo coral (sampled from Claude logo.png), tying the section to
+       the brand mark in the usage widget. Same hue in both themes. */
+    color: #D87857;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="light"] .projects-row-label {
-    color: var(--text-secondary);
+    color: #D87857;
     text-shadow: none;
 }
 
