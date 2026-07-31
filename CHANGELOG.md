@@ -5,6 +5,48 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.21] — 2026-07-31
+
+### The activity words tell more of the story
+
+- **Wider activity vocabulary (changed):** the status bars can now say
+  "installing" and "building" for package and build commands, "planning"
+  while the task list is being updated, "using notion" (or any connected
+  server's name — only its name, never what was sent to it) while an MCP
+  tool runs, and "asking you" while an open multiple-choice question waits
+  for an answer. That last one fixes the copy that was actively misleading:
+  a session blocked on a question used to claim "Working · coding" for the
+  whole wait.
+- **Agent rows name the blocked tool (changed):** a waiting agent row now
+  reads "needs approval · Bash" or "approve in VS Code · Read" instead of
+  leaving the tool name to the levels above — in a parallel fan-out, which
+  tool is blocked is the first thing worth knowing before clicking Allow.
+- **One register per column (changed):** agent rows with nothing to report
+  fall back to lowercase "working" and "idle", matching the activity words
+  around them instead of borrowing the capitalized chip label.
+
+### The bar says where to answer
+
+- **"Approve in VS Code" (changed):** when a held permission request runs out
+  its homepage window and falls back to the VS Code dialog, the amber state
+  label now switches from "Needs approval" to "Approve in VS Code" — before,
+  the Allow/Deny buttons vanished but the label stayed the same, reading as
+  if there were still something to click here. Conversation and agent rows
+  draw the same distinction, so with several requests in flight each row
+  says whether its answer belongs here or in the editor.
+- **Late clicks say where the request went (changed):** pressing Allow or
+  Deny on a request that had just expired announced a bare "request
+  expired." — and a quirk in the announcer could even append "needs your
+  approval" to it. It now reads "request expired here — approve or deny in
+  VS Code."
+
+### The repo introduces itself
+
+- **README with overview screenshot (new):** the GitHub repository now has a
+  front page — what the app is, what each card does, how the Claude
+  integrations fit together, and how to run it — headed by an overview
+  screenshot stored as WebP (154 KB where the PNG weighed 2.4 MB).
+
 ## [v4.20] — 2026-07-31
 
 ### The timeline fits the card

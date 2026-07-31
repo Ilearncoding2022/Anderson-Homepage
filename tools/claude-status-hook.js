@@ -97,6 +97,19 @@ const SESSION_ID_RE = /^(?!(con|prn|aux|nul|com\d|lpt\d)$)[a-z0-9-]{1,64}$/i;
 const SPOOL_FILE_RE = /^[a-z0-9-]{1,64}\.json$/i; // hashed names are hex, a subset — they pass
 const TEST_CMD_RE = /\b(vitest|jest|pytest|playwright|npm test|tsc|eslint)\b/i;
 const SHIP_CMD_RE = /\bgit (commit|push|merge|switch|checkout)\b/i;
+// Checked after TEST/SHIP inside the Bash branch: "npm install && npm test"
+// is a test run, and "install" inside a build invocation is rarer than the
+// reverse.
+const INSTALL_CMD_RE = /\b(npm (i|ci|install)|pip3? install|winget install|choco install|brew install|apt(-get)? install|yarn add|pnpm (i|add|install)|cargo install|dotnet add|go install)\b/i;
+const BUILD_CMD_RE = /\b(npm run build|yarn build|pnpm (run )?build|cargo build|dotnet build|go build|gradlew? (build|assemble)|msbuild|cmake --build|vite build|next build|tsc -b|esbuild|make)\b/i;
+// The one activity value not from the fixed list: the server segment of an
+// MCP tool name ("mcp__notion__search" -> "using notion"). Tool NAMES are
+// already persisted (lastTool/pendingTool), so this is strictly less
+// information — but it means activity needs a cap in the contract, and a
+// segment that doesn't match this shape is dropped, not passed through.
+const MCP_TOOL_RE = /^mcp__([a-z0-9][a-z0-9._-]{0,31})__/i;
+// 'using ' + the 32-char server segment above.
+const ACTIVITY_MAX = 40;
 
 function main() {
   try {
@@ -278,8 +291,10 @@ function updateSpoolEntry(eventName, payload, spoolFile, sessionId, now) {
     pruneAgents(entry, Date.parse(now));
 
     // Spool files go through the same whitelist as the merged, browser-facing
-    // file — activity/state are from fixed internal vocabularies (no cap
-    // needed), everything else is length-capped and coerced to string above.
+    // file — state is from a fixed internal vocabulary; activity mostly is
+    // too, except 'using <server>' (an MCP tool-name segment), so the
+    // contract caps it at ACTIVITY_MAX; everything else is length-capped and
+    // coerced to string above.
     writeJsonSafe(spoolFile, toContractSession(entry));
     return true;
   }
@@ -588,12 +603,23 @@ function snippetOfPrompt(raw) {
 /**
  * Classify tool activity from tool_name/tool_input. Only ever inspects these
  * fields in memory; the result (a short label) is the only thing persisted.
+ * The vocabulary is fixed — planning, coding, testing, shipping, installing,
+ * building, reading, researching, delegating, asking you — plus exactly one
+ * open-ended form, 'using <server>', built from the server segment of an MCP
+ * tool NAME (never its input) and capped at ACTIVITY_MAX in the contract.
  */
 function classifyActivity(payload, previousActivity) {
   const toolName = typeof payload.tool_name === 'string' ? payload.tool_name : '';
   const permissionMode = typeof payload.permission_mode === 'string' ? payload.permission_mode : '';
 
-  if (toolName === 'EnterPlanMode' || toolName === 'ExitPlanMode' || permissionMode === 'plan') {
+  // Before the plan-mode branch on purpose: an open question blocks the
+  // session exactly when plan mode is most likely active, and "planning"
+  // during that wait is the misleading copy this value exists to fix.
+  if (toolName === 'AskUserQuestion') {
+    return 'asking you';
+  }
+  if (toolName === 'EnterPlanMode' || toolName === 'ExitPlanMode' || toolName === 'TodoWrite'
+      || permissionMode === 'plan') {
     return 'planning';
   }
   if (toolName === 'Edit' || toolName === 'Write' || toolName === 'NotebookEdit') {
@@ -605,6 +631,8 @@ function classifyActivity(payload, previousActivity) {
       : '';
     if (TEST_CMD_RE.test(command)) return 'testing';
     if (SHIP_CMD_RE.test(command)) return 'shipping';
+    if (INSTALL_CMD_RE.test(command)) return 'installing';
+    if (BUILD_CMD_RE.test(command)) return 'building';
     return previousActivity;
   }
   if (toolName === 'Read' || toolName === 'Grep' || toolName === 'Glob') {
@@ -615,6 +643,10 @@ function classifyActivity(payload, previousActivity) {
   }
   if (toolName === 'Agent' || toolName === 'Task' || toolName === 'Workflow') {
     return 'delegating';
+  }
+  const mcp = MCP_TOOL_RE.exec(toolName);
+  if (mcp) {
+    return 'using ' + mcp[1].toLowerCase();
   }
   return previousActivity;
 }
@@ -792,7 +824,7 @@ function toContractSession(obj) {
     folder: strOrEmpty(obj.folder),
     title: cap(strOrEmpty(obj.title), TITLE_MAX + 1), // +1 for snippetOfPrompt's ellipsis
     state: strOrEmpty(obj.state) || 'working',
-    activity: obj.activity == null ? null : String(obj.activity),
+    activity: obj.activity == null ? null : cap(String(obj.activity), ACTIVITY_MAX),
     startedAt: strOrEmpty(obj.startedAt),
     lastEventAt: strOrEmpty(obj.lastEventAt),
     mainEventAt: strOrEmpty(obj.mainEventAt) || strOrEmpty(obj.lastEventAt),
@@ -824,7 +856,7 @@ function toContractAgent(obj) {
     agentId,
     agentType: cap(strOrEmpty(obj.agentType), 64),
     state: strOrEmpty(obj.state) || 'working',
-    activity: obj.activity == null ? null : String(obj.activity),
+    activity: obj.activity == null ? null : cap(String(obj.activity), ACTIVITY_MAX),
     startedAt: strOrEmpty(obj.startedAt),
     lastEventAt: strOrEmpty(obj.lastEventAt),
     pendingSince: obj.pendingSince == null ? null : String(obj.pendingSince),

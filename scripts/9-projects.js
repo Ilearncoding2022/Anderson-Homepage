@@ -101,6 +101,15 @@ const ProjectsWidget = {
         idle: 'idle'
     },
 
+    // needs-you without Allow/Deny buttons attached means the dialog is in
+    // VS Code — the held request ran out its homepage window (broker 150 s),
+    // the tool isn't mediated, or remote approve is off. Same state, but the
+    // place to act moved, and the label has to say so: after an expiry the
+    // buttons vanish while the state stays needs-you, and an unchanged
+    // "Needs approval" reads as if there were still something to click here.
+    VSCODE_STATE_LABEL: 'Approve in VS Code',
+    VSCODE_TITLE_WORD: 'waiting for approval in VS Code',
+
     _settings: null,
     _names: null,
     _seen: null,
@@ -714,9 +723,13 @@ const ProjectsWidget = {
      *  row is not an outcome anyone can perceive. */
     _announceDecision(row, decision, gone) {
         const tool = row.querySelector('.pb-approval-tool')?.textContent || 'Request';
-        this._alertQueue.push(gone
-            ? `${tool} request expired.`
-            : `${tool} ${decision === 'allow' ? 'allowed' : 'denied'}.`);
+        // Object, not string: a bare name would get "needs your approval"
+        // appended by _flushAlerts, which is the opposite of what happened.
+        // The expired case says where the request went — the click landed on
+        // buttons that were already dead, and the dialog is now VS Code's.
+        this._alertQueue.push({ sentence: gone
+            ? `${tool} request expired here — approve or deny in VS Code.`
+            : `${tool} ${decision === 'allow' ? 'allowed' : 'denied'}.` });
         this._flushAlerts();
     },
 
@@ -1061,7 +1074,15 @@ const ProjectsWidget = {
                 label: a.agentType || 'agent',
                 state: a.__effState,
                 activity: a.activity,
-                sinceIso: a.pendingSince && a.__effState === 'needs-you' ? a.pendingSince : a.lastEventAt
+                // In a parallel fan-out, WHICH tool is blocked is the first
+                // thing worth knowing before clicking Allow — the bar and
+                // chat rows already name it, so the agent row must too.
+                pendingTool: a.pendingTool,
+                sinceIso: a.pendingSince && a.__effState === 'needs-you' ? a.pendingSince : a.lastEventAt,
+                // Whether THIS agent's request has buttons on the bar — its
+                // row must say "approve in VS Code" when it doesn't, same
+                // distinction as the bar/chat labels, at agent granularity.
+                hasApproval: (session.__approvals || []).some(r => r.agentId === a.agentId)
             }));
 
         return {
@@ -1325,14 +1346,27 @@ const ProjectsWidget = {
     // overwriting the first before assistive tech ever saw it.
     _flushAlerts() {
         if (this._alertQueue.length === 0) return;
-        const names = this._alertQueue;
+        const entries = this._alertQueue;
         this._alertQueue = [];
         const alertEl = document.getElementById('projectsAlert');
         if (!alertEl) return;
-        const joined = names.length === 1
-            ? names[0]
-            : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-        alertEl.textContent = `${joined} need${names.length === 1 ? 's' : ''} your approval.`;
+        // Two kinds of entry: bare names (aggregated into one "… need your
+        // approval." sentence) and { sentence } objects that already say
+        // what happened and must be read verbatim — a decision outcome with
+        // the approval suffix bolted on ("Bash allowed. needs your
+        // approval.") announces the opposite of what just happened.
+        const names = entries.filter(e => typeof e === 'string');
+        const parts = [];
+        if (names.length) {
+            const joined = names.length === 1
+                ? names[0]
+                : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+            parts.push(`${joined} need${names.length === 1 ? 's' : ''} your approval.`);
+        }
+        for (const e of entries) {
+            if (e && typeof e === 'object' && e.sentence) parts.push(e.sentence);
+        }
+        alertEl.textContent = parts.join(' ');
         // Clear once read so a later, unrelated DOM change can't replay it.
         clearTimeout(this._alertClearTimer);
         this._alertClearTimer = setTimeout(() => { alertEl.textContent = ''; }, 8000);
@@ -1414,7 +1448,9 @@ const ProjectsWidget = {
         }
 
         const stateEl = li.querySelector('.pb-state');
-        const stateLabel = this.STATE_LABEL[bar.state] || bar.state;
+        const stateLabel = bar.state === 'needs-you' && !bar.approvals.length
+            ? this.VSCODE_STATE_LABEL
+            : (this.STATE_LABEL[bar.state] || bar.state);
         if (stateEl && stateEl.textContent !== stateLabel) stateEl.textContent = stateLabel;
 
         // .pb-activity doesn't exist in the static shell — it's added/removed
@@ -1446,7 +1482,9 @@ const ProjectsWidget = {
         // Recency lives in the ticking .pb-time number + its aria-label, not
         // here — baking a "Last activity N ago" sentence into the title too
         // meant it went stale the instant the mouse stopped moving.
-        const stateWord = this.STATE_TITLE_WORD[bar.state] || bar.state;
+        const stateWord = bar.state === 'needs-you' && !bar.approvals.length
+            ? this.VSCODE_TITLE_WORD
+            : (this.STATE_TITLE_WORD[bar.state] || bar.state);
         const chip = this._countChip(bar);
         const countTxt = chip ? ` (${chip})` : '';
         const detail = [stateWord, bar.agentLabel, bar.activity].filter(Boolean).join(', ');
@@ -1698,7 +1736,9 @@ const ProjectsWidget = {
         }
 
         const stateEl = row.querySelector('.pb-chat-state');
-        const stateLabel = this.STATE_LABEL[chat.state] || chat.state;
+        const stateLabel = chat.state === 'needs-you' && !chat.approvals.length
+            ? this.VSCODE_STATE_LABEL
+            : (this.STATE_LABEL[chat.state] || chat.state);
         if (stateEl && stateEl.textContent !== stateLabel) stateEl.textContent = stateLabel;
 
         const actEl = row.querySelector('.pb-chat-activity');
@@ -1763,9 +1803,13 @@ const ProjectsWidget = {
             // Falls back to the state word rather than rendering nothing: an
             // agent that hasn't reported an activity yet would otherwise be a
             // bare type name, with its state conveyed by dot colour alone.
+            // Lowercased: this column speaks in activity words ("coding",
+            // "reading"), and a capitalized chip label mixed in reads as a
+            // seam. The chip register stays capitalized one level up.
             const actText = agent.state === 'needs-you'
-                ? 'needs approval'
-                : (agent.activity || this.STATE_LABEL[agent.state] || '');
+                ? [agent.hasApproval ? 'needs approval' : 'approve in VS Code', agent.pendingTool]
+                    .filter(Boolean).join(' · ')
+                : (agent.activity || (this.STATE_LABEL[agent.state] || '').toLowerCase());
             if (actEl) {
                 if (actEl.textContent !== actText) actEl.textContent = actText;
                 actEl.hidden = !actText;
