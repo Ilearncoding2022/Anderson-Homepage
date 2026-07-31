@@ -5,6 +5,36 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.19] — 2026-07-31
+
+### The browser tab asks for your attention
+
+- **The tab itself signals a waiting approval (new):** while a permission
+  request is on screen, the favicon flashes between two amber question-mark
+  frames and the tab title becomes "Approve❓". Both revert the moment the
+  last request resolves, however it resolves — allowed, denied, timed out,
+  handed back to VS Code, or cut off by the panic switch. Both flash frames
+  read as "needs approval" on their own, so a background tab whose timers
+  the browser has throttled still shows the alert even when the flashing
+  freezes mid-frame.
+- **Works on a pinned tab (new):** a pinned tab shows no title text, so the
+  favicon carries the whole signal there — and the title change still earns
+  the small attention dot Brave and Chrome place on an inactive pinned tab.
+
+### Project bars: fresher order, less repetition
+
+- **Most recent first, everywhere (changed):** conversations inside a
+  project now list the one that moved last at the top, and the project bars
+  themselves line up most-recently-active first instead of alphabetically.
+  With two or three VS Code windows going, the project being worked on is
+  always the leftmost bar. Untitled chats keep their "Chat N" numbers as
+  they move — the number follows the conversation, not the position.
+- **The duplicate status line steps aside (changed):** an expanded project
+  with several conversations no longer repeats the newest chat's state and
+  title under the project name — each row in the open list already says it.
+  The line returns when the list is collapsed, where it is the bar's only
+  summary.
+
 ## [v4.18] — 2026-07-31
 
 ### Approve Claude Code from the homepage

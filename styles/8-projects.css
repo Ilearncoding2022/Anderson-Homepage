@@ -281,6 +281,12 @@
     min-width: 0;
 }
 
+/* Hidden while the conversation list is open (the row repeats the newest
+   chat's state/title/activity, which each list row then shows itself).
+   Explicit display:none because the flex rule above otherwise beats the UA
+   [hidden] rule — same trap as .pb-toggle[hidden]. */
+.pb-meta[hidden] { display: none; }
+
 .pb-state {
     flex: none;
     font-size: 0.68rem;
