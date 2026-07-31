@@ -724,7 +724,10 @@ body.card-resizing .app-group {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    max-height: 38vh; /* fallback; overridden dynamically by matchCalendarHeight() */
+    /* Fallback height. Overridden dynamically by matchCalendarHeight() —
+       max-height always, and (when the timeline view is active, which needs
+       a definite box to fill rather than a shrink-wrapped one) min-height too. */
+    max-height: 38vh;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.3) rgba(255,255,255,0.05);
@@ -2036,7 +2039,9 @@ body.card-resizing .app-group {
     row-gap: 0.35rem;
     /* align-items:start keeps each cell at its own height; align-content:start
        keeps the rows packed at the top so the hour row is never stretched taller
-       than gridH (which would push %-free, px-positioned events off the gridlines). */
+       than --tl-gridh — all growth must come from _sizeTimelineHours() retuning
+       that variable, never from grid-row stretching, which would change rendered
+       heights without moving the calc()-fraction positions painted off it. */
     align-items: start;
     align-content: start;
     /* Scroll internally (both axes) so the per-day header row can stick to the top
@@ -2044,9 +2049,14 @@ body.card-resizing .app-group {
        below its content height inside the capped events container. */
     min-height: 0;
     overflow: auto;
-    /* Grow to fill a card that's been dragged taller than the grid's natural
-       height, so the extra room shows more of the day instead of becoming dead
-       air beneath it. No effect when the container is sized by its content. */
+    /* Grow to fill whatever room the card has: this is what hands that room
+       to the timeline to measure. _sizeTimelineHours() (ui-renderer.js) then
+       stretches the hour scale — clamp(available/spanHours, 30, 78) px/hour,
+       written to --tl-gridh, which every position in here is a calc()
+       fraction of — into it: fits between the clamps and the grid exactly
+       fills the card; denser than 30px/h scrolls as today; sparser than
+       78px/h caps the rows and leaves calm dead air below instead of
+       stretching them further. No effect when sized by content alone. */
     flex: 1 1 auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
@@ -2121,11 +2131,12 @@ body.card-resizing .app-group {
     /* 2px below the Time-zone-row size — the hour axis is a quiet reference
        scale, so it reads smaller than the rest of the row's text. */
     font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);
-    /* NO `zoom` here. This label is absolutely positioned by `top` (px off gridH,
-       matching the event blocks and hour gridlines). `zoom` scales an element's
-       `top` too, so a sub-1 --cal-z-tz (set when the Time-zone-row font is below
-       the browser's minimum size) would compress the whole hour axis upward and
-       pull the labels off the events/gridlines. Font-size alone is safe. */
+    /* NO `zoom` here. This label is absolutely positioned by `top` (a calc()
+       fraction of --tl-gridh, matching the event blocks and hour gridlines).
+       `zoom` scales an element's `top` too — calc() fraction or not — so a
+       sub-1 --cal-z-tz (set when the Time-zone-row font is below the browser's
+       minimum size) would compress the whole hour axis upward and pull the
+       labels off the events/gridlines. Font-size alone is safe. */
     color: rgba(255, 255, 255, 0.45);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
