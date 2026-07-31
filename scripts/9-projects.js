@@ -67,6 +67,16 @@ const ProjectsWidget = {
     SOUND_COOLDOWN_MIN: 1,
     SOUND_COOLDOWN_MAX: 60,
 
+    // Tab alert while a permission request is waiting. Both frames must read
+    // as "pending" on their own: a background tab's timers are throttled to
+    // once per second, then once per MINUTE after five minutes hidden, so the
+    // blink can freeze on either frame — and a pinned tab shows no title
+    // text, which makes the favicon the only signal there. Spaces encoded
+    // because these are URLs, not paths.
+    TAB_ALERT_ICONS: ['Favicon%20-%20Question%201.png', 'Favicon%20-%20Question%202.png'],
+    TAB_ALERT_TITLE: 'Approve❓',
+    TAB_ALERT_BLINK_MS: 1000,
+
     SETTINGS_KEY: 'claudeProjectsSettings',
     NAMES_KEY: 'claudeProjectsNames',
     SEEN_KEY: 'claudeProjectsSeen',
@@ -119,6 +129,9 @@ const ProjectsWidget = {
     _audio: null,
     _lastSoundMs: 0,
     _allowAllBusy: false,
+    _tabAlertOn: false,
+    _tabAlertTimer: null,
+    _tabAlertRestore: null, // original favicon href + title, captured at first alert
 
     start() {
         if (!document.getElementById('projectsRow')) return;
@@ -177,7 +190,10 @@ const ProjectsWidget = {
         // Missing file (no hooks installed, or every session ended and the
         // merge step deleted the target): render nothing rather than leave a
         // stale row up.
-        s.onerror = () => { s.remove(); this._closeRow(); };
+        // _syncTabAlert here too: this is the one path that skips
+        // _processData's finally, and a held approval can outlive the data
+        // file (every session ended, merge deleted it).
+        s.onerror = () => { s.remove(); this._closeRow(); this._syncTabAlert(); };
         document.head.appendChild(s);
     },
 
@@ -310,6 +326,12 @@ const ProjectsWidget = {
         } catch (e) {
             console.warn('[ProjectsWidget]', e);
             this._closeRow();
+        } finally {
+            // finally, not the happy path: _processData has four early
+            // returns and every _approvals mutation converges here, so this
+            // is the one spot where the tab alert can track the truth on
+            // every path.
+            this._syncTabAlert();
         }
     },
 
@@ -866,6 +888,56 @@ const ProjectsWidget = {
     },
 
     // ----------------------------------------
+    // Tab alert (favicon flash + title)
+    // ----------------------------------------
+
+    _syncTabAlert() {
+        this._setTabAlert(this._approvals.length > 0);
+    },
+
+    /**
+     * Flash the tab while anything is waiting: the favicon alternates
+     * between the two question-mark frames and the title becomes
+     * "Approve❓". The normal favicon is deliberately never a blink frame —
+     * a throttled background tab can freeze the blink on either frame, and
+     * a frozen frame must still read as "needs approval". On a pinned tab
+     * the title text never renders, but writing it while the tab is
+     * inactive still triggers Chromium's attention dot, and it shows in the
+     * hover tooltip — kept for those two, not as the primary signal.
+     *
+     * Idempotent: callers pass the derived boolean and never track
+     * transitions, so every path that empties _approvals — decided, allowed
+     * in bulk, handed back, broker gone, feature toggled off — turns this
+     * off without individual wiring.
+     */
+    _setTabAlert(on) {
+        on = !!on;
+        if (on === this._tabAlertOn) return;
+        this._tabAlertOn = on;
+        const link = document.querySelector('link[rel="icon"]');
+        if (on) {
+            // Captured at first use, not at start(): 3-app-init.js writes
+            // the versioned title after this widget exists, and restoring
+            // must return exactly what the user's tab normally shows.
+            if (!this._tabAlertRestore) {
+                this._tabAlertRestore = { icon: link ? link.href : '', title: document.title };
+            }
+            let frame = 0;
+            const paint = () => {
+                if (link) link.href = this.TAB_ALERT_ICONS[frame++ % 2];
+            };
+            paint(); // the alert must show even if no timer tick ever fires
+            document.title = this.TAB_ALERT_TITLE;
+            this._tabAlertTimer = setInterval(paint, this.TAB_ALERT_BLINK_MS);
+        } else {
+            clearInterval(this._tabAlertTimer);
+            this._tabAlertTimer = null;
+            if (link && this._tabAlertRestore.icon) link.href = this._tabAlertRestore.icon;
+            document.title = this._tabAlertRestore.title;
+        }
+    },
+
+    // ----------------------------------------
     // Alert sound
     // ----------------------------------------
 
@@ -1002,6 +1074,11 @@ const ProjectsWidget = {
             activity: newest.activity || session.activity || null,
             pendingTool,
             sinceIso,
+            // Recency sort key, distinct from sinceIso on purpose: sinceIso
+            // becomes pendingSince during needs-you (it feeds the waiting
+            // clock), while ordering should follow the last real event —
+            // which any agent bumps.
+            lastActiveMs: Date.parse(session.lastEventAt) || 0,
             agents: agentRows,
             // A lone agent doesn't earn a row of its own — its type is folded
             // into this conversation's meta line instead. See _hasDetail.
@@ -1013,9 +1090,14 @@ const ProjectsWidget = {
     },
 
     _computeBar(cwdKey, sessions, now, idleMs) {
+        // Ordinals are assigned by startedAt so an untitled "Chat 2" keeps
+        // its number for its whole life; the DISPLAY order is most recent
+        // activity first, applied after, so renumbering never follows a sort.
+        // (sort() is stable: same-timestamp chats keep startedAt order.)
         const ordered = sessions.slice().sort((a, b) =>
             (a.startedAt < b.startedAt ? -1 : a.startedAt > b.startedAt ? 1 : 0));
         const chats = ordered.map((s, i) => this._computeChat(s, i + 1, now, idleMs));
+        chats.sort((a, b) => b.lastActiveMs - a.lastActiveMs);
 
         let overallState = 'idle';
         let overallRank = 4;
@@ -1098,6 +1180,9 @@ const ProjectsWidget = {
             // would otherwise show.
             agentLabel: folded ? folded.label : '',
             sinceIso,
+            // chats is already sorted most-recent-first, so its head is the
+            // project's own recency — used to order the bars themselves.
+            lastActiveMs: chats[0].lastActiveMs,
             approvals,
             chats
         };
@@ -1130,8 +1215,11 @@ const ProjectsWidget = {
         }
 
         // Select the 6 most urgent (tie: newest activity), then display the
-        // selection in stable alphabetical order — position is spatial memory,
-        // the blink is the attention mechanism.
+        // selection most-recently-active first. This replaced stable
+        // alphabetical order (v4.17) by explicit request: with 2-3 VS Code
+        // windows live, the project being worked on belongs leftmost. A bar
+        // only moves on a poll that saw a newer event elsewhere, and
+        // reconciliation below repositions nodes without recreating them.
         const bySelect = [...all].sort((a, b) => {
             const pr = this.PRIORITY[a.state] - this.PRIORITY[b.state];
             if (pr !== 0) return pr;
@@ -1139,7 +1227,8 @@ const ProjectsWidget = {
         });
         const overflow = Math.max(0, all.length - this.MAX_BARS);
         const selected = bySelect.slice(0, this.MAX_BARS);
-        selected.sort((a, b) => a.cwdKey < b.cwdKey ? -1 : a.cwdKey > b.cwdKey ? 1 : 0);
+        selected.sort((a, b) => (b.lastActiveMs - a.lastActiveMs)
+            || (a.cwdKey < b.cwdKey ? -1 : a.cwdKey > b.cwdKey ? 1 : 0));
         const selectedKeys = new Set(selected.map(b => b.cwdKey));
 
         // The overflow indicator is a 7th grid item — detach it while we
@@ -1155,9 +1244,9 @@ const ProjectsWidget = {
 
         this._openRow();
 
-        // Add new bars, update survivors in place, reposition into
-        // alphabetical order without recreating existing nodes (would replay
-        // the enter animation, reset the blink phase, and drop tooltips).
+        // Add new bars, update survivors in place, reposition into recency
+        // order without recreating existing nodes (would replay the enter
+        // animation, reset the blink phase, and drop tooltips).
         let cursor = ul.firstElementChild;
         for (const bar of selected) {
             let li = ul.querySelector(`.project-bar[data-cwd-key="${CSS.escape(bar.cwdKey)}"]`);
@@ -1481,6 +1570,15 @@ const ProjectsWidget = {
         const label = `${open ? 'Hide' : 'Show'} ${kind} in ${name}`;
         if (btn.getAttribute('aria-label') !== label) btn.setAttribute('aria-label', label);
         li.classList.toggle('is-expanded', open);
+
+        // With the conversation list open, the meta row is pure duplication —
+        // it describes the newest chat, and that chat's own row is now on
+        // screen saying the same thing. It returns on collapse, where it's the
+        // bar's only state summary. Agents-only detail (count === 1) keeps it:
+        // the folded conversation title on the bar isn't repeated by agent
+        // rows.
+        const meta = li.querySelector('.pb-meta');
+        if (meta) meta.hidden = !!(open && bar && bar.count > 1);
 
         if (!open) {
             detail.hidden = true;
