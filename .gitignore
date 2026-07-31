@@ -47,3 +47,4 @@ Desktop.ini
 # Dependencies / temp (none used today, but guard against future tooling)
 node_modules/
 *.log
+/approve-token.json

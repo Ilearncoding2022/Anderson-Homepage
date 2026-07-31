@@ -988,7 +988,14 @@ const App = {
 
     toggleMenu() {
         const menu = document.getElementById('dropdownMenu');
-        if (menu) menu.classList.toggle('show');
+        if (!menu) return;
+        const opening = !menu.classList.contains('show');
+        // The minimap's Layout panel and this dropdown hang off the same tab
+        // rail and both open leftward into the same space, so they overlap
+        // when both are open. Opening the menu closes Layout; the reverse
+        // already happens via the outside-click handler below.
+        if (opening) window.Minimap?.close?.();
+        menu.classList.toggle('show', opening);
     },
 
     closeMenu() {

@@ -58,6 +58,50 @@
    the same theme-flip rule applies (--ink-dim is a glass-only token). The
    min-height matches a collapsed bar so the label centres against it and
    stays put when a bar expands below. */
+/* Label column: the heading, with the bulk-approve button under it when
+   anything is waiting. */
+.projects-row-side {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+}
+
+.projects-allow-all {
+    padding: 0.2rem 0.6rem;
+    font-family: var(--font-ui);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* Explicit, because the rule above sets a display — same trap as
+   .pb-toggle[hidden] and .pb-approvals[hidden]. */
+.projects-allow-all[hidden] {
+    display: none;
+}
+
+.projects-allow-all:hover,
+.projects-allow-all:focus-visible {
+    color: var(--ok-neutral);
+}
+
+.projects-allow-all:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.projects-allow-all[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 .projects-row-label {
     flex: none;
     display: flex;
@@ -259,6 +303,139 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* ----------------------------------------
+   2a-ii. Remote-approve strip (v4.17): one row per broker-held permission
+   request, directly under the bar's meta line and OUTSIDE .pb-detail so it
+   stays visible (and clickable) while the project is collapsed.
+   ---------------------------------------- */
+
+/* The one text on this bar whose legibility has a safety consequence: it's
+   the command you're being asked to approve. .glass-surface's fill is only
+   5% white, so contrast otherwise depends on whichever part of the wallpaper
+   sits behind this bar — the dark backing pins it down. */
+.pb-approvals {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 7px 8px;
+    border-top: 1px solid var(--structural);
+    border-radius: var(--radius-card);
+    background: rgba(11, 14, 20, 0.35);
+}
+
+/* Same trap as .pb-toggle[hidden]: an explicit display on the block beats
+   the UA [hidden] rule, so [hidden] must be restated. */
+.pb-approvals[hidden] {
+    display: none;
+}
+
+.pb-approval {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.pb-approval-what {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pb-approval-tool {
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    color: var(--warn);
+}
+
+/* Command text / file path: mono, dimmed, one line. */
+.pb-approval-summary {
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1.2;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-approval-ctx {
+    flex: none;
+    max-width: 11rem;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pb-approval-summary[hidden],
+.pb-approval-ctx[hidden] {
+    display: none;
+}
+
+.pb-approval-actions {
+    display: flex;
+    flex: none;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+.pb-approval-btn {
+    padding: 0.16rem 0.65rem;
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+/* Verb colour on hover/focus only — resting state stays quiet glass so a
+   row of pending requests doesn't turn the bar into a traffic light. */
+.pb-approval-allow:hover,
+.pb-approval-allow:focus-visible {
+    color: var(--ok-neutral);
+}
+
+.pb-approval-deny:hover,
+.pb-approval-deny:focus-visible {
+    color: var(--danger);
+}
+
+.pb-approval-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* The bar takes focus only as the last resort after a decision removes the
+   row that held it (see _focusAfterDecision) — show where focus went. */
+.project-bar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* aria-disabled, not :disabled — a disabled button drops keyboard focus to
+   <body> the moment it's pressed. See _decideApproval. */
+.pb-approval-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default;
+}
+
+.pb-approval.is-deciding {
+    opacity: 0.6;
 }
 
 /* ----------------------------------------
@@ -717,6 +894,83 @@
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     font-size: 0.9rem;
+}
+
+/* No global <kbd> style exists — key names in the Projects hints would
+   otherwise render as unstyled monospace text mid-sentence. */
+#settingsTabProjects .settings-hint kbd {
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+}
+
+/* Sound settings: slider + its readout, number + its unit. */
+.projects-sound-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+#settingsTabProjects .projects-sound-row input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#settingsTabProjects .projects-sound-row input[type="number"] {
+    flex: 0 0 auto;
+    width: 5.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+}
+
+#settingsTabProjects .projects-sound-row output,
+.projects-sound-unit {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+#settingsTabProjects .projects-sound-row output {
+    min-width: 3ch;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* Scoped like its siblings above so the generic "#settingsTabProjects button"
+   / ".form-group button" rules can't repaint it as a full-width accent slab. */
+#settingsTabProjects .projects-name-remove {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    margin: 0;
+    --ico-size: 1rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+#settingsTabProjects .projects-name-remove:hover,
+#settingsTabProjects .projects-name-remove:focus-visible {
+    color: var(--danger);
+}
+
+#settingsTabProjects .projects-name-remove:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }
 
 .projects-names-empty {

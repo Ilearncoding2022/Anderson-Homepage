@@ -635,7 +635,7 @@ const UIRenderer = {
                     <button class="favorite-btn ${website.favorite ? 'is-favorite' : ''}" onclick="App.toggleFavorite(event, '${safeId}')" title="${favTitle}" aria-label="${favTitle}"><svg class="ico" aria-hidden="true"><use href="#${favStarIcon}"></use></svg></button>
                     <button class="edit-btn" onclick="App.editWebsite(event, '${safeId}')" title="Edit" aria-label="Edit website"><svg class="ico" aria-hidden="true"><use href="#ico-pencil"></use></svg></button>
                 </div>
-                <button class="new-tab-btn" title="Open in new tab">⧉</button>
+                <button class="same-tab-btn" title="Open in this tab" aria-label="Open ${safeName} in this tab"><svg class="ico" aria-hidden="true"><use href="#ico-arrow-right"></use></svg></button>
             </div>
         `;
     },
@@ -711,6 +711,40 @@ const UIRenderer = {
             bubbles: true, cancelable: true, view: window,
             ctrlKey: !mac, metaKey: mac,
         }));
+    },
+
+    /**
+     * Same trick as above, for the website cards — which are <div>s, not
+     * anchors, so there is nothing to re-dispatch the modified click onto.
+     * A throwaway anchor is created, clicked with the platform's background
+     * modifier held, and removed.
+     *
+     * window.open(url, '_blank') is NOT an alternative: it opens a
+     * FOREGROUND tab, which is precisely the behaviour this replaces. Only
+     * the modifier makes the browser open a tab behind the current one, and
+     * only the browser can decide that — there is no API for it.
+     *
+     * Must be called from inside a real user gesture, or the popup blocker
+     * stops it; every caller here is a click/auxclick handler.
+     */
+    openUrlInBackgroundTab(url) {
+        const mac = /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent || '');
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        // In the document, because a detached anchor's default action is not
+        // guaranteed to navigate. Hidden so it can never flash into view.
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        try {
+            a.dispatchEvent(new MouseEvent('click', {
+                bubbles: true, cancelable: true, view: window,
+                ctrlKey: !mac, metaKey: mac,
+            }));
+        } finally {
+            a.remove();
+        }
     },
 
     createCalendarSection(column) {
@@ -2785,10 +2819,14 @@ const UIRenderer = {
     _attachDelegatedHandlers(container) {
         // Click delegation for cards, new-tab buttons
         container.addEventListener('click', (e) => {
-            const newTabBtn = e.target.closest('.new-tab-btn');
-            if (newTabBtn) {
+            // The corner button is the exception to the card's own default:
+            // it replaces THIS page with the site. (Before v4.17 the roles
+            // were the other way round — the card navigated here and the
+            // button opened a tab.)
+            const sameTabBtn = e.target.closest('.same-tab-btn');
+            if (sameTabBtn) {
                 e.stopPropagation();
-                const card = newTabBtn.closest('.website-card');
+                const card = sameTabBtn.closest('.website-card');
                 const url = card?.getAttribute('data-url');
                 const id = card?.getAttribute('data-id');
                 if (id) WebsiteManager.trackOpen(id);
@@ -2797,7 +2835,7 @@ const UIRenderer = {
                         UI.showToast('This link was blocked for safety.');
                         return;
                     }
-                    window.open(url, '_blank');
+                    window.location.href = url;
                 }
                 return;
             }
@@ -2809,6 +2847,12 @@ const UIRenderer = {
             if (!card) return;
             if (card._isDragging) return;
 
+            // No modifier guard here, deliberately: a card is a <div>, so a
+            // Ctrl/Shift-click has no default action for the browser to
+            // carry out — bowing out would make the card simply do nothing.
+            // (That was a real regression during v4.17.) Every primary click
+            // takes the same route, and the synthetic anchor below lives
+            // outside this container, so it can't re-enter this handler.
             const url = card.getAttribute('data-url');
             const id = card.getAttribute('data-id');
             if (id) WebsiteManager.trackOpen(id);
@@ -2817,7 +2861,7 @@ const UIRenderer = {
                     UI.showToast('This link was blocked for safety.');
                     return;
                 }
-                window.location.href = url;
+                this.openUrlInBackgroundTab(url);
             }
         });
 
@@ -2835,7 +2879,9 @@ const UIRenderer = {
                     UI.showToast('This link was blocked for safety.');
                     return;
                 }
-                window.open(url, '_blank');
+                // Middle-click means "background tab" everywhere else in the
+                // browser; window.open would have raised a foreground one.
+                this.openUrlInBackgroundTab(url);
             }
         });
 
@@ -2898,7 +2944,7 @@ const UIRenderer = {
         container.addEventListener('mousedown', (e) => {
             const card = e.target.closest('.website-card');
             if (!card) return;
-            if (e.target.closest('.card-actions') || e.target.closest('.new-tab-btn')) return;
+            if (e.target.closest('.card-actions') || e.target.closest('.same-tab-btn')) return;
             card._dragIntended = true;
         });
 
@@ -2910,7 +2956,7 @@ const UIRenderer = {
         container.addEventListener('dragstart', (e) => {
             const card = e.target.closest('.website-card');
             if (!card) return;
-            if (e.target.closest('.card-actions') || e.target.closest('.new-tab-btn')) {
+            if (e.target.closest('.card-actions') || e.target.closest('.same-tab-btn')) {
                 e.preventDefault();
                 return;
             }

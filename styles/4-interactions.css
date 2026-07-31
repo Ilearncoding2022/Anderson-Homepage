@@ -868,7 +868,7 @@
         gap: 1rem;
     }
 
-    .card-actions, .new-tab-btn, .group-actions {
+    .card-actions, .same-tab-btn, .group-actions {
         opacity: 1;
     }
 

@@ -14,14 +14,19 @@
    1. PANEL & TOGGLE
    ======================================== */
 
-/* Zero-width anchor pinned to the right edge at mid-height: it places the tab
-   rail and nothing else. The rail never moves — the panel body opens leftward
-   from it as a popover, the same gesture as the menu button's dropdown. */
+/* Zero-width anchor pinned to the top-right of the display area, just under
+   the header: it places the tab rail and nothing else. The rail never moves —
+   the panel body opens leftward from it as a popover, the same gesture as the
+   menu button's dropdown.
+
+   --rail-top is republished by Minimap._trackHeaderHeight() whenever the
+   header resizes (the clocks reflow at several widths, and the usage widget
+   comes and goes), so the rail tracks the header instead of guessing at it.
+   The fallback matters on the first frame and if that observer never runs. */
 .minimap-panel {
     position: fixed;
     right: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    top: calc(var(--rail-top, 92px) + 12px);
     width: 0;
     z-index: 100;
     overflow: visible;
@@ -32,7 +37,7 @@
    the rail, and fading/sliding in on the same 0.2s curve as that dropdown. */
 .minimap-content {
     position: absolute;
-    top: 50%;
+    top: 0;
     right: 44px;
     width: 286px;
     /* Two-layer background: the panel's own dark tint (unchanged from before)
@@ -51,14 +56,16 @@
     -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
     border-radius: 12px;
     padding: 1rem;
-    max-height: 80vh;
+    /* Hangs down from the rail now rather than straddling mid-screen, so the
+       ceiling is whatever is left below it, not a flat 80vh. */
+    max-height: calc(100vh - var(--rail-top, 92px) - 36px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.3) transparent;
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-    transform: translate(10px, -50%);
+    transform: translateX(10px);
     transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
 }
 
@@ -75,7 +82,7 @@
     visibility: visible;
     opacity: 1;
     pointer-events: auto;
-    transform: translate(0, -50%);
+    transform: none;
 }
 
 /* Tab rail on the panel's left edge: the app menu button on top, the minimap's
@@ -84,8 +91,7 @@
 .minimap-tabs {
     position: absolute;
     left: -36px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -134,8 +140,7 @@
 .controls {
     position: fixed;
     right: 0;
-    top: calc(50% - 35px);
-    transform: translateY(-100%);
+    top: calc(var(--rail-top, 92px) + 12px);
     z-index: 100;
 }
 
@@ -186,21 +191,22 @@
         linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
 }
 
-/* Opens leftward from the rail and vertically centred, rather than dropping from
-   a mid-screen tab and running off the bottom of the window. */
+/* Opens leftward from the rail, top-aligned with it — the rail now sits just
+   below the header, so a dropdown hanging from its top has the whole page
+   height to use and can't run off the bottom. */
 .minimap-tabs .dropdown-menu {
-    top: 50%;
+    top: 0;
     right: calc(100% + 8px);
     bottom: auto;
     left: auto;
-    max-height: calc(100vh - 40px);
+    max-height: calc(100vh - var(--rail-top, 92px) - 36px);
     overflow-y: auto;
-    /* Same 10px slide-in as the default dropdown, on top of the centring. */
-    transform: translate(0, calc(-50% - 10px));
+    /* Same 10px slide-in as the default dropdown. */
+    transform: translateX(10px);
 }
 
 .minimap-tabs .dropdown-menu.show {
-    transform: translateY(-50%);
+    transform: none;
 }
 
 /* The minimap is dark-native (white labels). Over the white light-mode page its

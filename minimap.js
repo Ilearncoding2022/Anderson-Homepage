@@ -16,8 +16,34 @@ const Minimap = {
 
     init() {
         this._isOpen = localStorage.getItem('minimapOpen') === 'true';
+        this._trackHeaderHeight();
         this._createPanel();
         this._attachDragHandlers();
+    },
+
+    /**
+     * Publish the header's height as --rail-top so the tab rail can sit just
+     * below it (see .minimap-panel in styles/6-minimap.css).
+     *
+     * Measured rather than hardcoded because the header genuinely changes
+     * height: the clocks reflow at several widths, the usage widget appears
+     * once its data file loads, and the selected clock grows when chosen. A
+     * fixed offset would leave the rail overlapping the header on a tall
+     * header and floating below it on a short one.
+     */
+    _trackHeaderHeight() {
+        const header = document.querySelector('.header');
+        if (!header) return;
+        const publish = () => {
+            const h = Math.round(header.getBoundingClientRect().height);
+            if (h > 0) document.documentElement.style.setProperty('--rail-top', h + 'px');
+        };
+        publish();
+        if (typeof ResizeObserver === 'function') {
+            new ResizeObserver(publish).observe(header);
+        } else {
+            window.addEventListener('resize', publish);
+        }
     },
 
     _createPanel() {
@@ -63,11 +89,29 @@ const Minimap = {
     },
 
     toggle() {
-        this._isOpen = !this._isOpen;
-        this._panel.classList.toggle('open', this._isOpen);
+        this._setOpen(!this._isOpen);
+    },
+
+    /**
+     * Close the Layout panel from outside (the menu button does this before
+     * opening the dropdown — they share the same tab rail and open leftward
+     * over the same strip of screen, so both open at once is two panels
+     * fighting for one space). No-op when already closed, so it never
+     * rewrites the stored state for nothing.
+     */
+    close() {
+        if (this._isOpen) this._setOpen(false);
+    },
+
+    _setOpen(open) {
+        this._isOpen = open;
+        this._panel.classList.toggle('open', open);
         this._panel.querySelector('.minimap-toggle')
-            ?.setAttribute('aria-expanded', String(this._isOpen));
-        Utils.safeLocalStorageSet('minimapOpen', String(this._isOpen));
+            ?.setAttribute('aria-expanded', String(open));
+        // Persisted, deliberately: the panel is restored on load from this
+        // value, so a close that didn't stick would reopen behind the user's
+        // back on the next reload.
+        Utils.safeLocalStorageSet('minimapOpen', String(open));
     },
 
     render() {
