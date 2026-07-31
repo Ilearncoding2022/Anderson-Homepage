@@ -5,6 +5,23 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.20] — 2026-07-31
+
+### The timeline fits the card
+
+- **Hour rows size themselves (new):** the day-view timeline's hour height now
+  adapts to the room the card gives it, between 30 and 78 pixels per hour. A
+  busy day packs down so more hours fit before scrolling; a sparse day
+  stretches its hours to fill the card instead of leaving dead air below.
+- **Everything scales together:** hour labels, gridlines, event blocks, the
+  collapsed "no events" bands and the current-time line all share one scale,
+  so nothing drifts apart at any row height.
+- **Live while resizing:** dragging the calendar's resize grip rescales the
+  hour grid under the pointer, and keyboard resizing follows each keystroke.
+- **Fixed along the way:** long event titles again wrap onto as many lines as
+  their block can hold, and the first shrink after returning to automatic
+  height no longer sticks.
+
 ## [v4.19] — 2026-07-31
 
 ### The browser tab asks for your attention

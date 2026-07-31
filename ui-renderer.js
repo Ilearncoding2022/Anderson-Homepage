@@ -123,6 +123,11 @@ const UIRenderer = {
         const inner = this._clampCardHeight(px) - this._cardOverhead(cardEl);
         region.style.height = Math.max(60, inner) + 'px';
         region.style.maxHeight = 'none';
+        // Same reasoning as maxHeight above, opposite direction: the calendar's
+        // automatic pass pins minHeight so a timeline has a definite box, and
+        // min-height beats height unconditionally — left in place it would stop
+        // the very first shrink-drag/keystroke after a return to automatic.
+        region.style.minHeight = '';
         this._syncResizeHandleValue(cardEl);
     },
 
@@ -132,6 +137,12 @@ const UIRenderer = {
         if (!region) return;
         region.style.height = '';
         region.style.maxHeight = '';
+        // Shared with the To-Do card, which never sets minHeight, so this is
+        // a no-op there. Calendar's automatic path (below, and
+        // _applyCalendarHeight) uses minHeight to give a timeline a definite
+        // box to fill; a manual height must drop that or a stale value from
+        // a previous auto pass would defeat a smaller dragged height.
+        region.style.minHeight = '';
     },
 
     // The grip reports the card's height to assistive tech as a separator's
@@ -1278,18 +1289,29 @@ const UIRenderer = {
             + ` data-cal-allday="${ev.allDay ? '1' : '0'}"`;
     },
 
+    // Timeline hour-row height clamp, in px per hour. 78 = 2x the legacy fixed 39.
+    TL_HOUR_MIN: 30,
+    TL_HOUR_MAX: 78,
+
     // Hour-by-hour timeline for 3/5-day views. A shared hour axis (left gutter)
     // aligns time-positioned event blocks across all day columns; all-day events
     // sit in a band above the grid.
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
-        const HOUR_H = 39;   // px per hour row (15% tighter than the original 46)
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
         // one reduced-height row each, not their real length.
         const spanHours = model.displaySpanMin / 60;
-        const gridH = Math.max(HOUR_H, Math.round(spanHours * HOUR_H));
+        // Floor-scale estimate only — _sizeTimelineHours() retunes --tl-gridh
+        // immediately after layout, clamped to [TL_HOUR_MIN, TL_HOUR_MAX] px/hour.
+        const gridH = Math.max(this.TL_HOUR_MIN, Math.round(spanHours * this.TL_HOUR_MIN));
         const n = model.days.length;
+        // Every position/height below is a calc() fraction of --tl-gridh (set on
+        // the root div) rather than a baked px value, so hour labels, gridlines,
+        // event blocks, gap bands and the now-line share ONE basis by
+        // construction — they can't drift apart — and the post-layout sizing
+        // pass can retune the row height without re-rendering any of this.
+        const frac = pct => (pct / 100).toFixed(5);
 
         // A single CSS grid holds three row-groups that share one column template
         // and one horizontal scroll, so the day headers, all-day band, and hour
@@ -1316,11 +1338,10 @@ const UIRenderer = {
         // Explicitly placed items may overlap freely.
         const hourRow = hasAllDay ? 3 : 2;
         const gutter = `
-            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:1; height:${gridH}px" aria-hidden="true">
+            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:1; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h => {
                     // topPct comes from the model's compressed (gap-collapsed) mapping.
-                    const top = (h.topPct / 100) * gridH;
-                    return `<span class="cal-tl-hour" style="top:${top.toFixed(1)}px">${h.label}:00</span>`;
+                    return `<span class="cal-tl-hour" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${h.label}:00</span>`;
                 }).join('')}
             </div>`;
 
@@ -1328,12 +1349,14 @@ const UIRenderer = {
         // boundaries below a gap leave the fixed hour lattice and a repeating
         // gradient would drift off them. Paint one 1px background layer per
         // hour line instead, positioned off the same compressed mapping as the
-        // hour labels and event blocks. (The class supplies background-color;
-        // these inline layers stack on top of it.)
+        // hour labels and event blocks — as a calc() fraction of --tl-gridh, the
+        // same variable the labels and blocks use. (The class supplies
+        // background-color; these inline layers stack on top of it. Longhands
+        // only — a `background:` shorthand here would wipe that background-color.)
         const lineImg = 'linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08))';
         const lineBg = model.hours.length
             ? `background-image:${model.hours.map(() => lineImg).join(',')};`
-              + `background-position:${model.hours.map(h => `0 ${((h.topPct / 100) * gridH).toFixed(1)}px`).join(',')};`
+              + `background-position:${model.hours.map(h => `0 calc(var(--tl-gridh)*${frac(h.topPct)})`).join(',')};`
               + `background-size:100% 1px;background-repeat:no-repeat;`
             : '';
 
@@ -1348,15 +1371,14 @@ const UIRenderer = {
                 const timeText = `${cm._timeStr(startD, win.tz)}–${cm._timeStr(endD, win.tz)}`;
                 const width = 100 / p.laneCount;
                 const left = p.lane * width;
-                // Position in PIXELS off gridH — the identical basis the hour labels
-                // and the CSS hour gridlines use — so events lock to the hour lines
-                // regardless of the column's actual rendered height (a %-basis drifts
-                // if the column is ever taller/shorter than gridH).
-                const topPx = (p.topPct / 100) * gridH;
-                const heightPx = Math.max(3, (p.heightPct / 100) * gridH);
+                // Position as a calc() fraction of --tl-gridh — the identical basis
+                // the hour labels and the CSS hour gridlines use — so events lock to
+                // the hour lines regardless of the column's actual rendered height
+                // (a %-basis drifts if the column is ever taller/shorter than the
+                // variable). The 3px floor keeps very short events tappable.
                 return `
                     <div class="cal-tl-event"
-                         style="top:${topPx.toFixed(1)}px; height:${heightPx.toFixed(1)}px; left:${left}%; width:calc(${width}% - 2px); background:${color};"
+                         style="top:calc(var(--tl-gridh)*${frac(p.topPct)}); height:max(3px, calc(var(--tl-gridh)*${frac(p.heightPct)})); left:${left}%; width:calc(${width}% - 2px); background:${color};"
                          ${this._calEventDataAttrs(ev)}
                          tabindex="0" role="button"
                          aria-label="View details: ${safeTitle}, ${Utils.sanitizeHTML(d.day.label)}, ${Utils.sanitizeHTML(timeText)}">
@@ -1364,9 +1386,9 @@ const UIRenderer = {
                     </div>`;
             }).join('');
             const nowLine = d.nowTopPct != null
-                ? `<div class="cal-tl-now" style="top:${((d.nowTopPct / 100) * gridH).toFixed(1)}px" aria-hidden="true"></div>` : '';
+                ? `<div class="cal-tl-now" style="top:calc(var(--tl-gridh)*${frac(d.nowTopPct)})" aria-hidden="true"></div>` : '';
             return `
-                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + 2}; height:${gridH}px; ${lineBg}">
+                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + 2}; height:var(--tl-gridh); ${lineBg}">
                     ${nowLine}${blocks || ''}
                 </div>`;
         }).join('');
@@ -1374,16 +1396,16 @@ const UIRenderer = {
         // Merged "no events" bands: one overlay grid item pinned onto the hour-grid
         // row spanning every day column (row index depends on the all-day band).
         // Each band is collapsed to a single reduced-height row labeled with the
-        // hour range it stands in for. Positioned in PIXELS off gridH, the same
-        // basis as hour labels/gridlines.
+        // hour range it stands in for. Positioned as a calc() fraction of
+        // --tl-gridh, the same basis as hour labels/gridlines/event blocks.
         const gapsHtml = model.gaps.length
-            ? `<div class="cal-tl-gaps" style="grid-row:${hourRow}; height:${gridH}px" aria-hidden="true">
-                ${model.gaps.map(g => `<div class="cal-tl-gap" style="top:${((g.topPct / 100) * gridH).toFixed(1)}px; height:${((g.heightPct / 100) * gridH).toFixed(1)}px"><span>${Utils.sanitizeHTML(g.label)} · no events</span></div>`).join('')}
+            ? `<div class="cal-tl-gaps" style="grid-row:${hourRow}; height:var(--tl-gridh)" aria-hidden="true">
+                ${model.gaps.map(g => `<div class="cal-tl-gap" style="top:calc(var(--tl-gridh)*${frac(g.topPct)}); height:calc(var(--tl-gridh)*${frac(g.heightPct)})"><span>${Utils.sanitizeHTML(g.label)} · no events</span></div>`).join('')}
                </div>`
             : '';
 
         return `
-            <div class="calendar-timeline" style="--cal-days:${n}">
+            <div class="calendar-timeline" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
                 ${headers}
                 ${alldayRow}
                 ${gutter}
@@ -2294,6 +2316,11 @@ const UIRenderer = {
 
         this._applyCalendarHeight(calendarGroup, eventsContainer);
 
+        // Retunes the hour-row height to whatever room the height ladder
+        // above just gave the card — depends on that box already being
+        // definite, so it has to run after, not before.
+        this._sizeTimelineHours();
+
         // Sized once here rather than at each return below: several of those
         // exits are early (too few columns to measure against), and skipping
         // the sync there left the grip reporting a stale height to assistive
@@ -2309,6 +2336,11 @@ const UIRenderer = {
         // slider) hands control back to the branches below.
         const manual = this._getCardLayout('__calendar__').height;
         if (manual != null) {
+            // This path doesn't go through _clearCardHeightPx, so a minHeight
+            // left behind by a previous automatic pass (below) needs clearing
+            // by hand — otherwise it would stop a smaller dragged height from
+            // ever taking effect.
+            eventsContainer.style.minHeight = '';
             this._applyCardHeightPx(calendarGroup, manual);
             return;
         }
@@ -2324,13 +2356,19 @@ const UIRenderer = {
             // 'Auto' means "as tall as the two cards beside me", which has no
             // meaning once the calendar is a full-width band outside the grid —
             // let the stylesheet's default height stand instead.
-            if (calendarGroup.dataset.cardWidth === 'full') return;
-            // Measure combined height of first 2 right-column groups + gap between them
+            if (calendarGroup.dataset.cardWidth === 'full') {
+                this._pinTimelineFallbackMinHeight(eventsContainer);
+                return;
+            }
+            // Measure combined height of first 2 right-column groups + gap
+            // between them. The bails fall back to the same stylesheet cap as
+            // the full-width branch, so they need the same minHeight pin — or
+            // a timeline there shrink-wraps and sits pinned at TL_HOUR_MIN.
             const columns = document.querySelectorAll('.groups-column');
-            if (columns.length < 2) return;
+            if (columns.length < 2) { this._pinTimelineFallbackMinHeight(eventsContainer); return; }
             const col2 = columns[1];
             const col2Groups = col2.querySelectorAll('.app-group');
-            if (col2Groups.length < 2) return;
+            if (col2Groups.length < 2) { this._pinTimelineFallbackMinHeight(eventsContainer); return; }
             const gap = parseFloat(getComputedStyle(col2).gap) || 0;
             targetHeight = col2Groups[0].offsetHeight + col2Groups[1].offsetHeight + gap;
         } else {
@@ -2346,6 +2384,68 @@ const UIRenderer = {
         const minH = heightSetting === 'auto' ? 150 : 60;
         const maxH = Math.max(minH, targetHeight - this._cardOverhead(calendarGroup));
         eventsContainer.style.maxHeight = maxH + 'px';
+        // max-height alone caps a box but doesn't give it a size — short
+        // content still shrink-wraps, leaving a timeline (flex: 1 1 auto)
+        // nothing to grow into. Pin minHeight to the same figure so the box
+        // is definite; list mode has no such need and keeps shrink-to-content.
+        if (eventsContainer.querySelector('.calendar-timeline')) {
+            eventsContainer.style.minHeight = maxH + 'px';
+        } else {
+            eventsContainer.style.minHeight = '';
+        }
+    },
+
+    // When the height ladder can't compute a target (full-width band, or too
+    // few right-column groups to measure against), the stylesheet's 38vh
+    // max-height is the fallback — a cap that doesn't reserve room, so a
+    // timeline needs a matching minHeight or the flex chain shrink-wraps it
+    // to whatever loaded first. List mode keeps shrink-to-content.
+    _pinTimelineFallbackMinHeight(eventsContainer) {
+        eventsContainer.style.minHeight =
+            eventsContainer.querySelector('.calendar-timeline') ? '38vh' : '';
+    },
+
+    // Retune the timeline's hour-row height to whatever vertical room
+    // _applyCalendarHeight just gave the card: clamp(available / spanHours,
+    // TL_HOUR_MIN, TL_HOUR_MAX) px/hour. Within the clamps the grid exactly
+    // fills the card (no scroll, no dead air); denser spans hit TL_HOUR_MIN
+    // and scroll as today does; sparser spans hit TL_HOUR_MAX and leave calm
+    // dead air below rather than stretching rows to fill it. Every timeline
+    // position is a calc() fraction of --tl-gridh, so writing that one
+    // variable rescales the whole grid coherently. One measurement pass, no
+    // rebuild — the header row and all-day band are sized by their own
+    // content, not by hour height, so nothing measured here feeds back into
+    // what was just measured; a convergence loop would only be needed if it did.
+    _sizeTimelineHours() {
+        const tl = document.querySelector('.calendar-group .calendar-timeline');
+        if (!tl) return; // list mode / chip day views have no timeline
+
+        const spanMin = parseFloat(tl.dataset.spanMin);
+        if (!(spanMin > 0)) return;
+
+        // Room above the hour row is measured as the gutter's content offset,
+        // not by summing the header/all-day cells: with align-items:start each
+        // grid row track is as tall as its TALLEST cell, and the first cell is
+        // not necessarily it (a wrapped "TODAY · MON 4 AUG" header, or an
+        // all-day chip on day 3 only). The offset also folds in the row-gaps
+        // and fractional heights an integer offsetHeight sum would round away.
+        // clientHeight (not offsetHeight) excludes the horizontal scrollbar,
+        // which would otherwise get counted as room for hour rows.
+        const gutter = tl.querySelector('.cal-tl-gutter');
+        if (!gutter) return;
+        const gutterTop = gutter.getBoundingClientRect().top
+            - tl.getBoundingClientRect().top + tl.scrollTop;
+        // The last hour label centers on the grid's bottom edge via
+        // translateY(-50%); without headroom for its lower half, an
+        // exactly-fitted grid always overflows by half a line and shows a
+        // pointless ~5px scroll range.
+        const label = gutter.querySelector('.cal-tl-hour');
+        const avail = tl.clientHeight - gutterTop - (label ? label.offsetHeight / 2 : 0);
+        if (!(avail > 0)) return; // card is display:none or mid-teardown
+
+        const spanHours = spanMin / 60;
+        const hourH = Math.min(this.TL_HOUR_MAX, Math.max(this.TL_HOUR_MIN, avail / spanHours));
+        tl.style.setProperty('--tl-gridh', (spanHours * hourH).toFixed(1) + 'px');
     },
 
     // To-Do has no automatic sizing mode — it is either the stylesheet default
@@ -2432,13 +2532,21 @@ const UIRenderer = {
         timeline.removeChild(probe);
         if (!lineH) return;
 
+        // Block heights are calc() fractions of --tl-gridh, so the px value is
+        // fraction × the variable's current value — recovered from the inline
+        // style string rather than measured, keeping this loop free of
+        // per-block layout (a rendered-height read per block would interleave
+        // with the clamp writes below and force a reflow each iteration).
+        const gridH = parseFloat(timeline.style.getPropertyValue('--tl-gridh')) || 0;
+        const FRAC_RE = /var\(--tl-gridh\)\s*\*\s*([\d.]+)/;
         events.forEach(el => {
             const text = el.querySelector('.cal-tl-event-text');
             if (!text) return;
-            // Height parsed from the inline style (set at build time) so this loop
-            // forces no per-block layout. Minus 2px for the 1px top+bottom padding
-            // on .cal-tl-event.
-            const inner = (parseFloat(el.style.height) || 0) - 2;
+            // Minus 2px for the 1px top+bottom padding on .cal-tl-event. The
+            // same 3px floor the inline max() applies; the stylesheet's 14px
+            // min-height is deliberately ignored, as the old px parse was.
+            const m = FRAC_RE.exec(el.style.height);
+            const inner = (m ? Math.max(3, gridH * parseFloat(m[1])) : 0) - 2;
             const lines = Math.max(1, Math.floor(inner / lineH));
             text.style.webkitLineClamp = String(lines);
             text.style.lineClamp = String(lines);
@@ -2686,6 +2794,13 @@ const UIRenderer = {
             e.preventDefault();
             const height = this._clampCardHeight(next);
             this._applyCardHeightPx(card, height);
+            // Calendar only: keep the hour grid filling the card on every
+            // keystroke, not just once the debounce below settles — and refit
+            // the line clamps, since no re-render follows to do it.
+            if (id === '__calendar__') {
+                this._sizeTimelineHours();
+                this._fitTimelineEventText(document.querySelector('.calendar-group .calendar-timeline'));
+            }
             this._queueCardHeightPersist(id, height);
         });
 
@@ -2732,7 +2847,16 @@ const UIRenderer = {
                 if (!state.moved && Math.abs(dy) < 5) return;
                 state.moved = true;
                 const el = liveCard();
-                if (el) this._applyCardHeightPx(el, state.startHeight + dy);
+                if (el) {
+                    this._applyCardHeightPx(el, state.startHeight + dy);
+                    // Calendar only: rescale the hour grid on every pointer
+                    // tick so the drag reads as the card resizing rather than
+                    // a fixed grid revealing a scrollbar. One variable write,
+                    // no rebuild — that's what makes this affordable per tick.
+                    // Line clamps are NOT refit here (the probe forces a
+                    // layout pass per tick); the commit below settles them.
+                    if (id === '__calendar__') this._sizeTimelineHours();
+                }
             };
 
             const finish = (ev, commit) => {
@@ -2760,7 +2884,15 @@ const UIRenderer = {
                 const height = this._clampCardHeight(state.startHeight + (ev.clientY - state.startY));
                 this._setCardLayout(id, { height });
                 const el = liveCard();
-                if (el) this._applyCardHeightPx(el, height);
+                if (el) {
+                    this._applyCardHeightPx(el, height);
+                    if (id === '__calendar__') {
+                        this._sizeTimelineHours();
+                        // Settle the line clamps the move ticks skipped —
+                        // nothing after this re-renders the timeline.
+                        this._fitTimelineEventText(document.querySelector('.calendar-group .calendar-timeline'));
+                    }
+                }
                 this._afterCardResize(id);
                 this._flushDeferredRender();
             };
