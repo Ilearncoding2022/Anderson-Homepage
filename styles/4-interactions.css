@@ -742,8 +742,35 @@
         gap: 1rem;
     }
 
+    /* Stacked header: the side-clocks slot spans the row and stacks its
+       clocks vertically, the same way .header-center does. Dividers rotate
+       from left borders to top borders to match; the positional rules in
+       2-components.css are (0,3,0) so they need restating here, not just
+       the .clock-secondary class rules below. */
+    .header-side-clocks {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .header-side-clocks .digital-clock + .digital-clock {
+        border-left: none;
+        border-top: 2px solid var(--border-color);
+        padding-top: 1rem;
+        margin-top: 0.5rem;
+    }
+
     .usage-widget {
         width: 100%;
+    }
+
+    /* The desktop right-margin keeps the widget off the header's edge in the
+       row layout. Here the widget is already full-width and centred, so that
+       margin only shoves it half its own width to the LEFT, clipping the brand
+       block off the screen. Both selectors are needed: the three-clock variant
+       in 2-components.css is more specific than a bare .usage-widget. */
+    .header .usage-widget,
+    .header.has-three-clocks .usage-widget {
+        margin-right: 0;
     }
 
     .usage-row {
@@ -784,6 +811,20 @@
         margin-top: 0.5rem;
     }
 
+    /* Stacked clocks separate with the border-top above — the desktop
+       hairline (a left-edge pseudo) would just draw a stray tick here. The
+       slot-number/date sub-line also recentres ("(1) Fri, Jul 31" as one
+       centred line) instead of spanning edge-to-edge. */
+    .header-center .digital-clock + .digital-clock::before,
+    .header-side-clocks .digital-clock + .digital-clock::before {
+        display: none;
+    }
+
+    .clock-subline {
+        align-self: center;
+        justify-content: center;
+    }
+
     .clock-time {
         font-size: 1rem;
     }
@@ -794,6 +835,25 @@
 
     .clock-city {
         font-size: 1rem;
+    }
+
+    /* Primary clock, stacked header: keep the one-row layout but at a mobile
+       scale — the desktop +4pt bump would overflow a phone-width row. All
+       three parts share one size (the (0,3,0) desktop rule keying .clock-date
+       to --clock-fs would otherwise beat the plain .clock-date above and
+       leave the date huge beside a 1rem time). */
+    .digital-clock.clock-rainbow .clock-city,
+    .digital-clock.clock-rainbow .clock-time,
+    .digital-clock.clock-rainbow .clock-date {
+        font-size: 1.1rem;
+    }
+
+    /* Alone in .header-center, the primary needs no divider even when it is
+       clock #2/#3 (.clock-secondary's border-top just above). */
+    .digital-clock.clock-rainbow.clock-secondary {
+        border-top: none;
+        padding-top: 0.5rem;
+        margin-top: 0;
     }
 
     /* .controls is a viewport-fixed rail tab now (6-minimap.css), so it needs no

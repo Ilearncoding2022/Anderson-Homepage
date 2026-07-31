@@ -170,6 +170,14 @@ const UIRenderer = {
             selector = f.sub
                 ? `.todo-drag-handle[data-id="${CSS.escape(f.id)}"][data-sub="${CSS.escape(f.sub)}"]`
                 : `.todo-drag-handle[data-id="${CSS.escape(f.id)}"]:not([data-sub])`;
+        } else if (f.action === 'edit') {
+            // Put the caret in a freshly inserted row's text field
+            // (Enter-to-continue from the row above).
+            selector = f.sub
+                ? `.todo-text[data-id="${CSS.escape(f.id)}"][data-sub="${CSS.escape(f.sub)}"]`
+                : `.todo-text[data-id="${CSS.escape(f.id)}"]:not([data-sub])`;
+        } else if (f.action === 'collapse') {
+            selector = `.todo-collapse-btn[data-id="${CSS.escape(f.id)}"]`;
         }
         if (selector) scope.querySelector(selector)?.focus();
     },
@@ -1534,6 +1542,8 @@ const UIRenderer = {
         const todos = tm?.getTodos() || [];
         const remaining = tm?.remainingCount() || 0;
         const addOpen = this._todoAddOpen || (this._todoAddOpen = new Set());
+        const collapsed = this._todoCollapsed || (this._todoCollapsed = new Set());
+        const multi = this._todoMultiSelect();
 
         const itemsHTML = todos.map(task => {
             const pSafe = Utils.sanitizeHTML(task.id);
@@ -1544,9 +1554,13 @@ const UIRenderer = {
                 ? `<input type="text" class="todo-subadd" data-todo-action="add-sub"
                           data-id="${pSafe}" placeholder="+ Add subtask" aria-label="Add subtask to ${pName}">`
                 : '';
+            // Collapse only has meaning while there are subtasks to hide; a task
+            // whose last subtask was deleted renders expanded again without its
+            // stale Set entry needing cleanup.
+            const isCollapsed = collapsed.has(task.id) && task.subtasks.length > 0;
             return `
-                <div class="todo-row" data-id="${pSafe}">
-                    ${this._renderTodoItem(task, null)}
+                <div class="todo-row${isCollapsed ? ' collapsed' : ''}" data-id="${pSafe}">
+                    ${this._renderTodoItem(task, null, isCollapsed ? task.subtasks.length : 0)}
                     <div class="todo-subs">
                         ${subsHTML}
                         ${subAddHTML}
@@ -1561,7 +1575,7 @@ const UIRenderer = {
         const todoLayout = this._getCardLayout('__todo__');
 
         return `
-            <div class="app-group virtual-group todo-group"
+            <div class="app-group virtual-group todo-group${multi ? ' is-multiselect' : ''}"
                  data-group-id="__todo__"
                  data-card-width="${todoLayout.width}"
                  style="--card-tint: rgba(156, 39, 176, 0.18);">
@@ -1571,6 +1585,9 @@ const UIRenderer = {
                     </div>
                     <div class="group-actions">
                         ${this._cardWidthButton('__todo__')}
+                        <button type="button" class="group-action-btn todo-multiselect-btn${multi ? ' is-on' : ''}" data-todo-action="multiselect-toggle"
+                                aria-pressed="${multi}" title="${multi ? 'Multi-select on — hide checkboxes' : 'Multi-select — show checkboxes'}"
+                                aria-label="Multi-select — To-Do"><svg class="ico" aria-hidden="true"><use href="#ico-check"></use></svg></button>
                         <button type="button" class="group-action-btn todo-archive-btn" data-todo-action="open-archive"
                                 title="View deleted-item archive" aria-label="View deleted-item archive"><svg class="ico" aria-hidden="true"><use href="#ico-archive"></use></svg></button>
                     </div>
@@ -1586,8 +1603,27 @@ const UIRenderer = {
         `;
     },
 
-    // Render a single task or subtask row. `parentId` is null for top-level tasks.
-    _renderTodoItem(task, parentId) {
+    // Multi-select shows the done-checkboxes; off (the default) keeps rows
+    // clean. Persisted so the choice survives reloads and other tabs.
+    _todoMultiSelect() {
+        return localStorage.getItem('todoMultiSelect') === '1';
+    },
+
+    // Fold/unfold one task's subtask list. Shared by the row's chevron button
+    // and the double-click gesture; a no-op for tasks without subtasks.
+    _toggleTodoCollapse(id, { refocusBtn = false } = {}) {
+        const task = TodoManager._find(id);
+        if (!task || task.subtasks.length === 0) return;
+        const set = this._todoCollapsed || (this._todoCollapsed = new Set());
+        set.has(id) ? set.delete(id) : set.add(id);
+        if (refocusBtn) this._pendingTodoFocus = { action: 'collapse', id };
+        this.renderTodoCard();
+    },
+
+    // Render a single task or subtask row. `parentId` is null for top-level
+    // tasks. `hiddenSubCount` > 0 marks a collapsed task and puts a "▸ N" chip
+    // on the row so the hidden subtasks aren't mistaken for deleted ones.
+    _renderTodoItem(task, parentId, hiddenSubCount = 0) {
         const tm = window.TodoManager;
         const isSub = parentId !== null && parentId !== undefined;
         const ids = isSub
@@ -1615,6 +1651,23 @@ const UIRenderer = {
                 <button type="button" class="todo-drag-handle" data-todo-action="drag" ${ids}
                         title="Drag to reorder (or use ↑/↓ keys)"
                         aria-label="Reorder ${name}. Use Arrow Up and Arrow Down to move."><span aria-hidden="true">⠿</span></button>`;
+
+        // Chevron right of the grip: folds/unfolds the subtask list — the
+        // button twin of the double-click gesture (and the keyboard path to
+        // it). While collapsed the button also carries the hidden-subtask
+        // count, so one control says both "folded" and "how many". Every
+        // top-level row renders one, but a row with no subtasks keeps only an
+        // invisible disabled copy so the text column stays aligned across rows.
+        const isCollapsed = hiddenSubCount > 0;
+        const hasSubs = !isSub && task.subtasks.length > 0;
+        const countHTML = isCollapsed
+            ? `<span class="todo-collapse-count" aria-hidden="true">${hiddenSubCount}</span>`
+            : '';
+        const collapseBtn = isSub ? '' : `
+                <button type="button" class="todo-collapse-btn${isCollapsed ? ' is-collapsed' : ''}" data-todo-action="collapse-toggle" ${ids}
+                        ${hasSubs ? '' : 'disabled tabindex="-1"'} aria-expanded="${isCollapsed ? 'false' : 'true'}"
+                        title="${isCollapsed ? `Expand ${hiddenSubCount} hidden subtask${hiddenSubCount === 1 ? '' : 's'}` : 'Collapse subtasks'}"
+                        aria-label="${isCollapsed ? `Expand ${hiddenSubCount} hidden subtask${hiddenSubCount === 1 ? '' : 's'} of ${name}` : `Collapse subtasks of ${name}`}"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-chevron"></use></svg>${countHTML}</button>`;
 
         // ---- Schedule control (due date + repeat) ----
         // A single compact button replaces the old inline date field and the
@@ -1650,7 +1703,7 @@ const UIRenderer = {
         // the tag's ">" and safeText or it would become leading whitespace.
         return `
             <div class="todo-item ${isSub ? 'todo-sub' : ''} ${task.done ? 'done' : ''}" ${ids}>
-                ${dragHandle}
+                ${dragHandle}${collapseBtn}
                 <input type="checkbox" class="todo-check" data-todo-action="toggle" ${ids}
                        ${task.done ? 'checked' : ''} aria-label="${task.done ? 'Mark not done' : 'Mark done'}: ${name}">
                 <textarea class="todo-text" data-todo-action="text" ${ids} rows="1"
@@ -1839,13 +1892,38 @@ const UIRenderer = {
                     set.delete(id);
                 } else {
                     set.add(id);
+                    // The add field lives inside .todo-subs, which a collapsed
+                    // task hides — opening it must expand the task or the focus
+                    // restore below would target a display:none input.
+                    this._todoCollapsed?.delete(id);
                     this._pendingTodoFocus = { action: 'add-sub', id };
                 }
                 this.renderTodoCard();
+            } else if (action === 'multiselect-toggle') {
+                e.preventDefault();
+                Utils.safeLocalStorageSet('todoMultiSelect', this._todoMultiSelect() ? '0' : '1');
+                this.renderTodoCard();
+            } else if (action === 'collapse-toggle') {
+                e.preventDefault();
+                // Keep focus on the chevron across the re-render so the fold
+                // can be worked entirely from the keyboard.
+                this._toggleTodoCollapse(id, { refocusBtn: true });
             } else if (action === 'open-archive') {
                 e.preventDefault();
                 this.openTodoArchive();
             }
+        });
+
+        // Double-click on a task row folds/unfolds its subtask list. Top-level
+        // tasks only (subtasks have nothing to fold), and never from the row's
+        // controls — a double-click on a button is just two clicks, and on the
+        // text field it is word-select (any selection the browser makes there
+        // is discarded with the field itself when the card re-renders).
+        container.addEventListener('dblclick', (e) => {
+            const item = e.target.closest('.todo-item');
+            if (!item || item.classList.contains('todo-sub')) return;
+            if (e.target.closest('button, input')) return;
+            this._toggleTodoCollapse(item.dataset.id);
         });
 
         // Re-wrap the edited field as it's typed in — the row only re-renders on
@@ -1869,7 +1947,15 @@ const UIRenderer = {
                 TodoManager.addSubtask(el.dataset.id, el.value);
             } else if (action === 'text') {
                 e.preventDefault();
-                el.blur(); // commit via the change handler
+                // Commit this row, then continue the list: a new empty row is
+                // inserted directly below it and focused for immediate typing.
+                // The commit must be explicit (not via blur) because the insert
+                // re-renders the card, which would race the change event.
+                const id = el.dataset.id;
+                const sub = el.dataset.sub || null;
+                TodoManager.setText(id, sub, el.value);
+                sub ? TodoManager.insertSubtaskAfter(id, sub)
+                    : TodoManager.insertTaskAfter(id);
             }
         });
 

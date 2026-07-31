@@ -37,6 +37,10 @@
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: 1rem;
+    /* The knob the narrow-window ladder at the end of this section turns. It
+       lives here rather than on the clocks so a breakpoint is a one-line
+       declaration on .header and the three clocks never need restating. */
+    --clock-trim: 0pt;
 }
 
 /* The material lives on its own layer rather than on .header directly. A mask
@@ -94,11 +98,35 @@
     flex: 0 0 auto;
 }
 
-/* Shrinkable so the side zones never spill into the centered clocks on
-   mid-width windows; .search-form caps it back at 320px when there's room. */
-.header-search {
-    flex: 0 1 320px;
+/* Where the non-primary clocks live while a clock is selected as primary
+   (AppInit._layoutClocks reparents them here — the spot the search bar used
+   to occupy). :empty removes it from the left zone's flex layout entirely
+   when every clock is in the centre, so it never holds a stray 1rem gap
+   open; the JS keeps the container free of whitespace text nodes. */
+.header-side-clocks {
+    display: flex;
+    align-items: center;
     min-width: 0;
+}
+
+.header-side-clocks:empty { display: none; }
+
+/* Dividers between adjacent clocks: a dim hairline pseudo-element rather
+   than a border-left — the clock's rounded corners bend a real border into a
+   bracket shape. Positional, not class-driven: which clocks share a container
+   changes with the primary selection, so clock #1 (which never carries
+   .clock-secondary) may need a divider and a .clock-secondary clock may sit
+   first and need none. Shortened to the middle of the clock's height so it
+   reads as a quiet separator, not a wall. */
+.header-center .digital-clock + .digital-clock::before,
+.header-side-clocks .digital-clock + .digital-clock::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 18%;
+    bottom: 18%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.18);
 }
 
 .header-center {
@@ -139,12 +167,79 @@
     color: var(--text-secondary);
 }
 
+/* Recent / Archive. Same tab idiom as the Settings modal — this modal is a
+   normal light/dark card, not one of the always-dark glass panes, so it reads
+   off --text-* rather than --ink. */
+.changelog-tabs {
+    display: flex;
+    gap: 0;
+    margin: 0.9rem 0 0.6rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.changelog-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 0.45rem 1rem;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+/* display above (and the UA's inline-block on <button>) would defeat the UA's
+   [hidden] rule; the tablist hides itself entirely until an Archive exists. */
+.changelog-tabs[hidden] { display: none; }
+.changelog-tab[hidden] { display: none; }
+
+.changelog-tab:hover { color: var(--text-primary); }
+
+.changelog-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* Release count. Mono/tabular so a tab's width doesn't shift when the 30-day
+   window moves a release from one side to the other. */
+.changelog-tab-count {
+    margin-left: 0.4rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78em;
+    opacity: 0.7;
+}
+
 .changelog-body {
-    max-height: 65vh;
-    overflow-y: auto;
     color: var(--text-primary);
     font-size: 0.88rem;
     line-height: 1.5;
+}
+
+/* The scroll lives on the PANEL rather than on .changelog-body, so the
+   tabindex="0" the tabpanel role wants also makes the list arrow-scrollable
+   from the keyboard — a focusable non-scrolling panel inside a scrolling
+   wrapper is a tab stop that can't do anything. */
+.changelog-panel {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.changelog-panel[hidden] { display: none; }
+
+.changelog-panel:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Which window the open tab covers — one quiet line above the first release. */
+.changelog-scope {
+    margin: 0 0 0.7rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
 }
 
 .changelog-body h2 { font-size: 1.15rem; margin: 0 0 0.5rem; }
@@ -295,10 +390,10 @@
 .usage-widget[hidden] { display: none; }
 .usage-row[hidden] { display: none; }
 
-/* The brand block: logo on top, two stacked <span> lines under it — flex gap
-   spaces them without inflating the line box the way a larger line-height
-   would. The whole rectangle is one anchor, so logo and label are a single
-   click target. */
+/* The brand block: logo on top, the "Usage" line under it. The whole
+   rectangle is one anchor, so logo and label are a single click target; the
+   negative margin cancels the hover-pill padding so the block sits exactly
+   where it did before gaining a hover surface. */
 .usage-title {
     display: flex;
     flex-direction: column;
@@ -308,6 +403,10 @@
     text-align: center;
     white-space: nowrap;
     font-weight: 600;
+    padding: 4px 8px;
+    margin: -4px -8px;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
 }
 
 /* Intrinsically 497x502 — scaled down here. The margin is the "shift the
@@ -399,17 +498,18 @@
 .usage-seg:nth-child(n+7) { background: #F0912B; }
 .usage-seg:nth-child(n+9) { background: #C0392B; }
 
-/* The wave: every used segment shares one cycle of used-count × 1s (set as
-   --pulse-cycle by 8-usage.js) and starts 1s later than its neighbour, so the
-   pulse walks segment 1 → current, then the cycle restarts at segment 1.
-   The envelope is percentage-based, so the blip is briefer on short cycles,
-   but the 1s spacing between segments is fixed by the delay.
+/* The wave: every used segment shares one cycle of used-count × 0.5s (set as
+   --pulse-cycle by 8-usage.js) and starts 0.5s later than its neighbour, so
+   the pulse walks segment 1 → current at 2 segments/second, then the cycle
+   restarts at segment 1. The envelope is percentage-based, so the blip is
+   briefer on short cycles, but the 0.5s spacing between segments is fixed by
+   the delay (and must match the per-segment step baked into --pulse-cycle).
    The global reduced-motion animation killer stops this and leaves the
    bright/dim split, which carries the reading on its own. */
 .usage-seg.is-used {
     opacity: 1;
-    animation: usage-seg-pulse var(--pulse-cycle, 10s) linear infinite;
-    animation-delay: calc(var(--seg-i, 0) * 1s);
+    animation: usage-seg-pulse var(--pulse-cycle, 5s) linear infinite;
+    animation-delay: calc(var(--seg-i, 0) * 0.5s);
 }
 
 @keyframes usage-seg-pulse {
@@ -464,7 +564,11 @@
     text-decoration: none;
 }
 
-.usage-title.usage-link:hover span { text-decoration: underline; }
+/* Hover lifts the whole brand block on a frosted pill — no underline; the
+   label should keep reading as widget chrome, not link text. */
+.usage-title.usage-link:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
 
 /* Word + one fixed slot per unit (d/h/m), units right-aligned, so "21h" and
    "4h" line up vertically even when one row shows d+h and another h+m. The
@@ -497,95 +601,97 @@
 .usage-widget.is-stale { opacity: 0.55; }
 .usage-widget.is-stale .usage-resets::after { content: " ⚠"; }
 
-/* Mid-width windows: shed the countdowns and title, then the whole widget,
-   before the side zones can crowd the centered clocks (mobile stacking takes
-   over at 768px and brings the widget back full-width).
-
-   The arithmetic behind the numbers: the full widget costs 339px (258px without
-   the countdowns) now that the menu button no longer shares the zone and the
-   label track carries its extra 6px, plus its margin-right; the right zone gets
-   (viewport − 96px − centre) / 2, where the centre column is ~355px with two
-   clocks and ~545px with three (after the 1pt clock trim). Two clocks + 60px
-   margin therefore needs ~1243px, which the 1240px breakpoint below still
-   covers — the widget sheds its countdowns a hair before it would crowd. */
-@media (max-width: 1240px) {
-    .header .usage-resets,
-    .header .usage-title { display: none; }
-}
-
-/* A third clock eats ~190px of the centre. Rather than dropping the countdowns
-   the moment that happens, give back most of the widget's left nudge — the nudge
-   is cosmetic, the countdowns are the point. 339 + 24 fits from ~1340px up.
-   Class is set by AppInit.updateClock(); clock3 is hidden with an inline style,
-   which CSS can't see. */
+/* A third clock eats ~205px of the centre. Give back most of the widget's left
+   nudge when that happens — the nudge is cosmetic. Class is set by
+   AppInit.updateClock(); clock3 is hidden with an inline style, which CSS
+   can't see. */
 .header.has-three-clocks .usage-widget { margin-right: 24px; }
 
-@media (max-width: 1340px) {
+/* ========================================
+   3a. HEADER SPACE LADDER
+   ======================================== */
+
+/* As the window narrows the header gives up width in a fixed order, cheapest
+   thing first, rather than everything collapsing at one breakpoint:
+
+     1. the usage widget sheds its cosmetic 60px right margin
+     2. the clocks step down 2pt, then 4pt
+     3. the usage widget drops its brand block (logo + "Claude Usage"),
+        then its "Resets in …" countdowns
+
+   Where the numbers come from — this is a symmetric grid, so the usual
+   left + centre + right sum is the WRONG model. Both side columns are
+   minmax(0, 1fr), which is what holds the clocks at the true midpoint, so they
+   are always the SAME width and the header only fits when
+
+       viewport >= 96px (padding + gaps) + centre + 2 x max(left, right)
+
+   Measured in the browser: pomodoro 66px, centre 445 / 405 / 365px at
+   0 / 2 / 4pt (651 / 593 / 535 with three clocks), widget 383px of content —
+   336 without the brand block, 212 without the countdowns either — plus its
+   60px right margin. (The breakpoints predate the search bar's removal in
+   v4.17, so they are conservative: the left zone lost the search box's
+   200-320px, and the right zone was already the binding side.)
+
+   The widget is WIDER than the whole left zone in the two-clock resting
+   state, so it is the side that decides the fit — its cosmetic 60px margin is
+   shed first because it is the one free 60px on the binding side, and it is
+   invisible. With a primary clock selected the left zone also carries the
+   1-2 non-primary clocks, which roughly mirrors the old search-box width.
+
+   Everything is bounded below at 769px because the ≤768px block in
+   4-interactions.css stacks the header into a column, where every zone gets
+   the full width back and none of this applies.
+
+   A third clock widens the centre by ~205px, so the whole ladder has a twin
+   that fires that much earlier. The two ladders are written as mutually
+   exclusive selectors (:not(.has-three-clocks) vs .has-three-clocks) rather
+   than as a base plus overrides — with equal specificity and no overlap, each
+   stage is decided by its own breakpoint alone, and a *milder* stage from the
+   other ladder can never out-specify a stronger one that should have won. */
+
+/* ---- Two clocks ---- */
+@media (min-width: 769px) and (max-width: 1420px) {
+    .header:not(.has-three-clocks) .usage-widget { margin-right: 8px; }
+}
+@media (min-width: 769px) and (max-width: 1325px) {
+    .header:not(.has-three-clocks) { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1290px) {
+    .header:not(.has-three-clocks) { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1250px) {
+    .header:not(.has-three-clocks) .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1155px) {
+    .header:not(.has-three-clocks) .usage-resets { display: none; }
+}
+
+/* ---- Three clocks (same ladder, ~205px earlier) ---- */
+@media (min-width: 769px) and (max-width: 1600px) {
+    .header.has-three-clocks .usage-widget { margin-right: 8px; }
+}
+@media (min-width: 769px) and (max-width: 1535px) {
+    .header.has-three-clocks { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1475px) {
+    .header.has-three-clocks { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1420px) {
+    .header.has-three-clocks .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1325px) {
     .header.has-three-clocks .usage-resets { display: none; }
 }
 
-@media (min-width: 769px) and (max-width: 1180px) {
-    .usage-widget { display: none; }
+/* Below the ladder's last rung the gauges alone (212px + 8px) still can't clear
+   the clocks, and there is nothing left in the list to shed — so the widget
+   goes. Two clocks reach this at 905px, three at 1075px. */
+@media (min-width: 769px) and (max-width: 1075px) {
+    .header.has-three-clocks .usage-widget { display: none; }
 }
-
-/* ========================================
-   2. SEARCH FORM
-   ======================================== */
-
-.search-form {
-    position: relative;
-    width: 100%;
-    max-width: 320px;
-}
-
-.search-input {
-    width: 100%;
-    height: 40px;
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 0 40px 0 15px;
-    font-size: 1.03rem;
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.search-input:focus {
-    border-color: var(--accent);
-    /* rgba mirrors --accent (#5B9DFF) — box-shadow can't consume the custom
-       property directly at a given alpha. */
-    box-shadow: 0 0 0 2px rgba(91, 157, 255, 0.2);
-}
-
-.search-input::placeholder {
-    color: var(--text-secondary);
-    opacity: 0.7;
-    font-size: 1.03rem;
-}
-
-.search-button {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-radius: 0 20px 20px 0;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    transition: opacity 0.2s;
-}
-
-.search-button:hover {
-    opacity: 0.7;
-    transform: none;
+@media (min-width: 769px) and (max-width: 905px) {
+    .header:not(.has-three-clocks) .usage-widget { display: none; }
 }
 
 /* ========================================
@@ -606,11 +712,17 @@
     /* Clickable: each clock sets the calendar's grouping to its own zone. */
     cursor: pointer;
     border-radius: 8px;
+    /* Anchors the hairline divider pseudo-element (see .header-center /
+       .header-side-clocks sibling rules above). */
+    position: relative;
     transition: background-color 0.15s ease;
     /* City and time are now the same size (see .clock-city/.clock-time below) —
        hierarchy comes from voice/weight/colour instead. Driving both from one
-       custom property here is what guarantees they can never drift apart. */
-    --clock-fs: 1.45rem;
+       custom property here is what guarantees they can never drift apart.
+       --clock-trim is the narrow-window ladder's 2pt/4pt step-down, in real
+       points (1pt = 4/3px), set on .header so one declaration moves all three
+       clocks; it is 0pt everywhere else. */
+    --clock-fs: calc(1.45rem - var(--clock-trim, 0pt));
 }
 
 .digital-clock:hover {
@@ -622,19 +734,49 @@
     outline-offset: 2px;
 }
 
-.digital-clock.clock-secondary {
-    border-left: 2px solid var(--border-color);
-}
-
 /* The clock whose zone the calendar is currently grouped by sits on a frosted
    plate, so the chosen zone is identifiable at rest — the colour cycle already
    marks it, but that reads as decoration and stops entirely under reduced
    motion. Declared after :hover so it wins on the selected clock; the hover
-   state is restated below rather than lost. */
+   state is restated below rather than lost.
+
+   The primary clock owns .header-center alone (the others move to the left
+   zone), so it also flattens into a single baseline row — label · time ·
+   date — and steps every part up 4pt from the resting label size. The date
+   joins the row simply because the container goes row: .clock-headline and
+   .clock-date become flex siblings on one line. */
 .digital-clock.clock-rainbow {
     background-color: rgba(255, 255, 255, 0.16);
     border-radius: 12px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.75rem;
+    --clock-fs: calc(1.45rem + 4pt - var(--clock-trim, 0pt));
+}
+
+.digital-clock.clock-rainbow .clock-date {
+    font-size: var(--clock-fs);
+    letter-spacing: 0.01em;
+}
+
+/* The resting 11rem truncation cap scaled for --clock-fs at 1.45rem; at +4pt
+   it would clip a name the resting clock shows in full. */
+.digital-clock.clock-rainbow .clock-city {
+    max-width: 14rem;
+}
+
+/* Light plate (double-click the primary clock toggles; double-click again
+   reverts): a near-white fill so the darker hues of the colour cycle
+   (blue/indigo/violet) stay readable over a dark backdrop. Applied by
+   _applyClockGroupingHighlight, so it follows the primary between clocks. */
+.digital-clock.clock-rainbow.clock-plate-light {
+    background-color: rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.digital-clock.clock-rainbow.clock-plate-light:hover {
+    background-color: rgba(255, 255, 255, 0.64);
 }
 
 .digital-clock.clock-rainbow:hover {
@@ -675,6 +817,43 @@
     color: var(--ink-dim);
     letter-spacing: 0.03em;
     white-space: nowrap;
+}
+
+/* Second line of a clock: the slot number sits at the left edge, directly
+   below the label, and the date is pushed to the right edge. stretch makes
+   the line span the clock's width so space-between can do the pushing. */
+.clock-subline {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-self: stretch;
+    min-width: 0;
+}
+
+/* "(1)" — the order set in Settings → Clocks and the 1/2/3 shortcut that
+   selects this clock. Date-sized and dim so it reads as an index. */
+.clock-slot {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--ink-dim);
+    opacity: 0.75;
+}
+
+/* The primary clock shows no slot number, and its sub-line (now just the
+   date) rejoins the single-row baseline — the stretch above is a cross-axis
+   fill in the primary's row layout, which would sink the date. */
+.digital-clock.clock-rainbow .clock-slot { display: none; }
+.digital-clock.clock-rainbow .clock-subline { align-self: baseline; }
+
+/* The clocks stay 24h; morning-half readings (00:01–12:59) carry this small
+   AM tag after the digits (built by updateClockDisplay). Inherits the
+   animated colour on the primary clock like every other clock part. */
+.clock-ampm {
+    font-size: 0.55em;
+    margin-left: 0.3em;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
 }
 
 /* Data voice: JetBrains Mono, light weight, full ink, tight tracking. Large +
@@ -736,6 +915,15 @@
            this clock as the selected one. */
         box-shadow: inset 0 0 0 2px var(--accent, #5B9DFF);
         border-radius: 12px;
+    }
+
+    /* On the light plate the colour cycle is what normally darkens the text;
+       with it off, the static --ink/--ink-dim inks are near-white on a white
+       fill — swap them for a fixed dark ink instead. */
+    .digital-clock.clock-rainbow.clock-plate-light .clock-city,
+    .digital-clock.clock-rainbow.clock-plate-light .clock-date,
+    .digital-clock.clock-rainbow.clock-plate-light .clock-time {
+        color: #22222a;
     }
 }
 

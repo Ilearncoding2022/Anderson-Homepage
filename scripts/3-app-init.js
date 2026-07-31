@@ -511,6 +511,9 @@ const App = {
             this._clockIntervalId = null;
         }
         this._loadTimezones();
+        // Light plate on the primary clock (double-click toggles it) — cached
+        // here so the per-second highlight pass doesn't hit localStorage.
+        this._clockPlateLight = localStorage.getItem('clockPlateLight') === '1';
         this.updateClock();
         this._wireClockGroupingClicks();
         this._clockIntervalId = setInterval(() => this.updateClock(), 1000);
@@ -519,30 +522,48 @@ const App = {
     // Clicking (or pressing Enter/Space on) a header clock groups the calendar by
     // that clock's zone — the same choice as Settings → Calendar grouping. This
     // also lights that clock with the ROYGBIV highlight via setGrouping(). Wired
-    // once, delegated on .header-center so it survives clock3 showing/hiding and
-    // the per-second innerHTML rebuilds of each clock's contents.
+    // once, delegated on .header (not .header-center — the non-primary clocks are
+    // reparented into .header-side-clocks while a primary is selected) so it
+    // survives clock3 showing/hiding, the reparenting, and the per-second
+    // innerHTML rebuilds of each clock's contents.
     _wireClockGroupingClicks() {
-        const center = document.querySelector('.header-center');
-        if (!center || this._clockClicksWired) return;
+        const header = document.querySelector('.header');
+        if (!header || this._clockClicksWired) return;
         this._clockClicksWired = true;
 
         const idToMode = { clock: 'tz1', clock2: 'tz2', clock3: 'tz3' };
         const activate = (target) => {
             const clockEl = target?.closest?.('.digital-clock');
-            if (!clockEl || !center.contains(clockEl)) return;
+            if (!clockEl || !header.contains(clockEl)) return;
             const mode = idToMode[clockEl.id];
             if (!mode) return;
             this._activateClockGrouping(mode);
         };
 
-        center.addEventListener('click', (e) => activate(e.target));
-        center.addEventListener('keydown', (e) => {
+        header.addEventListener('click', (e) => activate(e.target));
+        header.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
             const clockEl = e.target?.closest?.('.digital-clock');
-            if (!clockEl || !center.contains(clockEl)) return;
+            if (!clockEl || !header.contains(clockEl)) return;
             e.preventDefault();   // Space would otherwise scroll the page
             e.stopPropagation();  // keep Space from also toggling the pomodoro timer
             activate(e.target);
+        });
+
+        // Double-click on the PRIMARY clock flips its plate between the
+        // standard frosted tint and a near-white "light plate", for legibility
+        // while the colour cycle passes through its darker hues. The two
+        // single-clicks a dblclick contains re-select the already-primary
+        // clock, which is the harmless "Today & Now" no-op/jump. Persisted;
+        // the class itself is (re)applied by _applyClockGroupingHighlight so
+        // the plate follows the primary when the selection moves.
+        header.addEventListener('dblclick', (e) => {
+            const clockEl = e.target?.closest?.('.digital-clock');
+            if (!clockEl || !header.contains(clockEl)) return;
+            if (!clockEl.classList.contains('clock-rainbow')) return;
+            this._clockPlateLight = !this._clockPlateLight;
+            Utils.safeLocalStorageSet('clockPlateLight', this._clockPlateLight ? '1' : '0');
+            this._applyClockGroupingHighlight();
         });
     },
 
@@ -593,7 +614,7 @@ const App = {
     },
 
     // Global shortcuts: 1/2/3 pick the main clock (calendar grouping + rainbow
-    // highlight) when focus isn't on a control; / and Ctrl/Cmd+K focus search.
+    // highlight) when focus isn't on a control.
     _wireGlobalShortcuts() {
         if (this._globalShortcutsWired) return;
         this._globalShortcutsWired = true;
@@ -602,28 +623,11 @@ const App = {
             // Let an open modal own the keyboard (same guard as the pomodoro keys).
             if (document.querySelector('.modal.show')) return;
 
-            const searchInput = document.getElementById('searchInput');
-
-            // Ctrl/Cmd+K focuses search from anywhere, including other inputs.
-            // e.code so it works on non-Latin keyboard layouts too.
-            if ((e.ctrlKey || e.metaKey) && !e.altKey && e.code === 'KeyK') {
-                e.preventDefault();   // browsers bind Ctrl+K to the address bar
-                searchInput?.focus();
-                searchInput?.select();
-                return;
-            }
-
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             if (e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
             // Not while a button has focus — except the clocks themselves
             // (role=button), where Enter/Space already changes grouping.
             if (e.target.closest?.('button, [role="button"]') && !e.target.closest?.('.digital-clock')) return;
-
-            if (e.key === '/') {
-                e.preventDefault();   // Firefox binds / to quick-find
-                searchInput?.focus();
-                return;
-            }
 
             // Enter is the shortcut for the calendar's "Today & Now" button, but
             // only when nothing focusable owns it — a focused link or event row
@@ -678,11 +682,63 @@ const App = {
         const modeToId = { tz1: 'clock', tz2: 'clock2', tz3: 'clock3' };
         const grouping = window.CalendarManager?.getGrouping?.();
         const activeId = (grouping && grouping !== 'none') ? modeToId[grouping] : null;
-        ['clock', 'clock2', 'clock3'].forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.classList.toggle('clock-rainbow', id === activeId);
-            el.setAttribute('aria-pressed', String(id === activeId));
+
+        // FLIP "first" snapshot must happen before the class flips below change
+        // the primary clock's size — otherwise the deltas are measured against
+        // the already-resized layout. Snapshot only on an actual change (this
+        // runs every second) and never on the initial layout pass.
+        const changed = this._primaryClockId !== activeId;
+        const clocks = ['clock', 'clock2', 'clock3']
+            .map(id => document.getElementById(id)).filter(Boolean);
+        const animate = changed && this._primaryClockId !== undefined
+            && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const firstRects = animate
+            ? new Map(clocks.map(el => [el, el.getBoundingClientRect()]))
+            : null;
+
+        clocks.forEach(el => {
+            el.classList.toggle('clock-rainbow', el.id === activeId);
+            el.classList.toggle('clock-plate-light',
+                el.id === activeId && this._clockPlateLight === true);
+            el.setAttribute('aria-pressed', String(el.id === activeId));
+        });
+
+        if (changed) this._layoutClocks(activeId, clocks, firstRects);
+    },
+
+    // Distribute the header clocks between the two slots: with a primary
+    // selected it owns .header-center alone and the other clocks sit in
+    // .header-side-clocks (the left-zone spot the search bar used to occupy);
+    // with no selection all clocks sit in the centre. appendChild in fixed
+    // slot order keeps 1/2/3 order inside whichever container a clock lands in.
+    // The move is animated FLIP-style: old positions were snapshotted by the
+    // caller, so after reparenting each clock plays a translate+fade from where
+    // it was to where it now is. WAAPI (el.animate) rather than a CSS
+    // transition so the per-second innerHTML rebuilds inside the clock can't
+    // interfere, and nothing needs cleaning up afterwards.
+    _layoutClocks(activeId, clocks, firstRects) {
+        const center = document.querySelector('.header-center');
+        const side = document.getElementById('headerSideClocks');
+        if (!center || !side) return;
+        this._primaryClockId = activeId;
+
+        clocks.forEach(el => {
+            const target = (activeId && el.id !== activeId) ? side : center;
+            target.appendChild(el);
+        });
+
+        if (!firstRects) return;
+        clocks.forEach(el => {
+            const first = firstRects.get(el);
+            if (!first || (first.width === 0 && first.height === 0)) return; // hidden clock3
+            const last = el.getBoundingClientRect();
+            const dx = first.left - last.left;
+            const dy = first.top - last.top;
+            if (!dx && !dy) return;
+            el.animate([
+                { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.2 },
+                { transform: 'none', opacity: 1 }
+            ], { duration: 760, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
         });
     },
 
@@ -720,15 +776,32 @@ const App = {
             ...options, hour: '2-digit', minute: '2-digit', hour12: false
         });
 
+        // The clock stays 24h, but the morning half of the day (00:01–12:59)
+        // carries a small AM tag after the digits. Exactly 00:00 and
+        // everything from 13:00 on show bare digits.
+        const [hh, mm] = timeStr.split(':').map(Number);
+        const isAM = hh <= 12 && !(hh === 0 && mm === 0);
+
+        // Each clock advertises its slot number (the order set in Settings →
+        // Clocks, and the 1/2/3 shortcut that selects it) on the line under
+        // the label. CSS hides it on the primary clock, so the selection can
+        // move between clocks without a rebuild here.
+        const slotNum = slotKey ? slotKey.replace('timezone', '') : '';
+
         // City and time share one baseline row (.clock-headline) now that size
-        // no longer carries their hierarchy — see 2-components.css. The date
-        // drops to its own small line below rather than sitting beside the time.
+        // no longer carries their hierarchy — see 2-components.css. The
+        // sub-line below pairs the slot number (left, under the label) with
+        // the date (pushed right); on the primary the whole sub-line joins
+        // the single-row layout as the date, its slot number hidden.
         clockElement.innerHTML = `
             <div class="clock-headline">
                 <span class="clock-city">${Utils.sanitizeHTML(timezoneName)}</span>
-                <span class="clock-time">${timeStr}</span>
+                <span class="clock-time">${timeStr}${isAM ? '<span class="clock-ampm">AM</span>' : ''}</span>
             </div>
-            <div class="clock-date">${dateStr}</div>
+            <div class="clock-subline">
+                ${slotNum ? `<span class="clock-slot">(${slotNum})</span>` : ''}
+                <div class="clock-date">${dateStr}</div>
+            </div>
         `;
     },
 
@@ -750,22 +823,6 @@ const App = {
         });
 
         document.getElementById('themeToggle')?.addEventListener('click', Theme.toggle);
-
-        const searchForm = document.getElementById('searchForm');
-        if (searchForm) {
-            searchForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const query = document.getElementById('searchInput')?.value.trim();
-                if (query) {
-                    window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-                }
-            });
-        }
-
-        // Live client-side filter: as the user types, dim/hide website cards and
-        // groups that don't match; Escape clears the filter. Does NOT rebuild DOM —
-        // toggles .filtered-hidden / .filtered-dim on existing nodes only.
-        this._attachSearchFilter();
 
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         if (hamburgerBtn) {
@@ -839,6 +896,23 @@ const App = {
             });
         });
 
+        // Changelog tab switching (Recent / Archive). Both tabs stay tabbable
+        // rather than using a roving tabindex — there are only two of them and
+        // the modal's focus trap cycles by tabbable element — but the arrow
+        // keys the tablist role advertises still work.
+        document.querySelectorAll('#changelogTabs .changelog-tab').forEach(tab => {
+            tab.addEventListener('click', () => this.showChangelogTab(tab.dataset.tab));
+            tab.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                const all = [...document.querySelectorAll('#changelogTabs .changelog-tab')].filter(t => !t.hidden);
+                const next = all[(all.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length];
+                if (!next || next === tab) return;
+                e.preventDefault();
+                next.focus();
+                this.showChangelogTab(next.dataset.tab);
+            });
+        });
+
         document.getElementById('gridView')?.addEventListener('click', ViewManager.setGridView);
         document.getElementById('listView')?.addEventListener('click', ViewManager.setListView);
 
@@ -909,74 +983,6 @@ const App = {
         document.getElementById('importFile')?.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) await Storage.import(file);
-        });
-    },
-
-    // ---- Live search filter (item 11) ----
-    // Matches website cards by name/URL. Toggling CSS classes only — no DOM rebuild.
-    _attachSearchFilter() {
-        const input = document.getElementById('searchInput');
-        if (!input) return;
-
-        const applyFilter = (query) => {
-            const container = document.getElementById('mainContainer');
-            if (!container) return;
-            const q = query.trim().toLowerCase();
-
-            // Remove any existing hint
-            container.querySelector('.search-no-matches')?.remove();
-
-            if (!q) {
-                // Clear all filter classes
-                container.querySelectorAll('.website-card.filtered-hidden').forEach(c => c.classList.remove('filtered-hidden'));
-                container.querySelectorAll('.app-group.filtered-group-hidden').forEach(g => g.classList.remove('filtered-group-hidden'));
-                return;
-            }
-
-            const groups = container.querySelectorAll('.app-group');
-            let totalVisible = 0;
-
-            groups.forEach(group => {
-                // Skip virtual groups (calendar, todo) — only filter website-card groups
-                const isVirtual = group.classList.contains('virtual-group');
-                if (isVirtual) return;
-
-                const cards = group.querySelectorAll('.website-card');
-                let visibleInGroup = 0;
-
-                cards.forEach(card => {
-                    // Match against the visible name text and the stored URL
-                    const nameEl = card.querySelector('.website-name');
-                    const name = (nameEl?.textContent || '').toLowerCase();
-                    const url = (card.getAttribute('data-url') || '').toLowerCase();
-                    const matches = name.includes(q) || url.includes(q);
-                    card.classList.toggle('filtered-hidden', !matches);
-                    if (matches) visibleInGroup++;
-                });
-
-                // Hide the entire group when none of its cards match
-                group.classList.toggle('filtered-group-hidden', visibleInGroup === 0);
-                totalVisible += visibleInGroup;
-            });
-
-            // Show a "no matches" hint if nothing was found
-            if (totalVisible === 0) {
-                const hint = document.createElement('div');
-                hint.className = 'search-no-matches';
-                hint.textContent = `No websites match "${query.trim()}"`;
-                container.querySelector('.groups-container')?.appendChild(hint);
-            }
-        };
-
-        input.addEventListener('input', (e) => applyFilter(e.target.value));
-
-        // Escape clears the filter without submitting
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                input.value = '';
-                applyFilter('');
-            }
         });
     },
 
@@ -1081,30 +1087,131 @@ const App = {
 
     // ---- Changelog (rendered from CHANGELOG.md) ----
 
+    // How far back the Recent tab reaches; older releases fold into Archive.
+    CHANGELOG_RECENT_DAYS: 30,
+
     async openChangelog() {
         const modal = document.getElementById('changelogModal');
-        const body = document.getElementById('changelogBody');
-        if (!modal || !body) return;
+        const recent = document.getElementById('changelogPanelRecent');
+        const archive = document.getElementById('changelogPanelArchive');
+        if (!modal || !recent || !archive) return;
         this.closeMenu();
         modal.classList.add('show');
 
-        if (this._changelogHTML) {
-            body.innerHTML = this._changelogHTML;
-        } else {
-            body.innerHTML = '<p class="changelog-loading">Loading…</p>';
+        if (!this._changelog) {
+            recent.innerHTML = '<p class="changelog-loading">Loading…</p>';
             try {
                 const res = await fetch('CHANGELOG.md', { cache: 'no-cache' });
                 if (!res.ok) throw new Error('fetch failed');
-                this._changelogHTML = this._renderMarkdown(await res.text());
-                body.innerHTML = this._changelogHTML;
+                this._changelog = this._buildChangelog(await res.text());
             } catch {
-                body.innerHTML = '<p class="changelog-loading">Couldn\'t load the changelog. Open the app via the local server (serve.bat) so it can read CHANGELOG.md.</p>';
+                recent.innerHTML = '<p class="changelog-loading">Couldn\'t load the changelog. Open the app via the local server (serve.bat) so it can read CHANGELOG.md.</p>';
             }
         }
+        if (this._changelog) {
+            recent.innerHTML = this._changelog.recent.html;
+            archive.innerHTML = this._changelog.archive.html;
+            this._labelChangelogTabs(this._changelog);
+        }
+
+        // "What's new" always lands on Recent, whichever tab was left open.
+        this.showChangelogTab('recent');
 
         // (Re)build the focus trap now that the final content is in place.
         Utils.releaseFocus(modal, this._changelogTrap);
         this._changelogTrap = Utils.trapFocus(modal);
+    },
+
+    // CHANGELOG.md is newest-first, so the split is a single walk: the first
+    // release dated outside the window opens the Archive and every block below
+    // it belongs there too. Splitting on the DATE rather than on a pinned
+    // version means a release ages across on its own, with no edit to make.
+    // A heading whose date won't parse simply stays in the section it is
+    // standing in, so a malformed date can never silently swallow the tab.
+    _buildChangelog(md) {
+        const HEADING = /^##\s+\[?([^\]]+?)\]?\s*[—–-]\s*(\d{4}-\d{2}-\d{2})\s*$/;
+        const cutoff = Date.now() - this.CHANGELOG_RECENT_DAYS * 86400000;
+
+        // The preamble (title + the note about reconstructed early dates) is
+        // about the oldest entries, so it travels with them into Archive and
+        // keeps "What's new" opening straight onto the newest release.
+        const preamble = [];
+        const blocks = [];
+        let sink = preamble;
+        for (const raw of md.split(/\r?\n/)) {
+            if (/^##\s+\S/.test(raw)) {
+                const m = raw.match(HEADING);
+                blocks.push({ lines: [], at: m ? Date.parse(`${m[2]}T00:00:00`) : NaN });
+                sink = blocks[blocks.length - 1].lines;
+            }
+            sink.push(raw);
+        }
+
+        let split = blocks.findIndex(b => Number.isFinite(b.at) && b.at < cutoff);
+        if (split === -1) split = blocks.length;      // nothing old enough to archive
+        // Never open the menu's "What's new" on an empty tab: after a quiet
+        // month the newest release stays put and the Archive starts below it.
+        const quiet = split === 0 && blocks.length > 0;
+        if (quiet) split = 1;
+
+        const join = (arr) => arr.map(b => b.lines.join('\n')).join('\n');
+        const recent = blocks.slice(0, split);
+        const archive = blocks.slice(split);
+        const since = new Date(cutoff).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+        return {
+            recent: {
+                count: recent.length,
+                html: this._changelogScope(quiet
+                    ? `Nothing released since ${since} — showing the most recent one. Everything else is under Archive.`
+                    : `Releases from the past ${this.CHANGELOG_RECENT_DAYS} days (since ${since}). Anything older is under Archive.`)
+                    + this._renderMarkdown(join(recent)),
+            },
+            archive: {
+                count: archive.length,
+                html: archive.length
+                    ? this._changelogScope(`Releases from before ${since}.`)
+                        + this._renderMarkdown(preamble.join('\n') + '\n' + join(archive))
+                    : '',
+            },
+        };
+    },
+
+    // Generated, not authored — but it still passes through the same escape as
+    // the file's own text so the line can never carry markup.
+    _changelogScope(text) {
+        const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<p class="changelog-scope">${esc}</p>`;
+    },
+
+    // Counts on the tabs; no tablist at all until something has aged into the
+    // Archive, since a lone "Recent" tab is just chrome with nothing to switch.
+    _labelChangelogTabs(log) {
+        const count = (id, n) => {
+            const el = document.getElementById(id)?.querySelector('.changelog-tab-count');
+            if (el) el.textContent = n ? String(n) : '';
+        };
+        count('changelogTabRecent', log.recent.count);
+        count('changelogTabArchive', log.archive.count);
+        const empty = log.archive.count === 0;
+        const tabs = document.getElementById('changelogTabs');
+        if (tabs) tabs.hidden = empty;
+        const archiveTab = document.getElementById('changelogTabArchive');
+        if (archiveTab) archiveTab.hidden = empty;
+    },
+
+    showChangelogTab(name) {
+        document.querySelectorAll('#changelogTabs .changelog-tab').forEach(tab => {
+            const on = tab.dataset.tab === name;
+            tab.classList.toggle('active', on);
+            tab.setAttribute('aria-selected', String(on));
+        });
+        document.querySelectorAll('#changelogBody .changelog-panel').forEach(panel => {
+            panel.hidden = panel.dataset.tab !== name;
+            // Each panel is its own scroller, so a tab switched back in would
+            // otherwise reopen wherever it was last left.
+            if (!panel.hidden) panel.scrollTop = 0;
+        });
     },
 
     closeChangelog() {

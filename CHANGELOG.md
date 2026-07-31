@@ -5,6 +5,66 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.17] — 2026-07-31
+
+### The header makes room for the clocks
+
+- **The Google search box is gone (change):** it sat in the header's left
+  corner and was rarely how a search actually started. The space it held now
+  belongs to the clocks. The type-to-filter that shared that box — the one
+  that hid website cards as you typed — went with it, along with its keyboard
+  shortcuts.
+- **The selected clock now owns the middle of the header (new):** the clock
+  whose zone the calendar is grouped by moves to the centre on its own,
+  flattened onto a single line — name, then time, then date — and steps up in
+  size, so the zone everything else is measured against is readable across the
+  room. The other clocks slide over to where the search box used to be, and
+  slide back when the selection is cleared.
+- **Morning readings say so (new):** the clocks stay on the 24-hour system,
+  but anything from 00:01 to 12:59 now carries a small AM after the digits.
+- **Each clock shows its number (new):** the slot number set in Settings →
+  Clocks, the same 1, 2 or 3 that selects it from the keyboard, now sits on
+  the line under the zone label. The selected clock omits it.
+- **A quieter divider between clocks (change):** the old rule beside each
+  clock bent around the rounded corners and read as a bracket. It is a dim
+  hairline now, and each clock's date tucks against its right edge.
+- **The selected clock can go pale (new):** double-click it to swap the
+  frosted plate for a light one, which keeps the darker half of its colour
+  cycle legible; double-click again to go back. The choice is remembered.
+
+### To-Do
+
+- **Checkboxes only appear when you want them (new):** a new multi-select
+  button in the card header shows and hides them. Off by default the rows read
+  as a list rather than a form, and the setting is remembered. Ticking things
+  off is now part of turning that mode on.
+- **Tasks fold up (new):** double-click a task, or use the new chevron beside
+  its grip, to hide its subtasks. The chevron carries the number of subtasks
+  it is holding, so a folded task never looks like one that lost them.
+- **Enter continues the list (new):** pressing Enter while editing a task or
+  subtask now saves it and opens a fresh empty one directly below, cursor
+  already in it. A subtask makes a subtask, a task makes a task, and it chains
+  for as long as you keep typing.
+
+### Elsewhere
+
+- **The changelog splits into Recent and Archive (new):** this window opens on
+  the releases from the past 30 days and files everything older under a second
+  tab, so a growing history stops burying what just shipped. Each tab counts
+  what is behind it, and the pair stays hidden until something is old enough
+  to archive.
+- **"Claude Usage" is now just "Usage" (change):** the logo above it already
+  says whose usage it is. Hovering the logo and label lifts the whole block on
+  a frosted pill instead of underlining the word.
+- **The usage pulse runs twice as fast (change):** the wave walking the gauge
+  segments now steps two segments a second instead of one.
+- **Claude Projects wears the Claude colour (change):** the row's heading now
+  uses the coral of the logo sitting across the header from it.
+- **The Calendar card's icon is no longer purple (fix):** it sits inside the
+  link out to Google Calendar and had been inheriting the browser's
+  visited-link colour. It reads as white card chrome now, like every other
+  icon.
+
 ## [v4.16] — 2026-07-30
 
 ### Usage widget & project row polish
