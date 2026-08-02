@@ -5,6 +5,30 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.23] — 2026-08-02
+
+### Alerts that survive a background tab
+
+- **A hidden tab no longer swallows permission requests (fixed):** the
+  homepage used to stop re-reading its project data the moment the tab went
+  behind another window, which froze the picture it checks for staleness. A
+  tab left in the background for longer than the "Hide projects idle for"
+  setting then failed every arriving request in silence — no sound, no
+  Allow / Deny buttons, and no handback either, so Claude simply waited out
+  its 150-second window and fell back to a VS Code dialog. The data poll now
+  keeps running while hidden (slower, every 30s), and any request that
+  arrives against an out-of-date picture forces one immediate refresh.
+- **Nothing waits invisibly any more (fixed):** if that refresh still leaves
+  a held request with no bar to sit on, it is handed straight back to VS
+  Code instead of waiting out the full hold. Claude asking in VS Code is a
+  normal outcome; Claude frozen with nothing to click anywhere is not.
+- **A second reminder if you miss the first (new):** when a permission
+  request is still unanswered after the "Play at most once every" interval,
+  the sound plays one more time. Once per request, never a loop — and it
+  obeys the same interval as every other sound this widget makes. Answer it
+  before the interval is up (the usual case) and there is no second sound at
+  all.
+
 ## [v4.22] — 2026-08-02
 
 ### Auto-allow: a timed pass for one project
