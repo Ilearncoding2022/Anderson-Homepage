@@ -181,6 +181,35 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   token — must resolve to *no hook output*, which is Claude Code's normal
   permission flow. The hook never exits 2 (PreToolUse's blocking-error
   code): a bug here must never be able to block a tool call.
+- **Auto-allow (v4.22) is the one deliberate widening of that rule**, and
+  it is a *timed standing intent armed by a human click*, never a broker
+  state: the bar's hourglass button arms one project for 5–60 minutes
+  (slider, default 30), after which `_sweepArmedApprovals` in
+  `9-projects.js` answers that project's held requests with
+  `{decision:'allow', auto:true}` — still one `/decide` per `tool_use_id`.
+  Rules that must survive any refactor: arming requires `isTrusted`
+  gestures end to end; the expiry is checked **per request at decision
+  time** (a throttled hidden tab delays decisions, never extends the
+  window); state lives in **sessionStorage with an absolute deadline** — a
+  refresh resumes the window (and, while armed, `pagehide` deliberately
+  skips `POST /bye` so a reload lands back inside the broker's heartbeat
+  window instead of bouncing held requests to VS Code), while closing the
+  tab still kills the storage, restores are validated and never clamped
+  *up*, and the trade is that a real close while armed releases held
+  requests on the stale-heartbeat clock (~16 s visible) rather than
+  instantly ("homepage closed ⇒ feature off" still holds, minus that
+  bounded tail); the sweep
+  runs *before* the approval overlay, so auto-answered requests never
+  trigger needs-you, sound, tab alert, or Allow-all counts; unknown
+  sessions fall through to the ordinary button path; and the broker logs
+  these as cause `homepage-auto` (log-only — auth/release rules are
+  identical). The armed pill is the only disarm control, so the rule cuts
+  both ways: it stays visible while armed even if the broker dies, and a
+  window whose bar leaves the screen ends with it — `_renderRow` disarms
+  projects evicted by the 6-bar cap, `_closeRow` disarms everything (armed
+  projects sort *below* blocked ones precisely because auto-swept requests
+  never flip needs-you, so cap eviction is the expected path, not an edge).
+  The break-glass sentinel still beats everything.
 - **Loopback is not a trust boundary, and the first cut of this was
   exploitable end to end.** Any website the user visits can reach
   127.0.0.1, and a `text/plain` POST is a CORS *simple request* — so a
