@@ -39,6 +39,17 @@
     display: none;
 }
 
+/* Escape hatch for the auto-allow duration popover (§2a-iii): the wrap's
+   overflow:hidden exists for the 0fr collapse, but it also clips anything
+   hanging below a bar — which is exactly where the popover lives, cutting
+   off its action buttons on every bar in the grid's last row. Toggled by
+   JS strictly while a popover is open; _closeRow tears popovers down
+   before the collapse starts, so the clip is always back for the
+   animation. */
+.projects-row-wrap.has-armpop {
+    overflow: visible;
+}
+
 /* Label + bars side by side. min-height:0 is what lets the 0fr grid row above
    actually collapse this (same requirement .projects-row already carries). */
 .projects-row-inner {
@@ -442,6 +453,378 @@
 
 .pb-approval.is-deciding {
     opacity: 0.6;
+}
+
+/* ----------------------------------------
+   2a-iii. Auto-allow (v4.22): the hourglass button at the right end of the
+   head row, its duration popover, and the armed countdown pill.
+
+   Armed is a THIRD state in the row's visual language and must never read
+   as needs-you. The two are separated by form, not hue: needs-you is
+   defined by motion (blink, travelling ring) and an OUTER bloom; armed is
+   static, textured (the only hatched surface in the app), and rings the
+   pane on the INSIDE. Coral #D87857 — the section's own brand hue, unused
+   as a state — carries fill and border only; the countdown digits stay
+   --ink (the dot carries the colour, the word carries the meaning).
+   ---------------------------------------- */
+
+.projects-row {
+    /* Same hue both themes, like .projects-row-label. The -rgb triplet is
+       the one source for every alpha variant below. */
+    --pb-armed: #D87857;
+    --pb-armed-rgb: 216, 120, 87;
+}
+
+.pb-arm-wrap {
+    position: relative;
+    flex: none;
+    align-self: center;
+    display: inline-flex;
+    margin: -6px -6px -6px 0.35rem;
+}
+
+/* Popover must paint over the NEXT bars in the grid; .project-bar creates
+   no stacking context of its own. Toggled by JS while the popover is open. */
+.project-bar.is-arming {
+    z-index: 5;
+}
+
+.pb-arm {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: none;
+    border-radius: var(--radius-card);
+    color: var(--ink-dim);
+    cursor: pointer;
+    /* Quiet through opacity, not absence: hover-only reveal is
+       undiscoverable and dead on touch, and reserving the space keeps
+       .pb-time from jittering on every mouse pass. 0.7, not lower — the
+       resting glyph must still clear the 3:1 non-text contrast floor
+       (WCAG 1.4.11 has no reveals-on-hover exception, and this is a
+       security-relevant control). */
+    opacity: 0.7;
+    transition: opacity 0.18s ease, color 0.18s ease,
+        background-color 0.18s ease;
+}
+
+/* display:inline-flex above would defeat the UA [hidden] rule — same trap
+   as .pb-toggle[hidden] and .pb-approvals[hidden]. */
+.pb-arm[hidden] {
+    display: none;
+}
+
+.project-bar:hover .pb-arm,
+.project-bar:focus-within .pb-arm {
+    opacity: 1;
+}
+
+.pb-arm:hover {
+    color: var(--ink);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.pb-arm:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* 24px is under the touch-target guideline; grow on coarse pointers rather
+   than bloating the dense desktop row. */
+@media (pointer: coarse) {
+    .pb-arm {
+        width: 40px;
+        height: 40px;
+        opacity: 1;
+    }
+
+    /* .pb-arm.is-armed outweighs .pb-arm regardless of the media query, so
+       the bump must be restated for the pill — and the pill matters MORE on
+       touch: it's the only disarm control. */
+    .pb-arm.is-armed {
+        height: 40px;
+        padding: 0 0.7rem;
+    }
+}
+
+.pb-arm-ico,
+.pb-arm-stop {
+    --ico-size: 11px;
+}
+
+/* Both glyphs and the count live in the DOM always; CSS picks — the
+   .pb-dot/.pb-alert pattern. */
+.pb-arm:not(.is-armed) .pb-arm-count,
+.pb-arm:not(.is-armed) .pb-arm-stop,
+.pb-arm.is-armed:hover .pb-arm-ico,
+.pb-arm.is-armed:focus-visible .pb-arm-ico {
+    display: none;
+}
+
+.pb-arm-stop {
+    display: none;
+}
+
+.pb-arm.is-armed:hover .pb-arm-stop,
+.pb-arm.is-armed:focus-visible .pb-arm-stop {
+    display: inline-block;
+}
+
+/* The armed pill: filled, hatched, static. The hatch is the highest-value
+   detail — no other element in the app has texture, so "armed" is
+   identifiable peripherally and without colour (WCAG 1.4.1). */
+.pb-arm.is-armed {
+    width: auto;
+    height: 24px;   /* WCAG 2.5.8 floor — this is the only disarm control */
+    padding: 0 0.45rem 0 0.4rem;
+    gap: 0.28rem;
+    border-radius: 999px;
+    opacity: 1;                    /* never dims, hovered or not */
+    color: var(--ink);
+    background-color: rgba(var(--pb-armed-rgb), 0.18);
+    background-image: repeating-linear-gradient(45deg,
+        rgba(255, 255, 255, 0.07) 0 2px, transparent 2px 6px);
+    box-shadow: inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.60);
+}
+
+/* Disarm affordance on hover/focus: the number stays (you may just be
+   passing over it); glyph and ring shift toward "stop". */
+.pb-arm.is-armed:hover,
+.pb-arm.is-armed:focus-visible {
+    background-color: rgba(255, 107, 107, 0.20);
+    box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.70);
+}
+
+/* Zero-padded MM:SS + tabular-nums: the pill never changes width, so
+   nothing beside it jitters once a second. */
+.pb-arm-count {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1;
+    min-width: 5ch;
+    text-align: right;
+}
+
+/* A needs-you bar recolours .pb-state/.pb-time to --warn; the pill inherits
+   color, and a --warn hourglass would read "waiting" when it means "armed".
+   Pin it. */
+.is-needs-you .pb-arm.is-armed {
+    color: var(--ink);
+}
+
+/* Armed pane cue: one INSET hairline, no bloom. */
+.project-bar.is-armed {
+    box-shadow: var(--glass-lift-sm), var(--glass-inset),
+        inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.45);
+}
+
+/* box-shadow is one declaration — is-needs-you (§3) would silently wipe the
+   armed ring (or vice versa), so the combination must be restated. */
+.project-bar.is-armed.is-needs-you {
+    box-shadow: var(--glass-lift-sm), var(--glass-inset),
+        0 0 0 1px rgba(255, 180, 84, 0.45),
+        0 0 22px -6px rgba(255, 180, 84, 0.5),
+        inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.45);
+}
+
+/* Same trap, other direction: .project-bar.is-idle (§3) has EQUAL
+   specificity and later source order, and armed-then-idle is the default
+   outcome of arming a window and walking away — the ring must survive it. */
+.project-bar.is-armed.is-idle {
+    box-shadow: var(--glass-inset),
+        inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.45);
+}
+
+/* One quiet swell of the fill per landed auto-approval — background alpha
+   only, no movement. Deliberately NO !important: the digits are the primary
+   channel, so the global reduced-motion killer (5-pomodoro.css) is allowed
+   to remove this. */
+@keyframes pb-arm-ack {
+    0%   { background-color: rgba(var(--pb-armed-rgb), 0.18); }
+    18%  { background-color: rgba(var(--pb-armed-rgb), 0.36); }
+    100% { background-color: rgba(var(--pb-armed-rgb), 0.18); }
+}
+
+.pb-arm.is-ack {
+    animation: pb-arm-ack 900ms ease-out 1;
+}
+
+/* Last minute: a slow breathe. Same no-!important rationale as the ack. */
+@keyframes pb-arm-expiring {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+.pb-arm.is-armed.is-expiring {
+    animation: pb-arm-expiring 2s ease-in-out infinite;
+}
+
+/* animation is a shorthand, so the higher-specificity is-expiring rule
+   would silently cancel the ack swell exactly when approvals are most
+   worth noticing — the last minute. Compose both explicitly. */
+.pb-arm.is-armed.is-expiring.is-ack {
+    animation: pb-arm-expiring 2s ease-in-out infinite,
+        pb-arm-ack 900ms ease-out 1;
+}
+
+/* The duration popover. Solid dark pane (the minimap popover recipe, higher
+   opacity), not .glass-surface — this pane carries a security decision, so
+   its legibility can't be left to the wallpaper. background-clip has TWO
+   values for TWO layers; a later `background:` shorthand here would wipe
+   the edge gradient (see CLAUDE.md glass traps). */
+.pb-armpop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: -6px;
+    z-index: 70;
+    width: 232px;
+    max-width: calc(100vw - 24px);
+    padding: 10px 12px 12px;
+    border-radius: var(--radius-control);
+    background-color: transparent;
+    background-image:
+        linear-gradient(rgba(11, 14, 20, 0.92), rgba(11, 14, 20, 0.92)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 42%,
+            transparent 62%, var(--glass-edge-lo) 88%, rgba(255, 255, 255, 0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    box-shadow: var(--glass-lift), var(--glass-inset);
+    color: var(--ink);
+    text-shadow: none;
+}
+
+/* Same trap as .pb-toggle[hidden]. */
+.pb-armpop[hidden] {
+    display: none;
+}
+
+.pb-armpop-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.pb-armpop-title {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    color: var(--ink-dim);
+}
+
+.pb-armpop-val {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: var(--ink);
+    min-width: 4.5ch;
+    text-align: right;
+}
+
+.pb-armpop-range {
+    width: 100%;
+    height: 18px;
+    margin: 8px 0 2px;
+    cursor: pointer;
+    accent-color: var(--pb-armed);
+}
+
+.pb-armpop-range:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.pb-armpop-scale {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--ink-dim);
+}
+
+.pb-armpop-actions {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.pb-armpop-cancel,
+.pb-armpop-arm {
+    padding: 0.16rem 0.65rem;
+    /* WCAG 2.5.8: 24px minimum target, which the strip's button metrics
+       alone (~21px) miss. */
+    min-height: 24px;
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+/* Match the trigger's own coarse-pointer bump — touch precision is worst
+   exactly where these live. */
+@media (pointer: coarse) {
+    .pb-armpop-cancel,
+    .pb-armpop-arm {
+        min-height: 40px;
+        padding: 0.3rem 0.9rem;
+    }
+    .pb-armpop-actions {
+        gap: 0.6rem;
+    }
+}
+
+.pb-armpop-cancel {
+    color: var(--ink-dim);
+}
+
+.pb-armpop-cancel:hover,
+.pb-armpop-cancel:focus-visible {
+    color: var(--ink);
+}
+
+/* Primary, visible at rest — the strip's "verb colour on hover only" rule
+   exists so pending rows don't become a traffic light; inside a
+   deliberately-opened popover that risk doesn't exist. */
+.pb-armpop-arm {
+    color: var(--ink);
+    box-shadow: var(--glass-inset), inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.55);
+}
+
+.pb-armpop-arm:hover,
+.pb-armpop-arm:focus-visible {
+    background-color: rgba(var(--pb-armed-rgb), 0.18);
+    /* .glass-control:hover sets box-shadow at higher specificity and would
+       otherwise strip the coral ring exactly on hover — restate it. */
+    box-shadow: var(--glass-inset-hi), inset 0 0 0 1px rgba(var(--pb-armed-rgb), 0.75);
+}
+
+.pb-armpop-cancel:focus-visible,
+.pb-armpop-arm:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Head-row crowding: pill + time + count all refuse to shrink; only the
+   name flexes. On narrow bars concede the count chip while armed — it is
+   fully re-derivable from the expanded detail. */
+@media (max-width: 1100px) {
+    .project-bar.is-armed .pb-count {
+        display: none;
+    }
 }
 
 /* ----------------------------------------

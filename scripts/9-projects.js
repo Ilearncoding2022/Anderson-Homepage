@@ -61,6 +61,22 @@ const ProjectsWidget = {
     APPROVE_BASE: 'http://127.0.0.1:8765',
     APPROVE_POLL_MS: 2000,
 
+    // Auto-allow (v4.22): a per-project timed override, armed from the bar's
+    // hourglass button. While armed, every broker-held request from that
+    // project is answered "allow" at the poll stage — it never becomes a
+    // button row, a needs-you state, a sound, or a tab alert. The window is
+    // hard-capped: the expiry is checked at DECISION time (not render time),
+    // so a throttled background tab can never approve past the deadline.
+    // State lives in sessionStorage — a REFRESH resumes the countdown (a
+    // disappearing window on F5 was the first field complaint), but the
+    // storage dies with the tab, so "homepage closed == feature off" still
+    // holds, and the absolute deadline means nothing can resume past it.
+    ARM_MIN: 5,
+    ARM_MAX: 60,
+    ARM_STEP: 5,
+    ARM_DEFAULT: 30,
+    ARM_EXPIRING_MS: 60 * 1000,   // last-minute visual state on the pill
+
     // Alert sound for a new permission request. Spaces in the filename are
     // encoded because this is a URL, not a path.
     SOUND_SRC: 'Claude%20permission%20request%202.mp3',
@@ -81,6 +97,7 @@ const ProjectsWidget = {
     NAMES_KEY: 'claudeProjectsNames',
     SEEN_KEY: 'claudeProjectsSeen',
     EXPANDED_KEY: 'claudeProjectsExpanded',
+    AUTO_ALLOW_KEY: 'claudeProjectsAutoAllow',   // sessionStorage, not localStorage
 
     IDLE_OPTIONS: [1, 3, 5, 10],
     HIDE_OPTIONS: [10, 30, 60, 120],
@@ -138,6 +155,11 @@ const ProjectsWidget = {
     _audio: null,
     _lastSoundMs: 0,
     _allowAllBusy: false,
+    _autoAllow: null,       // cwdKey (lowercased) -> { until: ms, count: n }
+    _autoFailed: null,      // approval id -> consecutive failed auto /decide POSTs
+    _armLastMins: 0,        // last committed duration, session-memory only
+    _armPopSeq: 0,
+    _armPopCloser: null,    // document-level pointerdown handler while a popover is open
     _tabAlertOn: false,
     _tabAlertTimer: null,
     _tabAlertRestore: null, // original favicon href + title, captured at first alert
@@ -158,15 +180,20 @@ const ProjectsWidget = {
         this._wireApproveGoodbye();
         this._wireVisibilityPause();
 
+        // Collections first: _load()'s script onload is async today, but the
+        // approval paths reached from _processData must never find these
+        // half-initialised.
+        this._approveBusy = new Set();
+        this._approveSeen = new Set();
+        this._decided = new Set();
+        this._unattached = new Map();
+        this._autoAllow = this._loadAutoAllow();
+        this._autoFailed = new Map();
         clearInterval(this._pollTimer);
         clearInterval(this._tickTimer);
         this._load();
         this._pollTimer = setInterval(() => this._load(), this.POLL_MS);
         this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
-        this._approveBusy = new Set();
-        this._approveSeen = new Set();
-        this._decided = new Set();
-        this._unattached = new Map();
         this._syncApprovePoll();
     },
 
@@ -275,6 +302,13 @@ const ProjectsWidget = {
             // state derivation, so the existing needs-you rules — precedence
             // over the idle clock, auto-expand, the announcement — all apply
             // to broker-held requests for free.
+            // Auto-allow (v4.22) runs BEFORE the overlay: requests belonging
+            // to an armed project are answered and stripped here, so they
+            // never flip a thread to needs-you, never render buttons, never
+            // play the sound, and never flash the tab. Both arrival paths
+            // (broker poll and data reload) converge on this one sweep.
+            this._sweepArmedApprovals(sessions);
+
             this._applyApprovalOverlay(sessions);
 
             // Seen/names tracking runs regardless of the enabled toggle or a
@@ -384,10 +418,20 @@ const ProjectsWidget = {
         } else if (!want && this._approveTimer) {
             clearInterval(this._approveTimer);
             this._approveTimer = null;
-            if (this._approvals.length) {
-                this._approvals = [];
-                this._processData();
+            // Turning the feature off ends every armed auto-allow window
+            // with it — a countdown that can no longer approve anything
+            // would be a lie on the bar. Announced, so the end of an armed
+            // window is never silent to AT.
+            const hadArmed = !!this._autoAllow?.size;
+            const hadState = this._approvals.length || hadArmed;
+            this._approvals = [];
+            this._autoAllow?.clear();
+            this._persistAutoAllow();
+            if (hadArmed) {
+                this._alertQueue.push({ sentence: 'Auto-allow stopped.' });
+                this._flushAlerts();
             }
+            if (hadState) this._processData();
         }
     },
 
@@ -470,6 +514,11 @@ const ProjectsWidget = {
             // reporting it.
             for (const id of this._decided) {
                 if (!next.some(a => a.id === id)) this._decided.delete(id);
+            }
+            if (this._autoFailed) {
+                for (const id of this._autoFailed.keys()) {
+                    if (!next.some(a => a.id === id)) this._autoFailed.delete(id);
+                }
             }
             const visible = this._decided.size
                 ? next.filter(a => !this._decided.has(a.id))
@@ -586,6 +635,432 @@ const ProjectsWidget = {
                 }
             }
         }
+    },
+
+    // ----------------------------------------
+    // Auto-allow (v4.22): a per-project timed override. Armed by a trusted
+    // click on the bar's hourglass button; while armed, every broker-held
+    // request from that project is answered "allow" by _sweepArmedApprovals.
+    // The invariants that must survive any refactor:
+    //  - Arming requires a real user gesture (isTrusted, checked in the
+    //    delegated listeners) — same rule as the Allow buttons themselves.
+    //  - The expiry is enforced at DECISION time, per request, in the sweep.
+    //    No timer, tick, or render is load-bearing for the deadline: a
+    //    throttled background tab delays decisions, never extends the window.
+    //  - Still one /decide per tool_use_id, never a broker-side switch —
+    //    arming is standing intent held by THIS page, and dies with it.
+    //  - Memory-only state: reload or close disarms. "Homepage closed ==
+    //    feature off" applies to the override exactly as to the buttons.
+    //  - Auto decisions carry `auto: true` so approve-log.jsonl can tell an
+    //    armed window (cause `homepage-auto`) from a click.
+    // ----------------------------------------
+
+    /**
+     * Armed windows survive a REFRESH, not a departure: sessionStorage is
+     * per-tab, so a reload (plain or hard) resumes the countdown while
+     * closing the tab ends the feature with the page. Deadlines are stored
+     * absolute, so a restore can never extend a window, and anything
+     * malformed, expired, or implausibly far out fails toward OFF —
+     * dropped, never clamped up.
+     */
+    _loadAutoAllow() {
+        const map = new Map();
+        try {
+            const parsed = JSON.parse(sessionStorage.getItem(this.AUTO_ALLOW_KEY) || 'null');
+            if (parsed && typeof parsed === 'object') {
+                const now = Date.now();
+                const maxUntil = now + this.ARM_MAX * 60000 + 5000;
+                for (const [key, v] of Object.entries(parsed)) {
+                    if (map.size >= 32) break;
+                    const until = Number(v?.until);
+                    if (!key || !Number.isFinite(until)) continue;
+                    if (until <= now || until > maxUntil) continue;
+                    map.set(key.toLowerCase(), {
+                        until,
+                        count: this._clampInt(v?.count, 0, 9999, 0)
+                    });
+                }
+            }
+        } catch (_e) { /* unreadable storage: stay disarmed */ }
+        return map;
+    },
+
+    _persistAutoAllow() {
+        try {
+            if (!this._autoAllow || this._autoAllow.size === 0) {
+                sessionStorage.removeItem(this.AUTO_ALLOW_KEY);
+                return;
+            }
+            const obj = {};
+            for (const [k, v] of this._autoAllow) obj[k] = { until: v.until, count: v.count };
+            sessionStorage.setItem(this.AUTO_ALLOW_KEY, JSON.stringify(obj));
+        } catch (_e) { /* storage blocked: the window becomes memory-only */ }
+    },
+
+    /**
+     * Answer held requests belonging to an armed project before they can
+     * surface. Runs inside _processData against the freshly-coerced session
+     * list — the one source that maps sessionId -> project directory — so a
+     * brand-new session's first request is swept the moment its cwd is
+     * known, and an unknown session falls through to the ordinary button
+     * path (fail toward a human seeing it).
+     */
+    _sweepArmedApprovals(sessions) {
+        // Explicit even though _syncApprovePoll clears _autoAllow when either
+        // setting flips off — a non-local invariant is not enough protection
+        // for the app's most consequential code path.
+        if (!this._settings.enabled || !this._settings.approve) return;
+        if (!this._autoAllow || this._autoAllow.size === 0) return;
+        if (this._approvals.length === 0) return;
+        const now = Date.now();
+        const hideMs = this._settings.hideMin * 60000;
+        const keyById = new Map();
+        for (const s of sessions) {
+            // Only sessions that will actually render a bar: no bar means no
+            // armed pill and no disarm control, and a grant with no visible
+            // stop button is the worst shape this feature can fail in. A
+            // session past hideMin falls through to _releaseUnattached's
+            // hand-back instead.
+            const t = Date.parse(s.lastEventAt);
+            if (!Number.isFinite(t) || (now - t) > hideMs) continue;
+            keyById.set(s.sessionId, s.cwdKey || String(s.cwd || '').toLowerCase());
+        }
+        const rest = [];
+        for (const a of this._approvals) {
+            const barKey = keyById.get(a.sessionId) || '';
+            const entry = barKey ? this._autoAllow.get(barKey.toLowerCase()) : null;
+            // A request whose auto /decide keeps failing gets its buttons
+            // back rather than staying invisible for the rest of the hold.
+            const broken = (this._autoFailed?.get(a.id) || 0) >= 2;
+            // The deadline check lives here, at the moment of decision.
+            if (entry && !broken && now < entry.until && !this._approveBusy.has(a.id)) {
+                this._autoDecide(a, entry, barKey);
+            } else {
+                rest.push(a);
+            }
+        }
+        if (rest.length !== this._approvals.length) this._approvals = rest;
+    },
+
+    /** One /decide {allow, auto:true} for one swept request. */
+    _autoDecide(a, entry, barKey) {
+        if (this._decided.has(a.id)) return;
+        this._approveBusy.add(a.id);
+        this._decided.add(a.id);
+        fetch(`${this.APPROVE_BASE}/decide`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Approve-Token': this._approveToken
+            },
+            body: JSON.stringify({ id: a.id, decision: 'allow', auto: true }),
+            signal: AbortSignal.timeout(4000)
+        }).then(async (res) => {
+            if (!res.ok) throw new Error(String(res.status));
+            const outcome = await res.json().catch(() => null);
+            // gone:true means the hold already lapsed (hook timeout, broker
+            // sweep) — nothing was approved, so the tally must not move.
+            if (outcome && outcome.ok === true) {
+                entry.count += 1;
+                this._persistAutoAllow();   // the tally survives a refresh too
+                this._ackAutoAllow(barKey);
+            }
+            this._autoFailed?.delete(a.id);
+        }).catch(() => {
+            // Didn't land: forget we answered so the next poll re-lists it —
+            // back through the sweep if still armed, or as buttons once the
+            // failure count trips the sweep's fallback (a request must never
+            // sit invisible for the whole hold). A fully dead /decide path
+            // is backstopped by the broker's own hold timeout (VS Code asks).
+            this._decided.delete(a.id);
+            this._autoFailed?.set(a.id, (this._autoFailed.get(a.id) || 0) + 1);
+        }).finally(() => this._approveBusy.delete(a.id));
+    },
+
+    /** One quiet swell of the armed pill's fill per landed auto-approval —
+     *  perceptible peripherally, demanding nothing. Fill alpha only; the
+     *  global reduced-motion animation killer is allowed to remove it. */
+    _ackAutoAllow(barKey) {
+        const li = document.querySelector(
+            `.project-bar[data-cwd-key="${CSS.escape(barKey)}"]`);
+        const btn = li?.querySelector('.pb-arm.is-armed');
+        if (!btn) return;
+        btn.classList.remove('is-ack');
+        void btn.offsetWidth; // restart for back-to-back approvals
+        btn.classList.add('is-ack');
+        clearTimeout(btn._ackTimer);
+        btn._ackTimer = setTimeout(() => btn.classList.remove('is-ack'), 1400);
+    },
+
+    /**
+     * End an armed window. Mutation + announcement only — callers own the
+     * re-render, because this is reachable from inside one (_syncArm). The
+     * Map delete doubles as the idempotency guard.
+     */
+    _disarm(key, reason, name) {
+        if (!this._autoAllow || !this._autoAllow.delete(key)) return false;
+        this._persistAutoAllow();
+        this._alertQueue.push({ sentence: reason === 'expired'
+            ? `Auto-allow expired on ${name}.`
+            : `Auto-allow stopped on ${name}.` });
+        return true;
+    },
+
+    /**
+     * Reconcile the hourglass pill on one bar. An unarmed button hides
+     * whenever remote approve can't actually deliver (setting off, broker
+     * unreachable, sentinel) — arming would be a promise the page can't
+     * keep. An ARMED pill stays visible regardless: the countdown is real
+     * and the disarm control must never disappear while the state exists.
+     */
+    _syncArm(li, bar) {
+        const btn = li.querySelector('.pb-arm');
+        if (!btn) return;
+        const key = bar.cwdKey.toLowerCase();
+        let entry = this._autoAllow.get(key);
+        if (entry && Date.now() >= entry.until) {
+            // Lapsed between ticks (or while the tab was hidden): announce
+            // once, render unarmed. The queued alert flushes at the end of
+            // this same render pass (_renderRow -> _flushAlerts).
+            this._disarm(key, 'expired', bar.name);
+            entry = null;
+        }
+        const armed = !!entry;
+        const avail = this._settings.approve && this._approveOnline === true
+            && this._approveMode !== 'disabled';
+        const show = armed || avail;
+        if (btn.hidden !== !show) btn.hidden = !show;
+        li.classList.toggle('is-armed', armed);
+        btn.classList.toggle('is-armed', armed);
+        if (!armed) {
+            btn.classList.remove('is-expiring', 'is-ack');
+            delete btn.dataset.until;
+            delete btn.dataset.armBucket;
+            // Restore the disclosure semantics an armed render removed —
+            // unarmed, the button opens the popover again.
+            if (!btn.hasAttribute('aria-haspopup')) {
+                btn.setAttribute('aria-haspopup', 'dialog');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+            const countEl = btn.querySelector('.pb-arm-count');
+            if (countEl && countEl.textContent !== '') countEl.textContent = '';
+            const label = `Auto-allow permission requests in ${bar.name} for a timed window`;
+            if (btn.getAttribute('aria-label') !== label) {
+                btn.setAttribute('aria-label', label);
+                btn.title = 'Auto-allow for a timed window…';
+            }
+            // Hidden entirely ⇒ any open duration popover goes with it; a
+            // visible unarmed button keeps its popover (user mid-choice).
+            if (!show) this._closeArmPop(li, false);
+            return;
+        }
+        btn.dataset.until = String(entry.until);
+        this._closeArmPop(li, false); // click on an armed pill means "stop"
+        // An armed pill opens nothing — announcing "has popup, collapsed"
+        // on what is now a stop button would be a lie to AT.
+        btn.removeAttribute('aria-haspopup');
+        btn.removeAttribute('aria-expanded');
+        this._tickArm(btn);
+    },
+
+    /** Countdown, expiring state and labels for one armed pill. Display
+     *  only — the enforcement copy of the deadline is in the sweep. */
+    _tickArm(btn) {
+        const until = Number(btn.dataset.until);
+        if (!Number.isFinite(until)) return;
+        const li = btn.closest('.project-bar');
+        const remaining = until - Date.now();
+        if (remaining <= 0) {
+            const key = (li?.dataset.cwdKey || '').toLowerCase();
+            const name = li?.querySelector('.pb-name')?.textContent || 'this project';
+            if (this._disarm(key, 'expired', name)) {
+                this._flushAlerts();
+                // Deferred: this is reachable from inside a render pass
+                // (via _syncArm), and _processData must never re-enter.
+                setTimeout(() => this._processData(), 0);
+            }
+            return;
+        }
+        btn.classList.toggle('is-expiring', remaining <= this.ARM_EXPIRING_MS);
+        const total = Math.ceil(remaining / 1000);
+        const mm = String(Math.floor(total / 60)).padStart(2, '0');
+        const ss = String(total % 60).padStart(2, '0');
+        const txt = `${mm}:${ss}`;
+        const countEl = btn.querySelector('.pb-arm-count');
+        if (countEl && countEl.textContent !== txt) countEl.textContent = txt;
+        // Minute-granular accessible name (same churn rule as _tickTime) —
+        // rewriting a focused control's label re-announces in some AT, and
+        // the pill is focused right after arming. The bucket is the minute
+        // ALONE: the tally is read at rewrite time (so it can lag up to a
+        // minute) rather than added to the key, where every landed approval
+        // would force the exact per-event churn this guard exists to stop.
+        const mins = Math.ceil(remaining / 60000);
+        const bucket = String(mins);
+        if (btn.dataset.armBucket !== bucket) {
+            btn.dataset.armBucket = bucket;
+            const key = (li?.dataset.cwdKey || '').toLowerCase();
+            const count = this._autoAllow.get(key)?.count || 0;
+            const label = `Stop auto-allow — ${count} approved so far, ${mins} minute${mins === 1 ? '' : 's'} left`;
+            btn.setAttribute('aria-label', label);
+            btn.title = label;
+        }
+    },
+
+    /** Trusted click on the hourglass: armed pill stops; unarmed opens the
+     *  duration popover (or closes it, acting as its own toggle). */
+    _onArmClick(btn) {
+        const li = btn.closest('.project-bar');
+        const key = (li?.dataset.cwdKey || '').toLowerCase();
+        if (!key) return;
+        // Branch on the Map, not the is-armed class: the class can lag one
+        // tick behind an expiry, and a click on that stale pill must not
+        // open the popover underneath it.
+        const entry = this._autoAllow.get(key);
+        if (entry) {
+            // One click stops it — never confirm the safe direction. An
+            // entry whose deadline just passed is announced as what it is.
+            const name = li.querySelector('.pb-name')?.textContent || 'this project';
+            const reason = Date.now() >= entry.until ? 'expired' : 'stopped';
+            if (this._disarm(key, reason, name)) {
+                this._flushAlerts();
+                this._processData();
+            }
+            return;
+        }
+        if (btn.classList.contains('is-armed')) {
+            // Stale pill (expiry raced the render): just resync.
+            this._processData();
+            return;
+        }
+        const pop = li.querySelector('.pb-armpop');
+        if (!pop) return;
+        if (!pop.hidden) this._closeArmPop(li, true);
+        else this._openArmPop(li);
+    },
+
+    _openArmPop(li) {
+        // One decision at a time — any other bar's open popover closes.
+        document.querySelectorAll('.project-bar.is-arming').forEach(other => {
+            if (other !== li) this._closeArmPop(other, false);
+        });
+        const pop = li.querySelector('.pb-armpop');
+        const btn = li.querySelector('.pb-arm');
+        const range = pop?.querySelector('.pb-armpop-range');
+        if (!pop || !btn || !range) return;
+        const name = li.querySelector('.pb-name')?.textContent || 'this project';
+        pop.setAttribute('aria-label', `Auto-allow permissions in ${name}`);
+        // Prefill with the last duration committed this session — a user
+        // who always picks 10 shouldn't re-drag from 30 every time.
+        range.value = String(this._armLastMins || this.ARM_DEFAULT);
+        // Read by _armFromPop's age guard — a commit landing within 400ms of
+        // the popover appearing is a slip (double-press, key repeat), not a
+        // considered choice of a standing grant.
+        pop.dataset.shownAt = String(Date.now());
+        pop.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        // z-index above the following bars in the grid, or the popover
+        // paints underneath them — .project-bar establishes no stacking
+        // context of its own.
+        li.classList.add('is-arming');
+        // The row wrap clips (overflow:hidden drives its 0fr collapse), and
+        // the popover hangs below the bar — without this the action buttons
+        // are cut off on every bar in the grid's last row.
+        document.getElementById('projectsRow')?.classList.add('has-armpop');
+        this._paintArmPop(li);
+        range.focus();
+        // Outside pointerdown closes. Capture phase, registered per open —
+        // and any stale closer is removed FIRST: a bar torn down with its
+        // popover open (row closed mid-choice) would otherwise leave an
+        // orphan whose late firing removes the wrong listener.
+        if (this._armPopCloser) {
+            document.removeEventListener('pointerdown', this._armPopCloser, true);
+            this._armPopCloser = null;
+        }
+        this._armPopCloser = (e) => {
+            if (!li.querySelector('.pb-arm-wrap')?.contains(e.target)) {
+                // noSteal: the browser is about to focus whatever was
+                // clicked; yanking focus back to the hourglass would fight
+                // the user's own gesture.
+                this._closeArmPop(li, false, true);
+            }
+        };
+        document.addEventListener('pointerdown', this._armPopCloser, true);
+    },
+
+    _closeArmPop(li, restoreFocus, noSteal) {
+        const pop = li?.querySelector('.pb-armpop');
+        if (!pop || pop.hidden) return;
+        const btn = li.querySelector('.pb-arm');
+        const hadFocus = pop.contains(document.activeElement);
+        pop.hidden = true;
+        btn?.setAttribute('aria-expanded', 'false');
+        li.classList.remove('is-arming');
+        // Only one popover can be open, so the wrap unclips exactly with it.
+        document.getElementById('projectsRow')?.classList.remove('has-armpop');
+        if (this._armPopCloser) {
+            document.removeEventListener('pointerdown', this._armPopCloser, true);
+            this._armPopCloser = null;
+        }
+        // Focus must not be silently dropped to <body> when the subtree it
+        // lived in goes hidden — same rule as _focusAfterDecision.
+        if (!noSteal && (restoreFocus || hadFocus)) {
+            if (btn && !btn.hidden) {
+                btn.focus();
+            } else {
+                li.tabIndex = -1;
+                li.focus();
+            }
+        }
+    },
+
+    /** Live readout + arm-button label while the popover is open. */
+    _paintArmPop(li) {
+        const pop = li.querySelector('.pb-armpop');
+        if (!pop || pop.hidden) return;
+        const range = pop.querySelector('.pb-armpop-range');
+        const mins = this._clampInt(range?.value, this.ARM_MIN, this.ARM_MAX, this.ARM_DEFAULT);
+        const val = pop.querySelector('.pb-armpop-val');
+        const txt = `${mins} min`;
+        if (val && val.textContent !== txt) val.textContent = txt;
+        // Arming also answers everything currently waiting on this bar —
+        // that is plainly the intent, and the label is what keeps it from
+        // being a surprise.
+        const armBtn = pop.querySelector('.pb-armpop-arm');
+        const held = (li.__bar?.approvals || []).length;
+        // The duration stays in the committing control's label even when
+        // requests are waiting — that label is the statement of what is
+        // being granted, and "allow N now" is the rider, not the deal.
+        const label = held > 0
+            ? `Arm ${mins} min · allow ${held} now`
+            : `Arm ${mins} min`;
+        if (armBtn && armBtn.textContent !== label) armBtn.textContent = label;
+    },
+
+    /** Commit the popover's duration. Reached only from trusted gestures. */
+    _armFromPop(li) {
+        if (!li) return;
+        const key = (li.dataset.cwdKey || '').toLowerCase();
+        const pop = li.querySelector('.pb-armpop');
+        if (!key || !pop || pop.hidden) return;
+        // Same bait-and-switch/slip guard as _decideApproval, and it matters
+        // more here: this commit grants a standing window, not one call.
+        const shownMs = Number(pop.dataset.shownAt);
+        if (Number.isFinite(shownMs) && Date.now() - shownMs < 400) return;
+        const range = pop.querySelector('.pb-armpop-range');
+        const mins = this._clampInt(range?.value, this.ARM_MIN, this.ARM_MAX, this.ARM_DEFAULT);
+        this._armLastMins = mins;
+        this._autoAllow.set(key, { until: Date.now() + mins * 60000, count: 0 });
+        this._persistAutoAllow();
+        const name = li.querySelector('.pb-name')?.textContent || 'this project';
+        this._alertQueue.push({ sentence:
+            `Auto-allow armed for ${mins} minutes on ${name}.` });
+        this._closeArmPop(li, false);
+        // Re-render paints the armed pill, and its sweep answers anything
+        // already held for this project — the same code path every later
+        // auto-approval takes. Also flushes the alert queued above.
+        this._processData();
+        const btn = li.querySelector('.pb-arm');
+        if (btn && !btn.hidden) btn.focus();
     },
 
     /** One row per held request, reconciled in place under the bar head so
@@ -838,6 +1313,20 @@ const ProjectsWidget = {
     _wireApproveGoodbye() {
         window.addEventListener('pagehide', () => {
             if (!this._settings.approve || !this._approveToken) return;
+            // While an auto-allow window is armed, leave WITHOUT the goodbye.
+            // pagehide can't tell a refresh from a close, and /bye releases
+            // every held request to a VS Code dialog — which turned an F5
+            // into "go answer VS Code" even though the user had explicitly
+            // granted a window (the first field complaint against v4.22).
+            // A refresh lands back inside the broker's 8s heartbeat window,
+            // so held requests survive the gap and the restored window
+            // (sessionStorage) answers them on the first poll. A real close
+            // ends the tab's sessionStorage, and the broker's stale-
+            // heartbeat sweep still releases everything — just on the
+            // bounded clock (~16s visible, worst-case HOLD_MS hidden)
+            // instead of instantly. Unarmed pages say goodbye exactly as
+            // before.
+            if (this._autoAllow?.size) return;
             try {
                 fetch(`${this.APPROVE_BASE}/bye`, {
                     method: 'POST',
@@ -1252,6 +1741,21 @@ const ProjectsWidget = {
             || (a.cwdKey < b.cwdKey ? -1 : a.cwdKey > b.cwdKey ? 1 : 0));
         const selectedKeys = new Set(selected.map(b => b.cwdKey));
 
+        // An armed project that loses its bar — evicted by the 6-bar cap or
+        // aged out of the data — loses its window with it. The pill is the
+        // only disarm control, and a grant must never continue without one
+        // on screen. (Eviction is not exotic here: auto-swept requests never
+        // flip needs-you, so an armed project sorts below blocked ones.)
+        if (this._autoAllow.size) {
+            const live = new Set();
+            for (const k of selectedKeys) live.add(k.toLowerCase());
+            for (const key of [...this._autoAllow.keys()]) {
+                if (live.has(key)) continue;
+                const bar = all.find(b => b.cwdKey.toLowerCase() === key);
+                this._disarm(key, 'stopped', bar ? bar.name : 'a hidden project');
+            }
+        }
+
         // The overflow indicator is a 7th grid item — detach it while we
         // reconcile the bars so it never confuses the DOM-order walk below.
         const moreExisting = ul.querySelector('.projects-more');
@@ -1259,8 +1763,14 @@ const ProjectsWidget = {
 
         // Remove bars no longer selected (dropped session, filtered by
         // hideMin, or bumped out by the 6-bar cap). No exit animation.
+        // A removed bar's open auto-allow popover must close first, or its
+        // document-level pointerdown closer leaks (the cleanup sweep in
+        // _openArmPop can't see detached nodes).
         ul.querySelectorAll('.project-bar').forEach(li => {
-            if (!selectedKeys.has(li.dataset.cwdKey)) li.remove();
+            if (!selectedKeys.has(li.dataset.cwdKey)) {
+                this._closeArmPop(li, false);
+                li.remove();
+            }
         });
 
         this._openRow();
@@ -1378,11 +1888,17 @@ const ProjectsWidget = {
         li.dataset.cwdKey = cwdKey;
         li.dataset.state = '';
         const detailId = `pbDetail-${this._barSeq++}`;
+        const armSeq = this._armPopSeq++;
+        const armRangeId = `pbArmRange-${armSeq}`;
+        const armPopId = `pbArmPop-${armSeq}`;
         // Static shell only — every piece of user-controlled text (name,
         // count, state, activity, and now conversation titles and agent
         // types) is set via textContent afterwards, never interpolated into
-        // this markup. The one interpolated value is detailId, generated
-        // here from a counter.
+        // this markup. The interpolated values are detailId, armRangeId and
+        // armPopId (counters) and the ARM_* numeric constants.
+        // The .pb-armpop-val readout is aria-hidden: an <output>/status role
+        // repainted on every slider input would spam a live region with what
+        // the range control itself already announces.
         li.innerHTML = `
             <div class="pb-head">
                 <button type="button" class="pb-toggle" aria-expanded="false" aria-controls="${detailId}">
@@ -1391,6 +1907,27 @@ const ProjectsWidget = {
                 <span class="pb-name"></span>
                 <span class="pb-count" hidden></span>
                 <span class="pb-time" role="timer" aria-live="off"></span>
+                <span class="pb-arm-wrap">
+                    <button type="button" class="pb-arm" hidden aria-haspopup="dialog" aria-expanded="false" aria-controls="${armPopId}">
+                        <svg class="ico pb-arm-ico" aria-hidden="true"><use href="#ico-hourglass"></use></svg>
+                        <svg class="ico pb-arm-stop" aria-hidden="true"><use href="#ico-stop"></use></svg>
+                        <span class="pb-arm-count"></span>
+                    </button>
+                    <div class="pb-armpop" id="${armPopId}" role="dialog" hidden>
+                        <div class="pb-armpop-head">
+                            <span class="pb-armpop-title">Auto-allow for</span>
+                            <span class="pb-armpop-val" aria-hidden="true">${this.ARM_DEFAULT} min</span>
+                        </div>
+                        <input type="range" class="pb-armpop-range" id="${armRangeId}"
+                            min="${this.ARM_MIN}" max="${this.ARM_MAX}" step="${this.ARM_STEP}"
+                            value="${this.ARM_DEFAULT}" aria-label="Auto-allow duration in minutes">
+                        <div class="pb-armpop-scale" aria-hidden="true"><span>${this.ARM_MIN}</span><span>${this.ARM_MAX}</span></div>
+                        <div class="pb-armpop-actions">
+                            <button type="button" class="pb-armpop-cancel glass-control">Cancel</button>
+                            <button type="button" class="pb-armpop-arm glass-control">Arm ${this.ARM_DEFAULT} min</button>
+                        </div>
+                    </div>
+                </span>
             </div>
             <div class="pb-meta">
                 <span class="pb-ind" aria-hidden="true">
@@ -1477,6 +2014,7 @@ const ProjectsWidget = {
         if (timeEl) timeEl.dataset.since = bar.sinceIso;
 
         this._renderApprovalStrip(li, bar);
+        this._syncArm(li, bar);
         this._syncExpansion(li, bar);
 
         // Recency lives in the ticking .pb-time number + its aria-label, not
@@ -1527,6 +2065,27 @@ const ProjectsWidget = {
                 if (e.isTrusted) this._decideApproval(decisionBtn);
                 return;
             }
+            // Auto-allow: arming (and the popover that leads to it) grants
+            // permissions, so every path demands a trusted gesture — the
+            // same rule as the Allow buttons.
+            const armBtn = e.target.closest('.pb-arm');
+            if (armBtn) {
+                if (e.isTrusted) this._onArmClick(armBtn);
+                return;
+            }
+            const popArm = e.target.closest('.pb-armpop-arm');
+            if (popArm) {
+                if (e.isTrusted) this._armFromPop(popArm.closest('.project-bar'));
+                return;
+            }
+            const popCancel = e.target.closest('.pb-armpop-cancel');
+            if (popCancel) {
+                this._closeArmPop(popCancel.closest('.project-bar'), true);
+                return;
+            }
+            // Clicks elsewhere inside the popover (its own backing) must not
+            // fall through to the bar.
+            if (e.target.closest('.pb-armpop')) return;
             const btn = e.target.closest('.pb-toggle');
             if (!btn) return;
             const li = btn.closest('.project-bar');
@@ -1546,6 +2105,41 @@ const ProjectsWidget = {
             if (open) delete li.dataset.autoDismissed;
             else li.dataset.autoDismissed = '1';
             this._applyExpansion(li, open, li.__bar);
+        });
+
+        // Auto-allow popover: live readout while the slider moves…
+        ul.addEventListener('input', (e) => {
+            const range = e.target.closest('.pb-armpop-range');
+            if (range) this._paintArmPop(range.closest('.project-bar'));
+        });
+        // …Escape closes without arming; Enter on the slider commits (range
+        // inputs don't submit natively). Enter on the popover's buttons is
+        // left alone — it must activate the button it's focused on, and a
+        // synthesized Enter "click" is filtered by the isTrusted checks in
+        // the click handler above.
+        ul.addEventListener('keydown', (e) => {
+            const pop = e.target.closest('.pb-armpop');
+            if (!pop) return;
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                this._closeArmPop(pop.closest('.project-bar'), true);
+            } else if (e.key === 'Enter' && !e.repeat && e.target.closest('.pb-armpop-range')) {
+                // !e.repeat: buttons activate on keydown, so holding Enter on
+                // the hourglass would otherwise open the popover and have the
+                // OS key-repeat commit it before the user ever saw a slider.
+                // The popover's own 400ms age guard (_armFromPop) covers the
+                // quick deliberate double-press the repeat check can't.
+                e.preventDefault();
+                if (e.isTrusted) this._armFromPop(pop.closest('.project-bar'));
+            }
+        });
+        // Tabbing out of the popover closes it (without yanking focus back).
+        ul.addEventListener('focusout', (e) => {
+            const wrap = e.target.closest('.pb-arm-wrap');
+            if (!wrap) return;
+            if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+            const pop = wrap.querySelector('.pb-armpop');
+            if (pop && !pop.hidden) this._closeArmPop(wrap.closest('.project-bar'), false);
         });
     },
 
@@ -1852,6 +2446,14 @@ const ProjectsWidget = {
         const ul = wrap?.querySelector('.projects-row');
         if (!ul) return;
         ul.querySelectorAll('[data-since]').forEach(el => this._tickTime(el));
+        // Armed auto-allow pills count down on the same shared ticker. This
+        // is display only — expiry is enforced at decision time in
+        // _sweepArmedApprovals, so a paused ticker (hidden tab) never
+        // extends a window. Gated so the common case (nothing armed) adds
+        // no per-second query at all.
+        if (this._autoAllow?.size) {
+            ul.querySelectorAll('.pb-arm[data-until]').forEach(el => this._tickArm(el));
+        }
     },
 
     /** Update every elapsed readout inside one node (self included). */
@@ -1924,6 +2526,21 @@ const ProjectsWidget = {
     },
 
     _closeRow() {
+        // No row means no armed pill, and the pill is the only disarm
+        // control — an auto-allow window must never keep granting with no
+        // visible stop button, so every armed window ends with the row.
+        if (this._autoAllow?.size) {
+            this._autoAllow.clear();
+            this._persistAutoAllow();
+            this._alertQueue.push({ sentence: 'Auto-allow stopped — its project left the row.' });
+            this._flushAlerts();
+        }
+        // A popover open at close time must be torn down NOW, not when the
+        // 240ms collapse finishes: it holds a document-level listener, and
+        // its overflow escape hatch would let the collapsing row paint
+        // outside its box.
+        document.querySelectorAll('.project-bar.is-arming')
+            .forEach(li => this._closeArmPop(li, false, true));
         const wrap = document.getElementById('projectsRow');
         if (!wrap || wrap.hidden) return;
         // Double-close guard: a close already in flight (transitionend

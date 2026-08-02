@@ -467,7 +467,15 @@ function handleDecide(body, res, origin) {
     sendJson(res, 200, { ok: false, gone: true }, origin);
     return;
   }
-  release(entry, decision, decision === 'passthrough' ? 'homepage-cannot-show' : 'homepage');
+  // `auto` is log-only: an allow sent by the page's timed auto-allow window
+  // (v4.22) is recorded as its own cause so the decision log can always tell
+  // an armed window from a human click. It changes nothing about how the
+  // decision is authenticated or released — the same token, origin and
+  // per-tool_use_id rules gate this path either way.
+  let cause = 'homepage';
+  if (decision === 'passthrough') cause = 'homepage-cannot-show';
+  else if (decision === 'allow' && body.auto === true) cause = 'homepage-auto';
+  release(entry, decision, cause);
   sendJson(res, 200, { ok: true }, origin);
 }
 

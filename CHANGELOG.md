@@ -5,6 +5,31 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.22] — 2026-08-02
+
+### Auto-allow: a timed pass for one project
+
+- **Arm a project from its bar (new):** the hourglass button at the right
+  end of each project bar opens a small slider — pick 5 to 60 minutes
+  (default 30) and press Arm. For that window, permission requests from
+  that project that would have shown Allow / Deny buttons are approved
+  automatically: no buttons, no orange blink, no sound, no tab flash.
+  Requests already waiting when you arm are approved too, and the Arm
+  button says so before you commit.
+- **The armed pill is the off switch (new):** while armed, the button
+  becomes a hatched coral pill counting down MM:SS. One click stops it —
+  no confirmation. Its tooltip keeps a running tally of what was approved,
+  and the fill swells briefly each time an approval lands.
+- **Hard limits, checked at the moment of decision (new):** the deadline
+  is enforced per request as it is answered, so a throttled background tab
+  can delay approvals but never extend the window. Arming is per project
+  and per tab: it survives a refresh (the countdown resumes, and a reload
+  no longer bounces held requests to a VS Code dialog), and ends when the
+  window expires, the project leaves the row, the tab closes, or the
+  feature is turned off — VS Code then prompts as usual. The decision log
+  records auto-approvals as their own cause (homepage-auto), and the panic
+  switch still beats everything.
+
 ## [v4.21] — 2026-07-31
 
 ### The activity words tell more of the story
