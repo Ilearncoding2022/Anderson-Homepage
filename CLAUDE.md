@@ -245,6 +245,31 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   killed while hidden still looks alive for up to 75 s, so a request arriving
   in that window can be held (capped by `HOLD_MS`) before falling back.
   Don't add a server-side "on" state that outlives the page beyond that.
+- **The *data* poll must not stop while hidden either, and that was a
+  separate bug with the same shape (fixed v4.23).** `_wireVisibilityPause`
+  used to `clearInterval` the `claude-projects.js` poll on hide, which
+  freezes `window.ClaudeProjects` at that instant — while every staleness
+  gate in `_processData` measures that frozen snapshot against a live
+  clock. Past `hideMin`, the `generatedAt` gate then returned *above*
+  `_queueAlerts` **and** above `_releaseUnattached`, so an arriving request
+  got no sound, no buttons and no handback: it sat until `HOLD_MS` expired,
+  with only the (silent) tab alert to show for it. Fingerprint: a run of
+  consecutive `hold-timeout` entries for one session that ends the moment
+  the user looks at the tab. Hidden now polls at `POLL_HIDDEN_MS` (30 s,
+  and Chromium throttles that to ~1/min anyway), and every bail-out path
+  goes through `_bailWithApprovals`: one forced `_load()` per distinct
+  `generatedAt` (a stale file must not drive a reload loop), then hand the
+  request back. Only the 1 s ticker still pauses while hidden.
+- **The reminder is once per waiting thing, never a loop (v4.23).**
+  `_maybeRemind` replays the alert sound when something announced is still
+  waiting after the user's "play at most once every" interval —
+  keyed `a:<tool_use_id>` for a held request and `b:<cwdKey>` for a
+  needs-you project, in `_alertSeen`. Two rules: a reminder is spent only
+  if the sound actually started (`_playAlertSound` returns that, so a call
+  the cooldown swallowed does not burn the second chance), and it is driven
+  from `_pollApprovals` as well as the render pass — a request that changes
+  nothing renders nothing, and the tab nobody is looking at is the whole
+  point of it.
 - **Break-glass beats everything.** The sentinel file
   `%LOCALAPPDATA%\AndersonHomepage\approve-disable` (written by
   `tools/approve-off.cmd`) is checked FIRST by the hook on every invocation

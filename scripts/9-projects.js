@@ -38,6 +38,18 @@
 
 const ProjectsWidget = {
     POLL_MS: 6 * 1000,         // re-read claude-projects.js
+    // The same poll while the tab is hidden. Slower, but NOT stopped, which
+    // is what it used to be: pausing it froze window.ClaudeProjects at the
+    // moment the tab went away, and _processData measures that snapshot
+    // against a live clock. A tab left behind VS Code for longer than
+    // hideMin therefore failed *every* arriving permission request — the
+    // staleness gate returned above _queueAlerts (no sound) and above
+    // _releaseUnattached (no handback either), so the request just sat there
+    // until the broker's 150s hold ran out. Chromium throttles a hidden
+    // tab's timers to once per minute after five minutes hidden anyway, so
+    // this is a ceiling on the cadence, not a promise about it — the
+    // forced reload in _bailWithApprovals is what makes the response prompt.
+    POLL_HIDDEN_MS: 30 * 1000,
     TICK_MS: 1000,              // refresh the "time since" numbers
     MAX_BARS: 6,
     MAX_CHAT_ROWS: 6,           // per project, then "+N more"
@@ -147,7 +159,8 @@ const ProjectsWidget = {
     _approveOnline: null,   // null = not yet tried, false = unreachable, true = talking
     _approveBusy: null,     // Set of approval ids with a /decide in flight
     _approveToken: '',      // per-broker-start secret; see _loadApproveToken
-    _approveSeen: null,     // approval ids already announced
+    _alertSeen: null,       // announced-and-still-waiting -> { at, done }; see _queueAlerts
+    _staleReloadKey: null,  // generatedAt already retried once by _bailWithApprovals
     _approveMode: '',       // broker's own 'on' | 'disabled'
     _approveInFlight: false,
     _decided: null,         // ids answered here, suppressed until the broker forgets them
@@ -184,7 +197,7 @@ const ProjectsWidget = {
         // approval paths reached from _processData must never find these
         // half-initialised.
         this._approveBusy = new Set();
-        this._approveSeen = new Set();
+        this._alertSeen = new Map();
         this._decided = new Set();
         this._unattached = new Map();
         this._autoAllow = this._loadAutoAllow();
@@ -192,9 +205,20 @@ const ProjectsWidget = {
         clearInterval(this._pollTimer);
         clearInterval(this._tickTimer);
         this._load();
-        this._pollTimer = setInterval(() => this._load(), this.POLL_MS);
-        this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
+        // Cadence by visibility from the very first tick: this page is often
+        // opened into a background tab at boot (serve.bat / serve-hidden.vbs),
+        // which never fires a visibilitychange to correct it afterwards.
+        this._syncDataPoll();
+        if (!document.hidden) this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
         this._syncApprovePoll();
+    },
+
+    /** (Re)start the claude-projects.js poll at the cadence for the current
+     *  visibility — see POLL_HIDDEN_MS for why hidden is slow, not off. */
+    _syncDataPoll() {
+        clearInterval(this._pollTimer);
+        this._pollTimer = setInterval(() => this._load(),
+            document.hidden ? this.POLL_HIDDEN_MS : this.POLL_MS);
     },
 
     /** Coerce to string, never throw regardless of what disk/localStorage handed us. */
@@ -229,7 +253,15 @@ const ProjectsWidget = {
         // _syncTabAlert here too: this is the one path that skips
         // _processData's finally, and a held approval can outlive the data
         // file (every session ended, merge deleted it).
-        s.onerror = () => { s.remove(); this._closeRow(); this._syncTabAlert(); };
+        // _bailWithApprovals before the close: a held request needs either a
+        // retry (the hook writes tmp-file + rename, so a fetch can legitimately
+        // land in the gap) or a handback — never a silent wait.
+        s.onerror = () => {
+            s.remove();
+            this._bailWithApprovals(null);
+            this._closeRow();
+            this._syncTabAlert();
+        };
         document.head.appendChild(s);
     },
 
@@ -249,6 +281,7 @@ const ProjectsWidget = {
                     this._badDataWarned = true;
                     console.warn('[ProjectsWidget] claude-projects.js missing, malformed, or schema mismatch; hiding project row.');
                 }
+                this._bailWithApprovals(data && data.generatedAt);
                 this._closeRow();
                 return;
             }
@@ -329,6 +362,7 @@ const ProjectsWidget = {
             const generatedMs = Date.parse(data.generatedAt);
             const hideMs = this._settings.hideMin * 60000;
             if (!Number.isFinite(generatedMs) || (now - generatedMs) > hideMs) {
+                this._bailWithApprovals(data.generatedAt);
                 this._closeRow();
                 return;
             }
@@ -339,9 +373,13 @@ const ProjectsWidget = {
                 return Number.isFinite(t) && (now - t) <= hideMs;
             });
             if (kept.length === 0) {
+                this._bailWithApprovals(data.generatedAt);
                 this._closeRow();
                 return;
             }
+            // Rendered from this file, so a later stale episode gets its own
+            // retry rather than inheriting a spent one.
+            this._staleReloadKey = null;
 
             const groups = new Map();
             for (const s of kept) {
@@ -546,6 +584,11 @@ const ProjectsWidget = {
                 else this._processData();
             }
             if (statusChanged) this._updateApproveStatus(mode);
+            // The reminder's clock lives here, not on the render pass: a
+            // request that changes nothing renders nothing, and this poll is
+            // the only thing that keeps running at a useful rate while the
+            // tab is hidden — which is the case the reminder exists for.
+            this._maybeRemind(Date.now());
         } catch (_e) {
             const wentOffline = this._approveOnline !== false;
             this._approveOnline = false;
@@ -558,6 +601,36 @@ const ProjectsWidget = {
         } finally {
             this._approveInFlight = false;
         }
+    },
+
+    /**
+     * A bail-out path in _processData was reached — data missing, malformed,
+     * stale, or every session aged past hideMin — while the broker still
+     * holds requests for us. Two things have to happen here, and until v4.23
+     * neither did: every one of those paths returns *above* both
+     * _queueAlerts and _releaseUnattached, so a held request got no sound,
+     * no buttons and no handback, and simply sat until the 150s hold expired.
+     *
+     *  - One forced reload first. The usual reason the snapshot is stale is
+     *    that the tab is hidden and its poll is slow (POLL_HIDDEN_MS, and
+     *    Chromium throttles that further) — while the file itself is fresh,
+     *    because the status hook rewrote it for this very tool call. Keyed
+     *    on the generatedAt we just rejected so one attempt is spent per
+     *    distinct file: a genuinely stale file cannot start a reload loop.
+     *  - Then hand the requests back. If the reload changed nothing there is
+     *    no bar to put buttons on, and _releaseUnattached is exactly the
+     *    machinery for that ("I can't show this — let VS Code ask"), with
+     *    its own two-miss hysteresis on top of the retry above.
+     */
+    _bailWithApprovals(stamp) {
+        if (!this._approvals.length) return;
+        const key = `k:${stamp || ''}`;
+        if (this._staleReloadKey !== key) {
+            this._staleReloadKey = key;
+            this._load();
+            return;
+        }
+        this._releaseUnattached(new Set());
     },
 
     /**
@@ -1449,12 +1522,17 @@ const ProjectsWidget = {
      * `force` is for the volume slider's own preview, which has to be
      * audible on every drag-release regardless of the cooldown — it is the
      * only way to hear what the setting does.
+     *
+     * Returns whether the sound was actually started, which is what
+     * _maybeRemind tests: a reminder is spent once per waiting request, and
+     * spending it on a call the cooldown swallowed would use up the second
+     * chance without ever making a noise.
      */
     _playAlertSound(force) {
         const vol = this._settings.soundVolume;
-        if (!vol) return; // 0 = silenced, and never even loads the file
+        if (!vol) return false; // 0 = silenced, and never even loads the file
         const now = Date.now();
-        if (!force && now - this._lastSoundMs < this._settings.soundCooldownSec * 1000) return;
+        if (!force && now - this._lastSoundMs < this._settings.soundCooldownSec * 1000) return false;
         this._lastSoundMs = now;
         try {
             if (!this._audio) {
@@ -1468,6 +1546,39 @@ const ProjectsWidget = {
             // console error every time a request arrives.
             this._audio.play?.().catch(() => {});
         } catch (_e) { /* no audio support: stay silent */ }
+        return true;
+    },
+
+    /**
+     * Second chance (v4.23): something announced is STILL waiting once the
+     * user's own "play at most once every N" interval has gone by, so say it
+     * once more — once per waiting thing, never a loop.
+     *
+     * The first cue is easy to miss and expensive to miss: a permission
+     * request has a hard ~150s life at the broker, the tab alert is silent
+     * by nature, and the sound is a 1.3s clip that may land while a
+     * Bluetooth output is still waking up. One repeat costs nothing when it
+     * was heard the first time (the request is usually answered long before
+     * the interval elapses, which drops it from the book).
+     *
+     * Reuses the cooldown as the delay rather than adding a second knob:
+     * "at most one of these every N" already reads as the pace of this
+     * widget's noise, and the repeat obeys it like any other sound.
+     *
+     * At most one sound per pass — the cooldown inside _playAlertSound would
+     * swallow the rest anyway, and anything still due simply comes back on
+     * the next pass, which staggers a fan-out instead of stacking it.
+     */
+    _maybeRemind(now) {
+        if (!this._alertSeen?.size) return;
+        const waitMs = this._settings.soundCooldownSec * 1000;
+        for (const rec of this._alertSeen.values()) {
+            if (rec.done || (now - rec.at) < waitMs) continue;
+            // Not marked done unless it made a noise: see _playAlertSound.
+            if (!this._playAlertSound(false)) return;
+            rec.done = true;
+            return;
+        }
     },
 
     /** The status sentence in Settings -> Projects, so a dead broker looks
@@ -1812,36 +1923,50 @@ const ProjectsWidget = {
      * transition on a project that didn't make the cut would never be
      * detected at all — silence, from the one widget whose job is to tell
      * you Claude is blocked.
+     *
+     * `_alertSeen` is the book of what has been announced and is still
+     * waiting: `a:<id>` for a broker-held request, `b:<cwdKey>` for a
+     * needs-you project whose dialog is in VS Code. It carries the moment we
+     * said it and whether the second chance has been spent, which is all
+     * _maybeRemind needs — and dropping a key is what makes an answered
+     * request stop being reminded about.
      */
     _queueAlerts(barsMap) {
         const next = Object.create(null);
         const queuedBefore = this._alertQueue.length;
+        const now = Date.now();
         // A second approval landing in an already-needs-you project moves no
         // bar state, so the transition test below would stay silent about
         // the one thing that just started blocking. Tracked by id instead.
-        const liveIds = new Set();
+        const liveKeys = new Set();
         for (const bar of barsMap.values()) {
             for (const a of bar.approvals) {
-                liveIds.add(a.id);
-                if (!this._approveSeen.has(a.id)) {
-                    this._approveSeen.add(a.id);
+                const key = `a:${a.id}`;
+                liveKeys.add(key);
+                if (!this._alertSeen.has(key)) {
+                    this._alertSeen.set(key, { at: now, done: false });
                     this._alertQueue.push(`${a.toolName} in ${bar.name}`);
                 }
             }
-        }
-        for (const id of this._approveSeen) {
-            if (!liveIds.has(id)) this._approveSeen.delete(id);
         }
         for (const bar of barsMap.values()) {
             next[bar.cwdKey] = bar.state;
             // Already announced by id just above — don't say it twice.
             if (bar.approvals.length) continue;
-            if (bar.state === 'needs-you' && this._barStates[bar.cwdKey] !== 'needs-you') {
+            if (bar.state !== 'needs-you') continue;
+            const key = `b:${bar.cwdKey}`;
+            liveKeys.add(key);
+            if (this._barStates[bar.cwdKey] !== 'needs-you') {
                 // Names the conversation only when the project holds more
                 // than one — otherwise the project name already identifies it.
+                this._alertSeen.set(key, { at: now, done: false });
                 this._alertQueue.push(
                     bar.count > 1 && bar.detail ? `${bar.name} — ${bar.detail}` : bar.name);
             }
+        }
+        // Answered, expired, or auto-allowed: nothing left to remind about.
+        for (const key of this._alertSeen.keys()) {
+            if (!liveKeys.has(key)) this._alertSeen.delete(key);
         }
         this._barStates = next;
         // One sound for whatever this pass turned up, whether the request
@@ -1849,6 +1974,7 @@ const ProjectsWidget = {
         // project needs you", and both are announced above. The cooldown
         // collapses a burst (an agent fan-out blocking together) into one.
         if (this._alertQueue.length > queuedBefore) this._playAlertSound(false);
+        this._maybeRemind(now);
     },
 
     // Needs-you announcements queue up during reconciliation so two projects
@@ -2587,19 +2713,26 @@ const ProjectsWidget = {
     },
 
     // ----------------------------------------
-    // Visibility: pause polling/ticking while the tab is hidden.
+    // Visibility: slow the data poll and pause the ticker while hidden.
     // ----------------------------------------
 
     _wireVisibilityPause() {
         document.addEventListener('visibilitychange', () => {
+            // The data poll SLOWS, it no longer stops — see POLL_HIDDEN_MS.
+            // Stopping it froze the snapshot every staleness gate is measured
+            // against, which is how a tab left behind VS Code long enough
+            // turned an arriving permission request into 150s of silence.
+            this._syncDataPoll();
             if (document.hidden) {
-                clearInterval(this._pollTimer);
+                // The 1s ticker does stop: nothing it writes is on screen,
+                // and every readout it maintains is recomputed by the render
+                // that follows the tab coming forward.
                 clearInterval(this._tickTimer);
-                this._pollTimer = null;
                 this._tickTimer = null;
-            } else if (!this._pollTimer) {
-                this._pollTimer = setInterval(() => this._load(), this.POLL_MS);
-                this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
+            } else {
+                if (!this._tickTimer) {
+                    this._tickTimer = setInterval(() => this._tick(), this.TICK_MS);
+                }
                 this._load();
             }
             // The approval poll runs in both states now (see
