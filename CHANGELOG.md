@@ -5,6 +5,27 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.24] — 2026-08-02
+
+### Readable hover text, and a visible approval tally
+
+- **Hover text you can actually read (changed):** the hover text on the
+  Claude Projects bars — full project paths, conversation titles too long
+  for the row, the command a permission request is asking about — used to
+  be the browser's own tooltip, drawn by Windows at its size and its
+  position. The page now draws it instead: two points larger, a little
+  further below the pointer, on the same dark glass as the rest of the
+  widget. It follows the pointer, keeps itself inside the window, flips
+  above the pointer when there is no room below, and Escape dismisses it.
+  Keyboard users get it on focus, and nothing was lost for screen readers.
+- **The auto-allow pill shows its tally (new):** the armed countdown now
+  reads MM:SS alongside a green tick and the number of requests that window
+  has approved so far. That count existed in v4.22 but only in the pill's
+  hover text, which meant going looking for the one number that says the
+  feature is doing anything. It counts approvals that actually landed — a
+  request the window missed does not move it — and it survives a refresh
+  along with the countdown.
+
 ## [v4.23] — 2026-08-02
 
 ### Alerts that survive a background tab

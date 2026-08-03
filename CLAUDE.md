@@ -14,12 +14,21 @@ Offline HTML + CSS + vanilla JavaScript webapp. No build tools, no frameworks, n
 All tokens live in `styles/1-core.css`. Use them; don't hardcode colours, radii,
 or font stacks, and don't add new `:root` variables without a reason.
 
-**Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly two places
-app-wide: the Today & Now running-light beam and the calendar's current-time bar
-(`.cal-tl-now`). Green used to do fourteen different jobs, which left the beam
+**Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly three
+places app-wide: the Today & Now running-light beam, the calendar's
+current-time bar (`.cal-tl-now`), and the armed auto-allow pill's approval tick
+(`.pb-arm-tick`). Green used to do fourteen different jobs, which left the beam
 competing with everything around it. For anything that used to be green, use
 `--ok-neutral` (healthy/done), `--structural` (borders, rules), `--accent`
 (interactive/active), or `--warn`/`--danger`.
+
+The tick is the one deliberate widening, and it is instructive about *why* the
+rule is worded as a whitelist rather than a ban: at 10px on `--ok-neutral` it
+was invisible next to near-white digits, and neutral is exactly right for a
+resting state but wrong for a mark that means "this fired". It works only as a
+set — `#ico-check-bold`, 12px, and the saturated green — so don't neutralise
+one of the three and assume the others carry it. Nothing else gets added to
+this list without the same kind of argument.
 
 **Do not modify these three** without an explicit request — the user chose them:
 the Today & Now beam (`@property --cal-today-beam` and
@@ -164,6 +173,20 @@ resurrect an agent, same rule as the session tombstone.
   (`dataset.autoExpanded` marks the auto-open, `dataset.autoDismissed` the
   deliberate collapse — without the second one, a collapse is undone by the
   very next poll while the approval is still outstanding).
+- **This widget has no `title` attributes, and adding one is a regression.**
+  Native tooltips are painted by the browser chrome, so neither their offset
+  from the cursor nor their type size is reachable from CSS; every hover hint
+  here is `data-tip` + the `.pb-tip` pane, driven by one delegated listener set
+  (`_wireTooltips`) and written only through `_setTip`, which keeps the pane in
+  sync when a render pass rewrites the node under a resting cursor. Placement
+  is `TIP_DX`/`TIP_DY` — the *whole* rule, viewport-clamped, flipping above only
+  when below overflows. The load-bearing part is the conversion rule: `title`
+  is an AT-visible attribute and `data-tip` is not, so a site may only move
+  over once its text is already reachable as content, `aria-label` or
+  `aria-describedby` (this is why the Settings name rows carry an `.sr-only`
+  `.projects-name-path`, and why Allow-all grew an `aria-keyshortcuts`). The
+  pane is `aria-hidden` for exactly that reason — the text is always announced
+  by something else, and a `role="tooltip"` would double it.
 
 ## Remote Approve (v4.17)
 
