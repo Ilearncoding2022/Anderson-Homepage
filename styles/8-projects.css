@@ -559,6 +559,7 @@
 /* Both glyphs and the count live in the DOM always; CSS picks — the
    .pb-dot/.pb-alert pattern. */
 .pb-arm:not(.is-armed) .pb-arm-count,
+.pb-arm:not(.is-armed) .pb-arm-tally,
 .pb-arm:not(.is-armed) .pb-arm-stop,
 .pb-arm.is-armed:hover .pb-arm-ico,
 .pb-arm.is-armed:focus-visible .pb-arm-ico {
@@ -609,6 +610,53 @@
     line-height: 1;
     min-width: 5ch;
     text-align: right;
+}
+
+/* Running tally of what this window has actually approved, right of the
+   countdown. Same mono/tabular treatment as the clock — it is the other
+   number on the pill, and the two should read as one readout. aria-hidden in
+   the markup: the pill's aria-label already says "N approved so far", so a
+   second copy here would just be announced twice. Shown from 0, and shown
+   always while armed, so nothing beside the pill shifts when the first
+   approval lands. */
+.pb-arm-tally {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+/* Separator as a pseudo-element rather than a node: this element is new, so
+   ::before is genuinely free here (most surfaces in this app already spend
+   theirs), and it keeps the tally to one thing _paintArmTally has to find. */
+.pb-arm-tally::before {
+    content: "|";
+    margin-right: 0.24rem;
+    opacity: 0.4;
+}
+
+/* 2ch so 9 -> 10 doesn't nudge the tick sideways — the zero-padded clock's
+   no-jitter rule, applied to the counter that can't be zero-padded. */
+.pb-arm-tally-n {
+    min-width: 2ch;
+    text-align: right;
+}
+
+/* The third and last place --signal is allowed, chosen deliberately (see
+   CLAUDE.md): the tally is a "this worked" mark and every neutral read as
+   dead chrome next to the near-white clock. It stays legible only as a set —
+   #ico-check-bold for the weight, 12px so the glyph clears the digits, and
+   the saturated green for the contrast. Dropping any one of the three puts it
+   back under the threshold. Its own colour, so the --warn recolour on a
+   needs-you bar (and the --ink pin below it) leaves the tick alone. */
+.pb-arm-tick {
+    --ico-size: 12px;
+    color: var(--signal);
+    vertical-align: 0;
 }
 
 /* A needs-you bar recolours .pb-state/.pb-time to --warn; the pill inherits
@@ -1366,4 +1414,70 @@
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-style: italic;
+}
+
+/* ==========================================
+   HOVER TOOLTIP
+
+   The projects widget used to lean on the native `title` attribute. Native
+   tooltips are drawn by the browser chrome, so neither their offset from the
+   cursor nor their type size is reachable from CSS — this pane replaces them
+   for this widget only (every converted site now carries `data-tip`; nothing
+   outside the widget has one, so the delegated listener in 9-projects.js is
+   inert everywhere else).
+
+   Solid dark pane on the .pb-armpop recipe rather than .glass-surface: a
+   tooltip lands on top of arbitrary wallpaper and its whole job is to be read
+   at a glance. background-clip has TWO values for TWO layers, and a later
+   `background:` shorthand here would wipe the edge gradient (CLAUDE.md glass
+   traps). --ink, not --text-primary: this surface is dark in both themes.
+   ========================================== */
+.pb-tip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    /* Above the settings modal (1000) and its overlay (1100) — the project
+       name rows in Settings use this too. */
+    z-index: 1200;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 6px 10px;
+    border-radius: var(--radius-control);
+    font-family: var(--font-ui);
+    /* Native Chrome/Windows renders tooltips at ~12px; +2pt (≈2.67px) is the
+       ~14.7px below. One number to change if it wants tuning again. */
+    font-size: 0.92rem;
+    line-height: 1.35;
+    color: var(--ink);
+    text-shadow: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    /* Never a hit target: the pointer sits a few px above this pane, and a
+       tooltip that can be hovered would flicker its own trigger's pointerout. */
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 90ms linear;
+    background-color: transparent;
+    background-image:
+        linear-gradient(rgba(11, 14, 20, 0.94), rgba(11, 14, 20, 0.94)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 45%,
+            transparent 65%, var(--glass-edge-lo) 90%, rgba(255, 255, 255, 0.14) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-sat));
+    box-shadow: var(--glass-lift-sm), var(--glass-inset);
+}
+
+.pb-tip.is-on {
+    opacity: 1;
+}
+
+/* The base rule leaves `display` alone, so the UA [hidden] rule already wins
+   here — but stated explicitly so adding a `display` above (the trap that has
+   bitten .pb-toggle and .pb-approvals) can't silently strand the pane on
+   screen. It has to genuinely leave the layout: opacity alone would keep it
+   in the a11y tree and in find-in-page. */
+.pb-tip[hidden] {
+    display: none;
 }

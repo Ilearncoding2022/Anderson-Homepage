@@ -139,6 +139,22 @@ const ProjectsWidget = {
     VSCODE_STATE_LABEL: 'Approve in VS Code',
     VSCODE_TITLE_WORD: 'waiting for approval in VS Code',
 
+    // Hover tooltip. Every `title` in this widget became a `data-tip` read by
+    // _wireTooltips: a native tooltip is painted by the browser chrome, so its
+    // offset and type size are unreachable from CSS, and both were wanted
+    // different here. TIP_DY is the whole placement rule for a pointer —
+    // 20px is roughly where Chrome/Windows puts the native pane (below the
+    // cursor hotspot, clear of the arrow), +5px is the requested nudge.
+    // Conversions must keep the accessible path intact on their own: `title`
+    // is an AT-visible attribute and `data-tip` is not, so a site only moves
+    // over once its text is already reachable as content, aria-label or
+    // aria-describedby.
+    TIP_DX: 12,
+    TIP_DY: 25,
+    TIP_GAP: 8,        // element-anchored (keyboard focus) vertical gap
+    TIP_MARGIN: 8,     // keep-inside-viewport padding
+    TIP_DELAY_MS: 350, // native-ish dwell, so a mouse crossing the row is quiet
+
     _settings: null,
     _names: null,
     _seen: null,
@@ -176,6 +192,10 @@ const ProjectsWidget = {
     _tabAlertOn: false,
     _tabAlertTimer: null,
     _tabAlertRestore: null, // original favicon href + title, captured at first alert
+    _tipEl: null,           // the single reused pane; created lazily on first hover
+    _tipFor: null,          // element the pane is currently showing (or awaiting)
+    _tipTimer: null,        // dwell timer before a pointer-triggered show
+    _tipAt: null,           // last pointer position, or null for element-anchored
 
     start() {
         if (!document.getElementById('projectsRow')) return;
@@ -189,6 +209,7 @@ const ProjectsWidget = {
         this._wireNamesList();
         this._wireSettingsOpenTriggers();
         this._wireRowInteraction();
+        this._wireTooltips();
         this._wireApproveShortcut();
         this._wireApproveGoodbye();
         this._wireVisibilityPause();
@@ -858,6 +879,8 @@ const ProjectsWidget = {
             `.project-bar[data-cwd-key="${CSS.escape(barKey)}"]`);
         const btn = li?.querySelector('.pb-arm.is-armed');
         if (!btn) return;
+        // Before the swell, not after: the number and the pulse are one event.
+        this._paintArmTally(btn);
         btn.classList.remove('is-ack');
         void btn.offsetWidth; // restart for back-to-back approvals
         btn.classList.add('is-ack');
@@ -917,10 +940,12 @@ const ProjectsWidget = {
             }
             const countEl = btn.querySelector('.pb-arm-count');
             if (countEl && countEl.textContent !== '') countEl.textContent = '';
+            const tallyEl = btn.querySelector('.pb-arm-tally-n');
+            if (tallyEl && tallyEl.textContent !== '') tallyEl.textContent = '';
             const label = `Auto-allow permission requests in ${bar.name} for a timed window`;
             if (btn.getAttribute('aria-label') !== label) {
                 btn.setAttribute('aria-label', label);
-                btn.title = 'Auto-allow for a timed window…';
+                this._setTip(btn, 'Auto-allow for a timed window…');
             }
             // Hidden entirely ⇒ any open duration popover goes with it; a
             // visible unarmed button keeps its popover (user mid-choice).
@@ -961,6 +986,7 @@ const ProjectsWidget = {
         const txt = `${mm}:${ss}`;
         const countEl = btn.querySelector('.pb-arm-count');
         if (countEl && countEl.textContent !== txt) countEl.textContent = txt;
+        this._paintArmTally(btn);
         // Minute-granular accessible name (same churn rule as _tickTime) —
         // rewriting a focused control's label re-announces in some AT, and
         // the pill is focused right after arming. The bucket is the minute
@@ -975,8 +1001,25 @@ const ProjectsWidget = {
             const count = this._autoAllow.get(key)?.count || 0;
             const label = `Stop auto-allow — ${count} approved so far, ${mins} minute${mins === 1 ? '' : 's'} left`;
             btn.setAttribute('aria-label', label);
-            btn.title = label;
+            this._setTip(btn, label);
         }
+    },
+
+    /**
+     * The running tally beside the countdown — how many requests this armed
+     * window has actually approved. Read from _autoAllow, the same counter the
+     * pill's aria-label uses, so it is the *landed* count (a request the
+     * broker had already released increments nothing) and it survives a
+     * refresh with the window rather than restarting at zero. Painted from the
+     * 1 s tick and again from _ackAutoAllow, so a landing is reflected at once
+     * instead of up to a second later.
+     */
+    _paintArmTally(btn) {
+        const nEl = btn.querySelector('.pb-arm-tally-n');
+        if (!nEl) return;
+        const key = (btn.closest('.project-bar')?.dataset.cwdKey || '').toLowerCase();
+        const txt = String(this._autoAllow?.get(key)?.count || 0);
+        if (nEl.textContent !== txt) nEl.textContent = txt;
     },
 
     /** Trusted click on the hourglass: armed pill stops; unarmed opens the
@@ -1189,9 +1232,9 @@ const ProjectsWidget = {
             const sumEl = row.querySelector('.pb-approval-summary');
             if (sumEl.textContent !== a.summary) {
                 sumEl.textContent = a.summary;
-                // Summaries are ellipsis-truncated; the title carries the
+                // Summaries are ellipsis-truncated; the tooltip carries the
                 // rest for mouse users (textContent already does for AT).
-                sumEl.title = a.summary;
+                this._setTip(sumEl, a.summary);
             }
             sumEl.hidden = !a.summary;
             const ctxEl = row.querySelector('.pb-approval-ctx');
@@ -1458,8 +1501,11 @@ const ProjectsWidget = {
             : `Allow all ${n} waiting permission requests`;
         if (btn.getAttribute('aria-label') !== label) btn.setAttribute('aria-label', label);
         // Discoverability for the shortcut — the tooltip is the only place it
-        // is advertised outside Settings.
-        if (btn.title !== 'Ctrl+Enter') btn.title = 'Ctrl+Enter';
+        // is advertised outside Settings. aria-keyshortcuts carries it for AT,
+        // which is what the `title` used to do (as an accessible description)
+        // before the tooltip stopped being a native one.
+        this._setTip(btn, 'Ctrl+Enter');
+        if (!btn.hasAttribute('aria-keyshortcuts')) btn.setAttribute('aria-keyshortcuts', 'Control+Enter');
     },
 
     // ----------------------------------------
@@ -1903,8 +1949,8 @@ const ProjectsWidget = {
             more.className = 'projects-more';
             more.textContent = `+${overflow} more`;
             const hiddenNames = bySelect.slice(this.MAX_BARS).map(b => b.name).join(', ');
-            more.title = hiddenNames;
-            // The title tooltip is mouse-only and a bare listitem isn't
+            this._setTip(more, hiddenNames);
+            // The tooltip is mouse-only and a bare listitem isn't
             // focusable — the aria-label is the only non-visual path to the
             // hidden names (listitem, unlike generic, supports naming).
             more.setAttribute('aria-label', `${overflow} more: ${hiddenNames}`);
@@ -2038,6 +2084,10 @@ const ProjectsWidget = {
                         <svg class="ico pb-arm-ico" aria-hidden="true"><use href="#ico-hourglass"></use></svg>
                         <svg class="ico pb-arm-stop" aria-hidden="true"><use href="#ico-stop"></use></svg>
                         <span class="pb-arm-count"></span>
+                        <span class="pb-arm-tally" aria-hidden="true">
+                            <span class="pb-arm-tally-n"></span>
+                            <svg class="ico pb-arm-tick" aria-hidden="true"><use href="#ico-check-bold"></use></svg>
+                        </span>
                     </button>
                     <div class="pb-armpop" id="${armPopId}" role="dialog" hidden>
                         <div class="pb-armpop-head">
@@ -2153,7 +2203,11 @@ const ProjectsWidget = {
         const countTxt = chip ? ` (${chip})` : '';
         const detail = [stateWord, bar.agentLabel, bar.activity].filter(Boolean).join(', ');
         const newTitle = `${bar.name}${countTxt} — ${detail}.`;
-        if (li.title !== newTitle) li.title = newTitle;
+        // Mouse-only by design: every word of this is already visible on the
+        // bar (name, chip, state, activity) — the tooltip exists because those
+        // are ellipsis-truncated, so nothing is lost to AT by not being a
+        // `title`. See _wireTooltips.
+        this._setTip(li, newTitle);
 
         this._tickNode(li);
     },
@@ -2267,6 +2321,177 @@ const ProjectsWidget = {
             const pop = wrap.querySelector('.pb-armpop');
             if (pop && !pop.hidden) this._closeArmPop(wrap.closest('.project-bar'), false);
         });
+    },
+
+    // ----------------------------------------
+    // Hover tooltip (replaces this widget's native `title` tooltips)
+    // ----------------------------------------
+
+    /**
+     * One delegated set of listeners on the document, keyed off `[data-tip]`.
+     * Delegated rather than per-node because bars, chat rows, approval rows and
+     * settings rows are all created and destroyed constantly — and because the
+     * two surfaces this covers (the row under the header, the Settings project
+     * list) have no common ancestor below <body>. Nothing outside this widget
+     * sets `data-tip`, so the handlers no-op everywhere else.
+     */
+    _wireTooltips() {
+        const target = (e) => (e.target instanceof Element ? e.target.closest('[data-tip]') : null);
+
+        // pointerover/out (not enter/leave) so one listener covers the whole
+        // document; the relatedTarget check turns them into enter/leave for
+        // the matched ancestor, so moving between a bar's own children doesn't
+        // restart the dwell.
+        document.addEventListener('pointerover', (e) => {
+            if (e.pointerType === 'touch') return;   // no hover on touch; long-press is the OS's job
+            const el = target(e);
+            if (!el || el === this._tipFor) return;
+            this._openTip(el, { x: e.clientX, y: e.clientY });
+        });
+        document.addEventListener('pointerout', (e) => {
+            const el = target(e);
+            if (!el || el !== this._tipFor) return;
+            // Leaving for a descendant of the same target is not leaving.
+            if (e.relatedTarget instanceof Node && el.contains(e.relatedTarget)) return;
+            this._hideTip();
+        });
+        // Follow the cursor while the pane is up, the same as the native one.
+        document.addEventListener('pointermove', (e) => {
+            if (!this._tipFor || e.pointerType === 'touch') return;
+            const el = target(e);
+            if (el !== this._tipFor) return;
+            this._tipAt = { x: e.clientX, y: e.clientY };
+            if (this._tipEl && !this._tipEl.hidden) this._placeTip();
+        });
+
+        // Keyboard parity: focus shows it immediately (no dwell — a Tab stop is
+        // already a deliberate landing) and anchors it to the element, since
+        // there is no cursor to sit under. :focus-visible, not :focus — a
+        // mouse click focuses too, and the native tooltip it replaces never
+        // appeared on click. (pointerdown's hide has already run by then, so
+        // without this the pane would pop straight back up under the cursor.)
+        document.addEventListener('focusin', (e) => {
+            const el = target(e);
+            // Tested on the focused node, anchored on its [data-tip] ancestor:
+            // the tip-bearing element is often a wrapper (the settings row
+            // holds the path, the input is what takes focus).
+            const kbd = e.target instanceof Element && e.target.matches(':focus-visible');
+            if (el && kbd) this._openTip(el, null);
+            else if (this._tipFor) this._hideTip();
+        });
+        document.addEventListener('focusout', (e) => {
+            if (target(e) === this._tipFor) this._hideTip();
+        });
+
+        // Escape dismisses without moving focus (WCAG 1.4.13 "dismissable").
+        // Capture, and no stopPropagation: the arm popover's own Escape
+        // handler must still run in the same keystroke.
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this._tipFor) this._hideTip();
+        }, true);
+
+        // Anything that moves the anchor out from under the pane. Scroll is
+        // captured because the settings modal and the row scroll internally.
+        document.addEventListener('scroll', () => this._hideTip(), true);
+        document.addEventListener('pointerdown', () => this._hideTip(), true);
+        window.addEventListener('blur', () => this._hideTip());
+        window.addEventListener('resize', () => this._hideTip());
+    },
+
+    /** Arm the dwell (pointer) or show at once (focus). `at` is the pointer
+     *  position, or null to anchor under the element itself. */
+    _openTip(el, at) {
+        this._hideTip();
+        if (!el.dataset.tip) return;
+        this._tipFor = el;
+        this._tipAt = at;
+        if (!at) { this._paintTip(); return; }
+        this._tipTimer = setTimeout(() => {
+            this._tipTimer = null;
+            // The node can be gone by now — a render pass replaces rows under
+            // a resting cursor several times a minute.
+            if (this._tipFor && this._tipFor.isConnected) this._paintTip();
+            else this._hideTip();
+        }, this.TIP_DELAY_MS);
+    },
+
+    _hideTip() {
+        clearTimeout(this._tipTimer);
+        this._tipTimer = null;
+        this._tipFor = null;
+        this._tipAt = null;
+        if (this._tipEl) {
+            this._tipEl.classList.remove('is-on');
+            this._tipEl.hidden = true;
+        }
+    },
+
+    /** Fill and place the pane. textContent only — every string here is
+     *  ultimately broker- or hook-derived (project names, chat titles, command
+     *  summaries) and is treated as untrusted, same as everywhere else. */
+    _paintTip() {
+        const el = this._tipFor;
+        const text = el?.dataset.tip;
+        if (!text) { this._hideTip(); return; }
+        if (!this._tipEl) {
+            const tip = document.createElement('div');
+            tip.className = 'pb-tip';
+            // Not role="tooltip"/aria-describedby: every converted site already
+            // carries this text as content, aria-label or aria-describedby, so
+            // wiring it up again would double the announcement.
+            tip.setAttribute('aria-hidden', 'true');
+            tip.hidden = true;
+            document.body.appendChild(tip);
+            this._tipEl = tip;
+        }
+        this._tipEl.textContent = text;
+        this._tipEl.hidden = false;   // must be laid out before it can be measured
+        this._placeTip();
+        this._tipEl.classList.add('is-on');
+    },
+
+    /** Position below the cursor (or below the element, keyboard path),
+     *  clamped into the viewport and flipped above if it would not fit. */
+    _placeTip() {
+        const tip = this._tipEl;
+        const el = this._tipFor;
+        if (!tip || !el) return;
+        const box = tip.getBoundingClientRect();
+        let x, y, flipY;
+        if (this._tipAt) {
+            x = this._tipAt.x + this.TIP_DX;
+            y = this._tipAt.y + this.TIP_DY;
+            flipY = this._tipAt.y - this.TIP_GAP - box.height;
+        } else {
+            const anchor = el.getBoundingClientRect();
+            x = anchor.left;
+            y = anchor.bottom + this.TIP_GAP;
+            flipY = anchor.top - this.TIP_GAP - box.height;
+        }
+        const maxX = window.innerWidth - box.width - this.TIP_MARGIN;
+        x = Math.max(this.TIP_MARGIN, Math.min(x, maxX));
+        // Below is the default; flip above only when below genuinely overflows
+        // AND above has room, so a tall pane in a short window still shows.
+        if (y + box.height > window.innerHeight - this.TIP_MARGIN && flipY >= this.TIP_MARGIN) {
+            y = flipY;
+        }
+        y = Math.max(this.TIP_MARGIN, Math.min(y, window.innerHeight - box.height - this.TIP_MARGIN));
+        tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    },
+
+    /** Set/clear a tooltip on one element, keeping the pane in sync if it is
+     *  the one on screen. Call sites guard on change themselves, but a render
+     *  pass that rewrites the hovered node must not leave stale text up. */
+    _setTip(el, text) {
+        if (!el) return;
+        const val = text || '';
+        if ((el.dataset.tip || '') === val) return;
+        if (val) el.dataset.tip = val;
+        else delete el.dataset.tip;
+        if (el === this._tipFor) {
+            if (!val) this._hideTip();
+            else if (this._tipEl && !this._tipEl.hidden) this._paintTip();
+        }
     },
 
     /**
@@ -2452,7 +2677,7 @@ const ProjectsWidget = {
             titleEl.textContent = chat.title;
             // Titles are ellipsis-truncated; without this a mouse user has no
             // way to read the rest (textContent already carries it for AT).
-            titleEl.title = chat.title;
+            this._setTip(titleEl, chat.title);
         }
 
         const stateEl = row.querySelector('.pb-chat-state');
@@ -3129,19 +3354,24 @@ const ProjectsWidget = {
                     // no path is known yet) — a tooltip that echoes what's
                     // already on screen is noise, not help.
                     const wantTitle = info.path && info.path !== info.folder ? info.path : '';
-                    if (label.title !== wantTitle) label.title = wantTitle;
+                    this._setTip(label, wantTitle);
                     // Also on the row, so the path is readable from anywhere
                     // along it — the label itself is ellipsis-truncated and
                     // can be a narrow target for the one folder name that's
                     // ambiguous enough to need the tooltip.
-                    if (row.title !== wantTitle) row.title = wantTitle;
+                    this._setTip(row, wantTitle);
+                    // data-tip is invisible to AT, unlike the `title` this
+                    // replaced — so the path moves to a real description on
+                    // the input, which is the thing AT actually lands on.
+                    const pathEl = row.querySelector('.projects-name-path');
+                    if (pathEl && pathEl.textContent !== wantTitle) pathEl.textContent = wantTitle;
                 }
                 const removeBtn = row.querySelector('.projects-name-remove');
                 if (removeBtn) {
                     const removeLabel = `Remove ${info.folder} from this list`;
                     if (removeBtn.getAttribute('aria-label') !== removeLabel) {
                         removeBtn.setAttribute('aria-label', removeLabel);
-                        removeBtn.title = removeLabel;
+                        this._setTip(removeBtn, removeLabel);
                     }
                 }
                 const input = row.querySelector('.projects-name-input');
@@ -3177,14 +3407,17 @@ const ProjectsWidget = {
         const row = document.createElement('div');
         row.className = 'projects-name-row';
         row.dataset.cwdKey = cwdKey;
-        const inputId = `projectsNameInput-${this._nameRowSeq++}`;
-        // Static shell; the folder name, the tooltip and the remove button's
-        // accessible name are all set via textContent/attributes in
-        // _renderNamesList. The one interpolated value is inputId, generated
-        // from a counter here.
+        const seq = this._nameRowSeq++;
+        const inputId = `projectsNameInput-${seq}`;
+        const pathId = `projectsNamePath-${seq}`;
+        // Static shell; the folder name, the tooltip, the path description and
+        // the remove button's accessible name are all set via
+        // textContent/attributes in _renderNamesList. The only interpolated
+        // values are the two ids, generated from a counter here.
         row.innerHTML = `
             <label class="projects-name-label" for="${inputId}"></label>
-            <input type="text" class="projects-name-input" id="${inputId}" autocomplete="off" maxlength="60">
+            <input type="text" class="projects-name-input" id="${inputId}" autocomplete="off" maxlength="60" aria-describedby="${pathId}">
+            <span class="projects-name-path sr-only" id="${pathId}"></span>
             <button type="button" class="projects-name-remove glass-control">
                 <svg class="ico" aria-hidden="true"><use href="#ico-trash"></use></svg>
             </button>`;

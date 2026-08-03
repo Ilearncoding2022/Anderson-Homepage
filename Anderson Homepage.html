@@ -188,6 +188,15 @@
       <symbol id="ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="m4.8 12.6 4.8 4.8L19.2 6.6"/>
       </symbol>
+      <!-- Same glyph for badge-sized use (~12px). The house stroke-width of
+           1.5 is scaled by size/24, so at 12px it renders a 0.75px line that
+           antialiases to grey and disappears — this one carries the weight
+           instead, because stroke-width is a presentation attribute on the
+           <symbol> and therefore can't be overridden from outside a <use>
+           shadow tree. Don't use it at normal icon sizes; it reads heavy. -->
+      <symbol id="ico-check-bold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 12.5 4.6 4.6L19 7"/>
+      </symbol>
       <symbol id="ico-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="m6 9.5 6 6 6-6"/>
       </symbol>
