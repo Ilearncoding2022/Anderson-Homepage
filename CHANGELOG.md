@@ -5,6 +5,38 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.25] — 2026-08-02
+
+### The permission requests that never reached the homepage
+
+- **Requests handed straight back now say why (new):** when Claude Code asks
+  permission for something, the homepage's broker either holds the request
+  for you to answer or refuses it and lets VS Code ask instead. Every held
+  request has always been recorded once it was answered. A refused one was
+  recorded nowhere at all — the log is written when a held request is
+  released, and these are never held. That silence hid the most confusing
+  thing this feature can do: an auto-allow pill counting down on the bar
+  while Claude asks you in a dialog anyway. Refusals are now written to the
+  decision log with their reason: the homepage's heartbeat had lapsed, the
+  break-glass switch was on, 32 requests were already waiting, or the call
+  repeated one that had just been handed back.
+- **The heartbeat's age is recorded with it (new):** the reason a lapsed
+  heartbeat matters is that it has two very different causes — the page was
+  closed, or the page was open in a background tab whose polling the browser
+  had throttled below the pace the broker expects. The two look identical
+  from the outside, so each record carries how old the heartbeat was at the
+  moment of the refusal, which tells them apart at a glance.
+- **Written as episodes, not lines (new):** a homepage that is simply closed
+  refuses every command Claude runs, and a line for each would push the
+  interesting history out of the log's size limit within a day. A run of
+  refusals for the same reason is written once, with a count and a time
+  span, and closes when the reason changes, when the homepage comes back, or
+  after five minutes of quiet.
+- **Nothing more is recorded about what Claude was doing.** The decision log
+  still holds a tool name, a decision, timings and shortened session ids. It
+  has never held the command, the file path or the address a request was
+  about, and this release does not widen that by one field.
+
 ## [v4.24] — 2026-08-02
 
 ### Readable hover text, and a visible approval tally

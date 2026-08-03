@@ -268,6 +268,23 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   killed while hidden still looks alive for up to 75 s, so a request arriving
   in that window can be held (capped by `HOLD_MS`) before falling back.
   Don't add a server-side "on" state that outlives the page beyond that.
+- **A refusal at that gate is the one outcome `release()` can never
+  explain**, and until it was instrumented the log was silent about it —
+  the request is never held, so nothing is ever released. That silence made
+  the system's most confusing symptom unfalsifiable: an armed auto-allow
+  pill counting down on screen while Claude Code asks in a VS Code dialog.
+  `handleHookRequest` now logs every refusal under an `arrival-*` cause
+  (`-homepage-gone`, `-disabled`, `-overloaded`, `-duplicate`,
+  `-bad-request`), so `arrival-` is the grep for "no button was ever shown
+  for this call". Two things about the shape are load-bearing: they are
+  written as **runs** (one record per episode, with `n` and `sinceAt`) —
+  a closed homepage refuses every mediated tool call, and one line each
+  would rotate the interesting history out of a 512 KB file — and a
+  continuing run keeps the **first** refusal's fields, because `hbMs` at
+  the moment the run started is the number that separates a hidden tab
+  whose throttled poll fell just outside `HIDDEN_LIVE_MS` (~75-140 s) from
+  a page closed an hour ago (an hour). Take the last refusal's age instead
+  and the two read identically within minutes.
 - **The *data* poll must not stop while hidden either, and that was a
   separate bug with the same shape (fixed v4.23).** `_wireVisibilityPause`
   used to `clearInterval` the `claude-projects.js` poll on hide, which
