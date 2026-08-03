@@ -49,15 +49,22 @@
  *    /pending within HEARTBEAT_LIVE_MS. Homepage closed == feature off, with
  *    no added latency for the hook. The heartbeat is only recorded AFTER
  *    authentication, so a foreign page cannot hold the gate open.
+ *  - A refusal at that gate is logged with an `arrival-*` cause (see
+ *    noteRefusal): the request is never held, so release() — the only other
+ *    thing that writes the log — can never account for it. Grep the log for
+ *    `arrival-` to answer "why did a dialog appear when the homepage was
+ *    open?"; `hbMs` on those records separates a closed page from a hidden
+ *    tab whose throttled poll fell outside HIDDEN_LIVE_MS.
  *  - Break-glass sentinel: if %LOCALAPPDATA%\AndersonHomepage\approve-disable
  *    exists, everything passes through. tools/approve-off.cmd creates it (and
  *    kills this process); the hook checks it too, so the feature is inert
  *    even if a broker is somehow still running.
  *  - Privacy: the command/path summary shown on a button exists in this
  *    process's memory and in HTTP responses to localhost only. The decision
- *    log (approve-log.jsonl) records tool NAME and decision, never the
- *    summary or any tool input — same whitelist philosophy as
- *    tools/claude-status-hook.js.
+ *    log (approve-log.jsonl) records tool NAME, decision, timings, truncated
+ *    session/agent ids and — on refusal runs — a count and a heartbeat age.
+ *    Never the summary or any tool input, and nothing derived from either;
+ *    same whitelist philosophy as tools/claude-status-hook.js.
  *
  * Runs hidden at login via serve-hidden.vbs (alongside the python -m
  * http.server that serves the homepage). A second instance exits quietly on
@@ -100,6 +107,13 @@ const MAX_HELD = 32;          // overload guard; excess requests pass through
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_LOG_BYTES = 512 * 1024;
 const SUMMARY_MAX = 120;
+// A run of arrival-gate refusals is written as ONE record once it ends —
+// see noteRefusal(). A run ends when the cause changes, when a request is
+// held again (the page came back), or after this much quiet. Long enough
+// that a homepage closed for an afternoon costs a handful of lines rather
+// than one per tool call, which would rotate the interesting history out of
+// a 512KB file.
+const REFUSAL_IDLE_MS = envInt('ANDERSON_APPROVE_REFUSAL_IDLE_MS', 5 * 60 * 1000);
 // A released id stays refused this long. Without it, a queued or replayed
 // /decide could land on a NEW request that reused the same tool_use_id and
 // approve something the user never saw — the same resurrection problem the
@@ -134,6 +148,8 @@ const held = new Map();
 const released = new Map();
 let lastHeartbeatMs = 0;
 let lastHeartbeatHidden = false;
+/** Open run of arrival-gate refusals, or null. See noteRefusal(). */
+let refusalRun = null;
 
 function envInt(name, fallback) {
   const n = parseInt(process.env[name] || '', 10);
@@ -222,6 +238,74 @@ function applyCors(headers, origin) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers['Vary'] = 'Origin';
   }
+}
+
+/**
+ * Record a request the arrival gate refused to hold at all.
+ *
+ * These are the passthroughs release() can never see: no entry is created,
+ * so nothing is ever released, and until this existed the log was silent
+ * about them — the single most confusing outcome this system can produce
+ * (an armed auto-allow pill counting down on screen while Claude Code asks
+ * in a VS Code dialog) left no evidence anywhere. Every `arrival-*` cause
+ * means exactly one thing: no button was ever shown for this call, because
+ * the broker declined to hold it.
+ *
+ * Written as runs, not lines. A homepage that is simply closed refuses
+ * every mediated tool call, and one line each would rotate the file's
+ * history away; a run carries the count and the span instead, and its
+ * fields stay inside the same whitelist as release() — tool name,
+ * truncated ids, timings. Nothing derived from tool input, ever.
+ */
+function noteRefusal(cause, body, nowMs) {
+  const tool = cap(typeof body.toolName === 'string' ? body.toolName : '', 64) || null;
+  const session = cap(typeof body.sessionId === 'string' ? body.sessionId : '', 8) || null;
+  const agent = typeof body.agentId === 'string' && body.agentId ? cap(body.agentId, 8) : null;
+  // Age of the heartbeat at refusal time: the number that separates "you
+  // closed the page" (minutes, hours) from "a hidden tab's poll was
+  // throttled past the window" (just over HIDDEN_LIVE_MS). Null before the
+  // page has ever polled this broker, where a difference from 0 would just
+  // be the epoch.
+  const hbMs = lastHeartbeatMs ? Math.max(0, nowMs - lastHeartbeatMs) : null;
+  // A continuing run keeps the FIRST refusal's fields and only counts. Two
+  // reasons, both learned the hard way: a later malformed request would
+  // otherwise null out the session on an otherwise good record, and — the
+  // point of the whole exercise — hbMs at the moment the run STARTED is the
+  // number that separates the two hypotheses. A hidden tab whose throttled
+  // poll fell just outside the window shows ~75-140s there; a page closed an
+  // hour ago shows an hour. Carry the last refusal's age instead and both
+  // read identically after a few minutes of a busy session.
+  if (refusalRun && refusalRun.cause === cause) {
+    refusalRun.n += 1;
+    refusalRun.lastMs = nowMs;
+    return;
+  }
+  flushRefusals();
+  refusalRun = {
+    cause, n: 1, firstMs: nowMs, lastMs: nowMs,
+    tool, session, agent, hbMs, hidden: lastHeartbeatHidden,
+  };
+}
+
+/** Close the open refusal run, if any, and write its one record. */
+function flushRefusals() {
+  if (!refusalRun) return;
+  const run = refusalRun;
+  refusalRun = null; // before the write: a failed append must not retry forever
+  const record = {
+    at: new Date(run.lastMs).toISOString(),
+    tool: run.tool,
+    decision: 'passthrough',
+    cause: run.cause,
+    heldMs: 0,
+    session: run.session,
+    agent: run.agent,
+    n: run.n,
+    hbMs: run.hbMs,
+    hidden: run.hidden,
+  };
+  if (run.n > 1) record.sinceAt = new Date(run.firstMs).toISOString();
+  logDecision(record);
 }
 
 /** Release one held request with a decision and forget it. */
@@ -388,10 +472,18 @@ function readBody(req, cb) {
  *  never waits on a decision nobody can see. */
 function handleHookRequest(body, res) {
   const nowMs = Date.now();
-  if (sentinelPresent() || !homepageAlive(nowMs) || held.size >= MAX_HELD) {
+  // Answer identically to before — the decision and its speed are the
+  // contract — but say in the log which gate it was. Split into three
+  // checks rather than one condition purely so the cause is specific:
+  // "the sentinel is down" and "your hidden tab's heartbeat lapsed" are
+  // the same outcome and completely different problems.
+  const refuse = (cause) => {
+    noteRefusal(cause, body, nowMs);
     sendJson(res, 200, { decision: 'passthrough', token: TOKEN }, null);
-    return;
-  }
+  };
+  if (sentinelPresent()) return refuse('arrival-disabled');
+  if (!homepageAlive(nowMs)) return refuse('arrival-homepage-gone');
+  if (held.size >= MAX_HELD) return refuse('arrival-overloaded');
 
   const entry = {
     id: cap(typeof body.id === 'string' && body.id ? body.id : crypto.randomUUID(), 128),
@@ -404,18 +496,17 @@ function handleHookRequest(body, res) {
     createdMs: nowMs,
     res,
   };
-  if (!entry.sessionId || !entry.toolName) {
-    sendJson(res, 200, { decision: 'passthrough', token: TOKEN }, null);
-    return;
-  }
+  if (!entry.sessionId || !entry.toolName) return refuse('arrival-bad-request');
   // Duplicate id (a retry, or a forged collision): the existing hold wins;
   // the newcomer passes through rather than stealing the slot. A recently
-  // released id is refused for the same reason — see TOMBSTONE_MS.
-  if (held.has(entry.id) || released.has(entry.id)) {
-    sendJson(res, 200, { decision: 'passthrough', token: TOKEN }, null);
-    return;
-  }
+  // released id is refused for the same reason — see TOMBSTONE_MS. Worth a
+  // cause of its own: a tool call retried inside the tombstone window is
+  // refused here even though everything is healthy.
+  if (held.has(entry.id) || released.has(entry.id)) return refuse('arrival-duplicate');
 
+  // Holding again ends any open run of refusals — usually the moment the
+  // homepage came back — so the record spans exactly the outage.
+  flushRefusals();
   held.set(entry.id, entry);
   // A socket that died before we got here has already emitted 'close', so
   // the listener below would never fire and the entry would linger — showing
@@ -503,6 +594,9 @@ function sweep() {
   for (const [id, expiry] of released) {
     if (expiry <= nowMs) released.delete(id);
   }
+  // A run that has gone quiet is finished in practice: write it now rather
+  // than holding it until the next refusal, which could be tomorrow.
+  if (refusalRun && nowMs - refusalRun.lastMs >= REFUSAL_IDLE_MS) flushRefusals();
 }
 
 /**
@@ -557,6 +651,11 @@ function main() {
     }
     setInterval(sweep, SWEEP_MS).unref();
   });
+
+  // Best-effort only: approve-off.cmd kills this process outright, and a
+  // taskkill /F runs nothing. Worth the two lines for the graceful exits,
+  // not something any diagnosis may depend on.
+  process.on('exit', () => flushRefusals());
 
   // Held sockets keep the process alive; the interval above is unref'd so an
   // idle broker with no work still exits cleanly on server.close() in tests.
