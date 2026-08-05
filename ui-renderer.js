@@ -1289,9 +1289,13 @@ const UIRenderer = {
             + ` data-cal-allday="${ev.allDay ? '1' : '0'}"`;
     },
 
-    // Timeline hour-row height clamp, in px per hour. 78 = 2x the legacy fixed 39.
-    TL_HOUR_MIN: 30,
-    TL_HOUR_MAX: 78,
+    // Timeline hour-row height clamp, in px per hour. v4.26 raised both ends
+    // 10% (from 30/78; 78 was 2x the legacy fixed 39) — dense spans sit at
+    // the min, so that is the knob that actually changes what a day view
+    // shows. Between the clamps the grid exactly fills the card, so the
+    // computed height there is the card's, not these.
+    TL_HOUR_MIN: 33,
+    TL_HOUR_MAX: 86,
 
     // Hour-by-hour timeline for 3/5-day views. A shared hour axis (left gutter)
     // aligns time-positioned event blocks across all day columns; all-day events

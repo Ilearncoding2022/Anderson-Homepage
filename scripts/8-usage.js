@@ -7,7 +7,17 @@
 // (a Task Scheduler job that polls Anthropic's usage endpoint with the local
 // Claude Code login). The file assigns `window.ClaudeUsage`:
 //
-//   { fetchedAt: "<UTC ISO>", limits: [{ kind, label, percent, resetsAt, severity }] }
+//   { fetchedAt: "<UTC ISO>", checkedAt: "<UTC ISO>", tokenExpired: bool,
+//     limits: [{ kind, label, percent, resetsAt, severity }] }
+//
+// fetchedAt moves only when the updater actually got fresh numbers; checkedAt
+// moves on every updater run (the failed ones re-emit the old limits with a
+// new stamp). The pair is what lets staleness name its cause: fresh checkedAt
+// + tokenExpired = the Claude Code login lapsed, fresh checkedAt alone = the
+// fetch itself failed (network, or the API answered something we don't
+// recognise), stale checkedAt = the scheduled task isn't running. Files from
+// before v4.26 lack checkedAt, which reads as the last case until the
+// updated script runs once.
 //
 // The file is (re)loaded by injecting a <script> tag with a cache-busting
 // query — fetch() can't read local files from file://. If it never loads
@@ -117,18 +127,19 @@ const UsageWidget = {
         this._tick();
     },
 
-    // The ten colour blocks are real elements (styled/animated per segment in
-    // 2-components.css), built here on first render rather than repeated three
-    // times in the HTML. --seg-i feeds each segment's animation-delay;
-    // --pulse-cycle (used-count × 0.5s, matching the 0.5s per-segment delay in
-    // the CSS) makes the pulse walk 1 → current and restart. Purely
-    // decorative — aria-valuenow/valuetext carry the reading.
+    // The five colour blocks (20% each, cool-to-hot) are real elements
+    // (styled/animated per segment in 2-components.css), built here on first
+    // render rather than repeated three times in the HTML. --seg-i feeds each
+    // segment's animation-delay; --pulse-cycle (used-count × 1s, matching
+    // the 1s per-segment delay in the CSS) makes the pulse walk 1 → current
+    // at one segment per second, then restart. Purely decorative —
+    // aria-valuenow/valuetext carry the reading.
     _updateSegments(bar, pct) {
         let segs = bar.querySelector('.usage-segs');
         if (!segs) {
             segs = document.createElement('span');
             segs.className = 'usage-segs';
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 5; i++) {
                 const seg = document.createElement('span');
                 seg.className = 'usage-seg';
                 seg.style.setProperty('--seg-i', i);
@@ -137,8 +148,8 @@ const UsageWidget = {
             bar.prepend(segs);   // before the marker/pct so it paints underneath
         }
         // ceil, so any non-zero usage lights (and pulses) at least segment 1.
-        const used = Math.min(10, Math.ceil(pct / 10));
-        segs.style.setProperty('--pulse-cycle', `${Math.max(1, used) * 0.5}s`);
+        const used = Math.min(5, Math.ceil(pct / 20));
+        segs.style.setProperty('--pulse-cycle', `${Math.max(1, used)}s`);
         segs.querySelectorAll('.usage-seg').forEach((seg, i) => {
             seg.classList.toggle('is-used', i < used);
         });
@@ -177,13 +188,33 @@ const UsageWidget = {
         const fetched = Date.parse(data.fetchedAt);
         const fetchedLabel = Number.isFinite(fetched) ? new Date(fetched).toLocaleString() : 'an unknown time';
         const stale = !Number.isFinite(fetched) || (Date.now() - fetched > this.STALE_MS);
+        // checkedAt tells the causes apart: the updater re-stamps it on every
+        // run even when it can't fetch, so a fresh stamp means the task is
+        // alive and the blocker is the token (tokenExpired) or the API, while
+        // a stale/absent stamp means the task itself isn't running.
+        const checked = Date.parse(data.checkedAt);
+        const checkedFresh = Number.isFinite(checked) && (Date.now() - checked <= this.STALE_MS);
+        let cause = '';
+        if (stale) {
+            if (checkedFresh && data.tokenExpired === true) {
+                cause = 'Claude Code login expired; open Claude Code to refresh it';
+            } else if (checkedFresh) {
+                cause = "couldn't get fresh data from the usage API";
+            } else {
+                cause = "the updater isn't running (task stopped, PC asleep, or on battery)";
+            }
+        }
         widget.classList.toggle('is-stale', stale);
         widget.title = stale
-            ? `Usage data from ${fetchedLabel} — updater may be stopped or the Claude Code login expired`
+            ? `Usage data from ${fetchedLabel} — ${cause}`
             : `Usage data from ${fetchedLabel}`;
-        // Real text for screen readers — opacity/::after/title aren't announced.
+        // Real text for screen readers — opacity/::after/title aren't
+        // announced. Write only on change: this runs every minute, and
+        // replacing the text node re-announces the role="status" region even
+        // when the sentence is identical.
         const note = document.getElementById('usageStaleNote');
-        if (note) note.textContent = stale ? `Usage data outdated (from ${fetchedLabel})` : '';
+        const noteText = stale ? `Usage data outdated (from ${fetchedLabel}) — ${cause}` : '';
+        if (note && note.textContent !== noteText) note.textContent = noteText;
     },
 
     // Split into { word, d, h, m, text }: the sub-spans get the pieces, the

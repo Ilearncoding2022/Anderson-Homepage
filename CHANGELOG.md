@@ -5,6 +5,62 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.26] — 2026-08-05
+
+### A leaner usage gauge
+
+- **Five blocks instead of ten (changed):** each segment of the usage gauge
+  now covers 20%, one per colour of the cool-to-hot ramp (blue, green,
+  yellow, orange, red), and the track is a fifth narrower. The reading is
+  unchanged — the marker's position carries it, and any non-zero usage
+  still lights at least the first block. The pulse that walks the lit
+  blocks now moves at one block per second, half its old pace.
+
+### Calendar
+
+- **Taller hour rows (changed):** the timeline's hour rows grew a tenth at
+  both ends of their sizing range (33-86px per hour, up from 30-78). Day
+  views dense enough to scroll sit at the lower bound, so they gain the
+  full 10%; spans that already fit the card keep filling it exactly.
+
+### A wider page
+
+- **The card columns take 10% more of the screen (changed):** the content
+  container's cap went from 1400px to 1540px, so on a wide screen at 100%
+  zoom the page now sits the way it used to at 110% — less empty gutter on
+  either side, wider cards. Screens narrower than the cap see no change.
+
+### A stale usage widget now tells you which link broke
+
+- **The warning names its cause (new):** the header's usage bars dim when
+  their data file stops refreshing, but the tooltip could only shrug —
+  "updater may be stopped or the Claude Code login expired". Those need
+  opposite fixes, so the updater now stamps every run it survives, even the
+  ones that fetch nothing, and the widget reads the gap between the stamps:
+  a live stamp with a lapsed login says "open Claude Code to refresh it", a
+  live stamp alone says the fetch itself failed, and no recent stamp means
+  the scheduled task itself isn't running (stopped, PC asleep, or on
+  battery).
+- **The warning triangle stays on its line (fixed):** the ⚠ was slotting
+  itself into the countdown's grid as a fifth item in a four-column row, so
+  it wrapped onto a second line under "Resets in …". It now hangs off the
+  row's right edge instead — the same spot, without the wrap, and without
+  adding width the header's space ladder would have to account for.
+- **Nothing new is recorded:** the data file gains two fields — the time of
+  the updater's last run and whether the login had expired — and still holds
+  no token, no account details, nothing beyond percentages and reset times.
+
+### The armed pill's tooltip keeps up with its tally
+
+- **Hover text matches the green tick (fixed):** the number beside the
+  armed auto-allow pill's checkmark updates the moment an approval lands,
+  but its hover tooltip ("N approved so far") was only rewritten when the
+  countdown crossed a minute boundary, so the two could disagree for up to
+  a minute. The tooltip now refreshes every second with the same counter
+  the tally reads. The screen-reader label keeps its minute cadence on
+  purpose — rewriting a focused control's name on every approval would
+  re-announce it each time.
+
 ## [v4.25] — 2026-08-02
 
 ### The permission requests that never reached the homepage
