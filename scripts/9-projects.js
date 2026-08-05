@@ -987,21 +987,26 @@ const ProjectsWidget = {
         const countEl = btn.querySelector('.pb-arm-count');
         if (countEl && countEl.textContent !== txt) countEl.textContent = txt;
         this._paintArmTally(btn);
+        const mins = Math.ceil(remaining / 60000);
+        const key = (li?.dataset.cwdKey || '').toLowerCase();
+        const count = this._autoAllow.get(key)?.count || 0;
+        const label = `Stop auto-allow — ${count} approved so far, ${mins} minute${mins === 1 ? '' : 's'} left`;
+        // The tooltip tracks the live count every tick — it used to be
+        // rewritten only on the minute rollover below, which let the hover
+        // text trail the pill's own tally by up to a minute. The pane is
+        // aria-hidden and _setTip no-ops on unchanged text, so this refresh
+        // costs no announcements and no attribute churn.
+        this._setTip(btn, label);
         // Minute-granular accessible name (same churn rule as _tickTime) —
         // rewriting a focused control's label re-announces in some AT, and
         // the pill is focused right after arming. The bucket is the minute
         // ALONE: the tally is read at rewrite time (so it can lag up to a
         // minute) rather than added to the key, where every landed approval
         // would force the exact per-event churn this guard exists to stop.
-        const mins = Math.ceil(remaining / 60000);
         const bucket = String(mins);
         if (btn.dataset.armBucket !== bucket) {
             btn.dataset.armBucket = bucket;
-            const key = (li?.dataset.cwdKey || '').toLowerCase();
-            const count = this._autoAllow.get(key)?.count || 0;
-            const label = `Stop auto-allow — ${count} approved so far, ${mins} minute${mins === 1 ? '' : 's'} left`;
             btn.setAttribute('aria-label', label);
-            this._setTip(btn, label);
         }
     },
 

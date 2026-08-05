@@ -781,6 +781,14 @@
         flex: 1;
     }
 
+    /* Stale ⚠ hangs off .usage-resets's right edge (2-components.css). In the
+       row layout that overhang lands in the 60px right margin; here the widget
+       is full-width, so give the rows' auto column room for it or it pokes
+       past the header padding and can raise a horizontal scrollbar. */
+    .usage-widget.is-stale .usage-rows {
+        padding-right: 1.5ch;
+    }
+
     .header-left {
         width: 100%;
         text-align: center;

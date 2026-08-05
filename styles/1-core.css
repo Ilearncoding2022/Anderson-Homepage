@@ -224,7 +224,10 @@ body {
 
 .container {
     padding: 2rem;
-    max-width: 1400px;
+    /* 1400px through v4.26 — widened 10% so a ~2300px screen at 100% zoom
+       shows what 110% used to (user request; the old cap left ~40% of the
+       viewport as side gutters). The card columns absorb the extra width. */
+    max-width: 1540px;
     margin: 0 auto;
 }
 

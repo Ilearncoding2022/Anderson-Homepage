@@ -435,7 +435,10 @@
    only the track itself can open the gap. */
 .usage-row {
     display: grid;
-    grid-template-columns: 80px 120px auto;
+    /* Gauge track was 120px through v4.26; narrowed 20% on request. The
+       space-ladder budget below was measured against the wider bar, so its
+       breakpoints are now ~24px conservative — safe, just not tight. */
+    grid-template-columns: 80px 96px auto;
     align-items: center;
     gap: 6px;
 }
@@ -445,8 +448,8 @@
     text-align: left;
 }
 
-/* Segmented gauge: a heavy dark capsule holding ten colour blocks that run cool
-   to hot, with a grey slider marking where this limit currently sits. The bar is
+/* Segmented gauge: a heavy dark capsule holding five colour blocks (20% each)
+   that run cool to hot, with a grey slider marking where this limit sits. The bar is
    a fixed scale — it always shows the whole 0-100 range — so the reading is the
    marker's POSITION, not a length. That is the opposite of the old fill bar and
    it is why the marker overhangs the capsule top and bottom: it has to read as
@@ -462,7 +465,7 @@
     background: #fff;              /* the white gutter between capsule and blocks */
 }
 
-/* Ten real segment elements (built once by 8-usage.js) instead of the old
+/* Five real segment elements (built once by 8-usage.js) instead of the old
    gradient ramp — each one has to dim and pulse on its own, which a single
    background can't do. The flex gap is the white separator; the capsule's
    white background shows through it. */
@@ -490,26 +493,26 @@
 .usage-seg:first-child { margin-left: -5px; }
 .usage-seg:last-child { margin-right: -5px; }
 
-/* Cool-to-hot ramp, two segments per colour; later rules override earlier so
+/* Cool-to-hot ramp, one segment per colour; later rules override earlier so
    each range only needs its lower bound. */
 .usage-seg { background: #57C4E8; }
-.usage-seg:nth-child(n+3) { background: #A3C55F; }
-.usage-seg:nth-child(n+5) { background: #FBC94B; }
-.usage-seg:nth-child(n+7) { background: #F0912B; }
-.usage-seg:nth-child(n+9) { background: #C0392B; }
+.usage-seg:nth-child(n+2) { background: #A3C55F; }
+.usage-seg:nth-child(n+3) { background: #FBC94B; }
+.usage-seg:nth-child(n+4) { background: #F0912B; }
+.usage-seg:nth-child(n+5) { background: #C0392B; }
 
-/* The wave: every used segment shares one cycle of used-count × 0.5s (set as
-   --pulse-cycle by 8-usage.js) and starts 0.5s later than its neighbour, so
-   the pulse walks segment 1 → current at 2 segments/second, then the cycle
-   restarts at segment 1. The envelope is percentage-based, so the blip is
-   briefer on short cycles, but the 0.5s spacing between segments is fixed by
+/* The wave: every used segment shares one cycle of used-count × 1s (set as
+   --pulse-cycle by 8-usage.js) and starts 1s later than its neighbour, so
+   the pulse walks segment 1 → current at one segment per second, then the
+   cycle restarts at segment 1. The envelope is percentage-based, so the blip
+   is briefer on short cycles, but the 1s spacing between segments is fixed by
    the delay (and must match the per-segment step baked into --pulse-cycle).
    The global reduced-motion animation killer stops this and leaves the
    bright/dim split, which carries the reading on its own. */
 .usage-seg.is-used {
     opacity: 1;
     animation: usage-seg-pulse var(--pulse-cycle, 5s) linear infinite;
-    animation-delay: calc(var(--seg-i, 0) * 0.5s);
+    animation-delay: calc(var(--seg-i, 0) * 1s);
 }
 
 @keyframes usage-seg-pulse {
@@ -581,6 +584,7 @@
     white-space: nowrap;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+    position: relative;   /* anchors the stale ⚠, which hangs off the right */
 }
 
 .usage-resets .usage-unit { text-align: right; }
@@ -595,11 +599,24 @@
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
 }
 
-/* Dim the whole widget when the data file hasn't been refreshed lately
-   (updater stopped, PC asleep, or the Claude Code token expired). A .sr-only
-   status span inside the widget carries the same warning for screen readers. */
+/* Dim the whole widget when the data file hasn't been refreshed lately; the
+   widget-level tooltip (and the .sr-only status span, for screen readers)
+   names which link in the pipeline is stale — updater stopped, token expired,
+   or API unreachable — from the checkedAt/tokenExpired fields.
+
+   The ⚠ must be absolutely positioned: .usage-resets is a grid whose four
+   columns are exactly filled by its four spans, so an in-flow ::after is a
+   fifth grid item and wraps onto an implicit second row under the countdown.
+   Hanging it off the row's right edge keeps it on the line and adds no width,
+   which the header space ladder's measured budget depends on. */
 .usage-widget.is-stale { opacity: 0.55; }
-.usage-widget.is-stale .usage-resets::after { content: " ⚠"; }
+.usage-widget.is-stale .usage-resets::after {
+    content: "⚠";
+    position: absolute;
+    left: calc(100% + 0.5ch);
+    top: 50%;
+    transform: translateY(-50%);
+}
 
 /* A third clock eats ~205px of the centre. Give back most of the widget's left
    nudge when that happens — the nudge is cosmetic. Class is set by
