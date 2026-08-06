@@ -766,10 +766,12 @@
     /* The desktop right-margin keeps the widget off the header's edge in the
        row layout. Here the widget is already full-width and centred, so that
        margin only shoves it half its own width to the LEFT, clipping the brand
-       block off the screen. Both selectors are needed: the three-clock variant
-       in 2-components.css is more specific than a bare .usage-widget. */
+       block off the screen. All three selectors are needed: the three- and
+       four-clock variants in 2-components.css are more specific than a bare
+       .usage-widget. */
     .header .usage-widget,
-    .header.has-three-clocks .usage-widget {
+    .header.has-three-clocks .usage-widget,
+    .header.has-four-clocks .usage-widget {
         margin-right: 0;
     }
 

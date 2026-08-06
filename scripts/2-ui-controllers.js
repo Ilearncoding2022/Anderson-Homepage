@@ -500,17 +500,30 @@ const Utils = {
         return allowedSchemes.includes(schemeMatch[1].toLowerCase());
     },
 
-    // Focus trap for modal dialogs
+    // Focus trap for modal dialogs. The focusable list is recomputed on every
+    // Tab rather than snapshotted at build time — modals with tab panels
+    // (changelog, To-Do archive) keep [hidden] panels in the DOM, and a
+    // snapshot would pin `last` to a control inside one, which can never be
+    // document.activeElement, so the wrap check never fires and focus walks
+    // out of the dialog. Recomputing also means re-rendering a modal's list
+    // doesn't require tearing the trap down and rebuilding it (which would
+    // re-run the initial focus).
     trapFocus(modal) {
-        const focusable = modal.querySelectorAll(
+        // tabIndex >= 0 also weeds out what the selector over-matches: [href]
+        // catches the sprite's <use href="#ico-..."> (an SVG node whose
+        // .focus() is a no-op — as `first`, it silently pins focus on `last`).
+        const focusables = () => Array.from(modal.querySelectorAll(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]'
-        );
-        if (focusable.length === 0) return null;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
+        )).filter(el => !el.closest('[hidden]') && !el.disabled && el.tabIndex >= 0);
+        const initial = focusables();
+        if (initial.length === 0) return null;
 
         const handler = (e) => {
             if (e.key !== 'Tab') return;
+            const els = focusables();
+            if (els.length === 0) return;
+            const first = els[0];
+            const last = els[els.length - 1];
             if (e.shiftKey) {
                 if (document.activeElement === first) {
                     e.preventDefault();
@@ -524,7 +537,7 @@ const Utils = {
             }
         };
         modal.addEventListener('keydown', handler);
-        first.focus();
+        initial[0].focus();
         return handler;
     },
 

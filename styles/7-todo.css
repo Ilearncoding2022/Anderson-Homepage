@@ -66,41 +66,111 @@
     opacity: 0.55;
 }
 
-/* Checkbox */
-.todo-check {
+/* Done toggle — always visible, one per row. Not-done is a dim resting check;
+   done lights it in --signal. This is the fourth whitelisted use of the green
+   (see CLAUDE.md), and like the auto-allow tick it works only as the full set:
+   #ico-check-bold, 12px, saturated — don't neutralise one part of the three.
+   The archive-progress ring further down is part of the same whitelist entry:
+   one control, one meaning ("this completed and is on its way out"). */
+/* Ring and resting icon must both clear 3:1 against the card's dark glass
+   (SC 1.4.11 non-text contrast) — --structural at its 0.5 alpha and a 0.35
+   icon both failed it, reading as decoration rather than a control. */
+/* The progress ring's angle. Registered so it can be ANIMATED (an
+   unregistered custom property only flips discretely at 50%) — same
+   mechanism as the Today & Now beam's @property. */
+@property --done-progress {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+}
+
+.todo-done-btn {
+    position: relative;
     flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 18px;
     height: 18px;
-    accent-color: #ab47bc;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--ink-dim) 70%, transparent);
+    border-radius: 50%;
+    background: transparent;
     cursor: pointer;
 }
 
-.todo-item.todo-sub .todo-check {
+.todo-done-btn .ico {
+    width: 12px;
+    height: 12px;
+    color: var(--ink-dim);
+    opacity: 0.6;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.todo-done-btn:hover .ico {
+    opacity: 0.85;
+}
+
+.todo-item.done .todo-done-btn .ico {
+    color: var(--signal);
+    opacity: 1;
+}
+
+.todo-item.todo-sub .todo-done-btn {
     width: 15px;
     height: 15px;
 }
 
-/* The done-checkboxes only show while the header's multi-select toggle is on
-   (.is-multiselect on the card, persisted as todoMultiSelect). display:none
-   rather than visibility so the row closes up AND the boxes leave the
-   accessibility/tab order together. */
-.todo-group:not(.is-multiselect) .todo-check {
-    display: none;
+.todo-item.todo-sub .todo-done-btn .ico {
+    width: 10px;
+    height: 10px;
 }
 
-/* Pressed state for the multi-select toggle — same recipe as
-   .card-width-btn.is-full above it in the header (3-groups-cards.css), so the
-   two stateful buttons in this row read the same way. */
-.todo-multiselect-btn.is-on {
-    background-color: rgba(255,255,255,0.45);
-    border-color: rgba(255,255,255,0.95);
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.95);
+/* Archive-countdown ring: a --signal arc drawn over the button's dim border
+   (which doubles as the track), sweeping from 0 to a closed loop across the
+   DONE_ARCHIVE_DELAY_MS window — when it closes, the sweep files the item
+   into the done archive. The arc is a conic-gradient disc cut to a rim by a
+   radial mask; painted on ::before so the fill can never tint the check
+   itself. The animation is phased by the renderer via a negative delay
+   (--done-ring-delay = -elapsed), so a re-render resumes mid-arc. */
+.todo-item.done .todo-done-btn::before {
+    content: '';
+    position: absolute;
+    inset: -1px;                        /* cover the border box: ring = track */
+    border-radius: 50%;
+    background: conic-gradient(var(--signal) calc(var(--done-progress, 0) * 1turn), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+    pointer-events: none;
+    animation: todo-done-ring var(--done-ring-dur, 600s) linear var(--done-ring-delay, 0s) forwards;
+}
+
+@keyframes todo-done-ring {
+    from { --done-progress: 0; }
+    to   { --done-progress: 1; }
+}
+
+/* The global reduced-motion killer (5-pomodoro.css) crushes every animation
+   to 0.01ms — with fill:forwards that would SNAP this ring to a full loop
+   the moment an item is checked, reading as "about to vanish" for the whole
+   window. Disable the animation instead: the ring falls back to the static
+   --done-progress the renderer stamps, stepping forward on each re-render
+   (the 10s sweep tick included). */
+@media (prefers-reduced-motion: reduce) {
+    .todo-item.done .todo-done-btn::before {
+        animation: none !important;
+    }
 }
 
 @media (forced-colors: active) {
-    .todo-multiselect-btn.is-on {
+    .todo-item.done .todo-done-btn {
         border-style: double;
         border-width: 3px;
+    }
+    /* Gradients/masks are unreliable under forced colors; the double border
+       above already marks the done state. */
+    .todo-item.done .todo-done-btn::before {
+        display: none;
     }
 }
 
@@ -301,8 +371,8 @@
 .todo-urgency:hover { filter: brightness(1.15); transform: none; }
 .todo-urgency:active { transform: scale(0.94); }
 
-/* Visible keyboard focus for the card's buttons and checkboxes */
-.todo-check:focus-visible,
+/* Visible keyboard focus for the card's buttons */
+.todo-done-btn:focus-visible,
 .todo-urgency:focus-visible,
 .todo-del:focus-visible {
     outline: 2px solid rgba(206, 147, 216, 0.95);
@@ -863,9 +933,25 @@
     outline-offset: 2px;
 }
 
-.todo-archive-body {
+/* The scroll lives on the PANEL rather than on .todo-archive-body — same
+   reasoning as .changelog-panel (2-components.css): the tabpanel role wants
+   tabindex="0", and a focusable non-scrolling panel inside a scrolling
+   wrapper is a tab stop that can't do anything. It also makes
+   showTodoArchiveTab's scrollTop reset actually land on the scroller.
+   The [hidden] guard matters the day this class gains a display value
+   (.pb-toggle[hidden] trap); the focus ring matches the card's purple. */
+.todo-archive-panel {
     max-height: 60vh;
     overflow-y: auto;
+}
+
+.todo-archive-panel[hidden] {
+    display: none;
+}
+
+.todo-archive-panel:focus-visible {
+    outline: 2px solid rgba(206, 147, 216, 0.95);
+    outline-offset: -2px;
 }
 
 .todo-archive-section {
