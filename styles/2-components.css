@@ -380,10 +380,11 @@
        off the --ink scale (always light-on-dark) rather than --text-secondary,
        which flips dark in light theme and would nearly vanish here. */
     color: var(--ink-dim);
-    /* Keeps the block off the header's right edge, roughly where it sat when the
-       menu button was still its neighbour. Trimmed when a third clock widens the
-       centre column, so the countdowns stay affordable in that layout too. */
-    margin-right: 60px;
+    /* Keeps the block off the header's right edge, a little further inboard of
+       where the menu button used to sit (widened 60→80px in v4.27 by request).
+       Trimmed when a third clock widens the centre column, so the countdowns
+       stay affordable in that layout too. */
+    margin-right: 80px;
 }
 
 /* display:flex above would defeat the UA's [hidden] rule without these. */
@@ -618,11 +619,13 @@
     transform: translateY(-50%);
 }
 
-/* A third clock eats ~205px of the centre. Give back most of the widget's left
-   nudge when that happens — the nudge is cosmetic. Class is set by
-   AppInit.updateClock(); clock3 is hidden with an inline style, which CSS
-   can't see. */
-.header.has-three-clocks .usage-widget { margin-right: 24px; }
+/* A third clock eats ~170px of the centre (secondary clocks run smaller since
+   v4.27). Give back most of the widget's left nudge when that happens — the
+   nudge is cosmetic — and all of it at four clocks. Classes are set by
+   AppInit.updateClock(); clock3/clock4 are hidden with an inline style, which
+   CSS can't see. */
+.header.has-three-clocks .usage-widget { margin-right: 44px; }
+.header.has-four-clocks .usage-widget { margin-right: 8px; }
 
 /* ========================================
    3a. HEADER SPACE LADDER
@@ -631,7 +634,7 @@
 /* As the window narrows the header gives up width in a fixed order, cheapest
    thing first, rather than everything collapsing at one breakpoint:
 
-     1. the usage widget sheds its cosmetic 60px right margin
+     1. the usage widget sheds its cosmetic 80px right margin
      2. the clocks step down 2pt, then 4pt
      3. the usage widget drops its brand block (logo + "Claude Usage"),
         then its "Resets in …" countdowns
@@ -643,49 +646,54 @@
 
        viewport >= 96px (padding + gaps) + centre + 2 x max(left, right)
 
-   Measured in the browser: pomodoro 66px, centre 445 / 405 / 365px at
-   0 / 2 / 4pt (651 / 593 / 535 with three clocks), widget 383px of content —
+   Measured in the browser (pre-v4.27): pomodoro 66px, centre 445 / 405 / 365px
+   at 0 / 2 / 4pt (651 / 593 / 535 with three clocks), widget 383px of content —
    336 without the brand block, 212 without the countdowns either — plus its
-   60px right margin. (The breakpoints predate the search bar's removal in
+   right margin. (The breakpoints predate the search bar's removal in
    v4.17, so they are conservative: the left zone lost the search box's
-   200-320px, and the right zone was already the binding side.)
+   200-320px, and the right zone was already the binding side. v4.27 shrank the
+   secondary clocks ~20%, which narrows the centre by ~35px per secondary and
+   makes every rung a little more conservative still; the 20px margin widening
+   is paid for by moving only the two margin-shed rungs 20px later.)
 
    The widget is WIDER than the whole left zone in the two-clock resting
-   state, so it is the side that decides the fit — its cosmetic 60px margin is
-   shed first because it is the one free 60px on the binding side, and it is
+   state, so it is the side that decides the fit — its cosmetic 80px margin is
+   shed first because it is the one free 80px on the binding side, and it is
    invisible. With a primary clock selected the left zone also carries the
-   1-2 non-primary clocks, which roughly mirrors the old search-box width.
+   1-3 non-primary clocks, which roughly mirrors the old search-box width.
 
    Everything is bounded below at 769px because the ≤768px block in
    4-interactions.css stacks the header into a column, where every zone gets
    the full width back and none of this applies.
 
-   A third clock widens the centre by ~205px, so the whole ladder has a twin
-   that fires that much earlier. The two ladders are written as mutually
-   exclusive selectors (:not(.has-three-clocks) vs .has-three-clocks) rather
-   than as a base plus overrides — with equal specificity and no overlap, each
-   stage is decided by its own breakpoint alone, and a *milder* stage from the
-   other ladder can never out-specify a stronger one that should have won. */
+   Each extra clock widens the centre by ~170px (secondary size), so the whole
+   ladder has a twin per clock count that fires that much earlier. The ladders
+   are written as mutually exclusive selectors (:not() chains vs the state
+   classes — has-three-clocks and has-four-clocks are themselves mutually
+   exclusive, set by AppInit.updateClock) rather than as a base plus
+   overrides — with equal specificity and no overlap, each stage is decided by
+   its own breakpoint alone, and a *milder* stage from another ladder can
+   never out-specify a stronger one that should have won. */
 
 /* ---- Two clocks ---- */
-@media (min-width: 769px) and (max-width: 1420px) {
-    .header:not(.has-three-clocks) .usage-widget { margin-right: 8px; }
+@media (min-width: 769px) and (max-width: 1440px) {
+    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { margin-right: 8px; }
 }
 @media (min-width: 769px) and (max-width: 1325px) {
-    .header:not(.has-three-clocks) { --clock-trim: 2pt; }
+    .header:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 2pt; }
 }
 @media (min-width: 769px) and (max-width: 1290px) {
-    .header:not(.has-three-clocks) { --clock-trim: 4pt; }
+    .header:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 4pt; }
 }
 @media (min-width: 769px) and (max-width: 1250px) {
-    .header:not(.has-three-clocks) .usage-title { display: none; }
+    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-title { display: none; }
 }
 @media (min-width: 769px) and (max-width: 1155px) {
-    .header:not(.has-three-clocks) .usage-resets { display: none; }
+    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-resets { display: none; }
 }
 
-/* ---- Three clocks (same ladder, ~205px earlier) ---- */
-@media (min-width: 769px) and (max-width: 1600px) {
+/* ---- Three clocks (same ladder, ~170px earlier) ---- */
+@media (min-width: 769px) and (max-width: 1620px) {
     .header.has-three-clocks .usage-widget { margin-right: 8px; }
 }
 @media (min-width: 769px) and (max-width: 1535px) {
@@ -701,14 +709,31 @@
     .header.has-three-clocks .usage-resets { display: none; }
 }
 
+/* ---- Four clocks (same ladder, another ~170px earlier) ---- */
+@media (min-width: 769px) and (max-width: 1705px) {
+    .header.has-four-clocks { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1645px) {
+    .header.has-four-clocks { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1590px) {
+    .header.has-four-clocks .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1495px) {
+    .header.has-four-clocks .usage-resets { display: none; }
+}
+
 /* Below the ladder's last rung the gauges alone (212px + 8px) still can't clear
    the clocks, and there is nothing left in the list to shed — so the widget
-   goes. Two clocks reach this at 905px, three at 1075px. */
+   goes. Two clocks reach this at 905px, three at 1075px, four at ~1245px. */
+@media (min-width: 769px) and (max-width: 1245px) {
+    .header.has-four-clocks .usage-widget { display: none; }
+}
 @media (min-width: 769px) and (max-width: 1075px) {
     .header.has-three-clocks .usage-widget { display: none; }
 }
 @media (min-width: 769px) and (max-width: 905px) {
-    .header:not(.has-three-clocks) .usage-widget { display: none; }
+    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { display: none; }
 }
 
 /* ========================================
@@ -742,6 +767,35 @@
     --clock-fs: calc(1.45rem - var(--clock-trim, 0pt));
 }
 
+/* Non-primary clocks run ~20% smaller (v4.27) so the centre column can carry
+   up to four of them. Positional, not class-driven — same reasoning as the
+   divider rules above: .clock-secondary is a slot-identity class that clock #1
+   never carries, but when another clock is selected, clock #1 sits in the
+   side rail and must shrink like its neighbours. So the rule keys off where a
+   clock actually is: anything in .header-side-clocks, or anything in the
+   centre that isn't the selected (.clock-rainbow) clock. With grouping "none"
+   every clock is small — no clock is "the primary shown in the centre" then.
+   :not(.clock-rainbow) is load-bearing: without it the selected clock's +4pt
+   bump (an equal-or-lower-specificity rule) would lose. --clock-fs drives
+   .clock-city/.clock-time; .clock-date/.clock-slot are fixed sizes and get
+   their own smaller value. Desktop-only: the ≤768px block in
+   4-interactions.css sets its own flat clock sizes with (0,1,0) selectors,
+   which the higher-specificity date/slot rule here would silently beat — the
+   same trap its .clock-rainbow comment documents. */
+@media (min-width: 769px) {
+    .header-side-clocks .digital-clock,
+    .header-center .digital-clock:not(.clock-rainbow) {
+        --clock-fs: calc(1.15rem + 2pt - var(--clock-trim, 0pt));
+    }
+
+    .header-side-clocks .digital-clock .clock-date,
+    .header-side-clocks .digital-clock .clock-slot,
+    .header-center .digital-clock:not(.clock-rainbow) .clock-date,
+    .header-center .digital-clock:not(.clock-rainbow) .clock-slot {
+        font-size: calc(0.64rem + 2pt);
+    }
+}
+
 .digital-clock:hover {
     background-color: rgba(127, 127, 127, 0.12);
 }
@@ -759,9 +813,10 @@
 
    The primary clock owns .header-center alone (the others move to the left
    zone), so it also flattens into a single baseline row — label · time ·
-   date — and steps every part up 4pt from the resting label size. The date
-   joins the row simply because the container goes row: .clock-headline and
-   .clock-date become flex siblings on one line. */
+   date — and steps every part up 8pt from the base size (4pt originally,
+   +4pt more by request in v4.27). The date joins the row simply because the
+   container goes row: .clock-headline and .clock-date become flex siblings
+   on one line. */
 .digital-clock.clock-rainbow {
     background-color: rgba(255, 255, 255, 0.16);
     border-radius: 12px;
@@ -769,7 +824,7 @@
     flex-direction: row;
     align-items: baseline;
     gap: 0.75rem;
-    --clock-fs: calc(1.45rem + 4pt - var(--clock-trim, 0pt));
+    --clock-fs: calc(1.45rem + 8pt - var(--clock-trim, 0pt));
 }
 
 .digital-clock.clock-rainbow .clock-date {
@@ -777,10 +832,11 @@
     letter-spacing: 0.01em;
 }
 
-/* The resting 11rem truncation cap scaled for --clock-fs at 1.45rem; at +4pt
-   it would clip a name the resting clock shows in full. */
+/* The resting 11rem truncation cap scaled for --clock-fs at 1.45rem; at +8pt
+   it would clip a name the resting clock shows in full ("LOCAL TIME" already
+   ellipsized at the old 14rem once the bump grew to 8pt). */
 .digital-clock.clock-rainbow .clock-city {
-    max-width: 14rem;
+    max-width: 17rem;
 }
 
 /* Light plate (double-click the primary clock toggles; double-click again

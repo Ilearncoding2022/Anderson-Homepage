@@ -478,7 +478,8 @@ const CalendarManager = {
             hiddenCalendars: 'calendarHiddenSources',
             timelineMode: 'calendarTimelineMode',
             upcomingBarCount: 'calendarUpcomingBarCount',
-            upcomingBarFormat: 'calendarUpcomingBarFormat'
+            upcomingBarFormat: 'calendarUpcomingBarFormat',
+            secondaryTz: 'calendarSecondaryTz'
         }
     },
 
@@ -863,8 +864,13 @@ const CalendarManager = {
             const timeEl = el.querySelector('.cal-upcoming-time');
             if (timeEl && timeEl.dataset.barText !== text) {
                 timeEl.dataset.barText = text;
-                // The ticker prefixes the time with "· "; the list shows it bare.
-                timeEl.textContent = el.classList.contains('cal-upcoming-tick') ? `· ${text}` : text;
+                // The ticker drops the "in " prefix and suffixes " ·"
+                // (countdown-first order, separator inside this span — must
+                // match _calendarHeaderTicker's itemHTML); the list shows the
+                // full text bare.
+                timeEl.textContent = el.classList.contains('cal-upcoming-tick')
+                    ? `${text.replace(/^in /, '')} ·`
+                    : text;
             }
             // Keep the accessible name's time in sync with the visible countdown so
             // a focused item never announces a stale "starting …". Skip aria-hidden
@@ -1206,7 +1212,7 @@ const CalendarManager = {
     },
 
     // ---- Grouping mode: group by any enabled Settings clock (Clocks page), or none ----
-    groupingModes: ['tz1', 'tz2', 'tz3', 'none'],
+    groupingModes: ['tz1', 'tz2', 'tz3', 'tz4', 'none'],
 
     getGrouping() {
         const v = localStorage.getItem(this.config.storageKeys.grouping);
@@ -1217,7 +1223,7 @@ const CalendarManager = {
         if (!zone) return 'tz1';
         // Normalize to the first clock resolving to the same zone, so the active
         // mode is always one of the menu's de-duplicated entries.
-        for (const mode of ['tz1', 'tz2', 'tz3']) {
+        for (const mode of ['tz1', 'tz2', 'tz3', 'tz4']) {
             if (this._resolveZone(`timezone${mode.slice(2)}`) === zone) return mode;
         }
         return v;
@@ -1233,11 +1239,11 @@ const CalendarManager = {
     },
 
     // Options for the grouping dropdown: one entry per enabled Settings clock
-    // (Clock #1–#3, skipping disabled clocks and duplicate zones), plus 'none'.
+    // (Clock #1–#4, skipping disabled clocks and duplicate zones), plus 'none'.
     getGroupingOptions() {
         const seen = new Set();
         const out = [];
-        ['tz1', 'tz2', 'tz3'].forEach(mode => {
+        ['tz1', 'tz2', 'tz3', 'tz4'].forEach(mode => {
             const id = this._resolveZone(`timezone${mode.slice(2)}`);
             if (!id || seen.has(id)) return;
             seen.add(id);
@@ -1324,6 +1330,64 @@ const CalendarManager = {
         if (this.getViewMode() === 'list') return;
         Utils.safeLocalStorageSet(this.config.storageKeys.timelineMode, this.getTimelineMode() ? 'off' : 'on');
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
+    },
+
+    // ---- Secondary timeline zone (right-click a header clock → "Show in
+    // calendar") -------------------------------------------------------------
+    // The CHOICE is a raw IANA zone the user picked; it is deliberately never
+    // auto-changed by anything (grouping changes, clock edits, reorders). What
+    // *renders* is getSecondaryTimelineZone(), which hides the column — choice
+    // kept — while no enabled clock resolves to the zone or while it equals
+    // the anchor zone (two identical gutters add nothing).
+
+    // The user's stored choice, or null. A zone this engine can't format
+    // (corrupted storage) degrades to "off" rather than throwing later in the
+    // render path.
+    getSecondaryTzChoice() {
+        const zone = localStorage.getItem(this.config.storageKeys.secondaryTz);
+        if (!zone) return null;
+        try {
+            new Intl.DateTimeFormat('en-US', { timeZone: zone });
+            return zone;
+        } catch {
+            return null;
+        }
+    },
+
+    // The zone the timeline should actually render a second gutter for, or
+    // null. Compared against getAnchorTimezone(), not getGroupingTimezone():
+    // with grouping "none" the axis is still anchored to Clock #1's zone, and
+    // a duplicate of THAT is just as redundant.
+    getSecondaryTimelineZone() {
+        const choice = this.getSecondaryTzChoice();
+        if (!choice) return null;
+        const hasClock = ['timezone1', 'timezone2', 'timezone3', 'timezone4']
+            .some(key => this._resolveZone(key) === choice);
+        if (!hasClock) return null;
+        if (choice === this.getAnchorTimezone()) return null;
+        return choice;
+    },
+
+    // Store (or clear, when falsy) the secondary-column zone. Stores even in
+    // list view / timeline off — the column simply appears when the timeline
+    // is next shown. Invalid zones are ignored silently.
+    setSecondaryTz(zone) {
+        if (!zone) {
+            localStorage.removeItem(this.config.storageKeys.secondaryTz);
+        } else {
+            try {
+                new Intl.DateTimeFormat('en-US', { timeZone: zone });
+            } catch {
+                return;
+            }
+            Utils.safeLocalStorageSet(this.config.storageKeys.secondaryTz, zone);
+        }
+        if (window.UIRenderer) UIRenderer.renderCalendarCard();
+    },
+
+    // The context menu's action: same zone again turns the column off.
+    toggleSecondaryTz(zone) {
+        this.setSecondaryTz(this.getSecondaryTzChoice() === zone ? null : zone);
     },
 
     // UTC-ms of local midnight for `dateStr` (YYYY-MM-DD) in zone `tz`. Used to
@@ -1460,14 +1524,24 @@ const CalendarManager = {
         };
         const displaySpanMin = dispMin(rangeEndMin);
         const pct = (min) => (dispMin(min) / displaySpanMin) * 100;
-        const hourLabel = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:00`;
+        const hourLabel = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}h`;
 
         // Hour-axis labels: boundary hours only — hours interior to a collapsed
         // gap have no gridline of their own (the band's label names the range).
+        // `atMs` is the UTC instant of the hour line for the secondary gutter:
+        // the gutter is shared across all day columns, so the window's FIRST
+        // day is the reference — on a DST-transition window, other days'
+        // secondary times are approximate (accepted; m = 1440 is next-day
+        // midnight, which is correct as an instant).
         const hours = [];
         for (let m = rangeStartMin; m <= rangeEndMin; m += 60) {
             if (rawGaps.some(g => g.startMin < m && m < g.endMin)) continue;
-            hours.push({ min: m, label: String(Math.floor(m / 60)).padStart(2, '0'), topPct: pct(m) });
+            hours.push({
+                min: m,
+                label: String(Math.floor(m / 60)).padStart(2, '0'),
+                topPct: pct(m),
+                atMs: perDay[0].dayStart + m * 60000
+            });
         }
 
         const days2 = perDay.map(pd => {
@@ -1526,9 +1600,9 @@ const CalendarManager = {
 
     // Resolve a stored clock setting ('local'/'UTC'/IANA id) to a concrete IANA zone.
     // Returns undefined for disabled ('none'). Defaults match the clock settings:
-    // Clock #1 → local, Clock #2 → UTC, Clock #3 → none (disabled).
+    // Clock #1 → local, Clock #2 → UTC, Clocks #3/#4 → none (disabled).
     _resolveZone(key) {
-        const defaults = { timezone1: 'local', timezone2: 'UTC', timezone3: 'none' };
+        const defaults = { timezone1: 'local', timezone2: 'UTC', timezone3: 'none', timezone4: 'none' };
         const raw = localStorage.getItem(key) || defaults[key] || 'local';
         if (raw === 'none') return undefined;
         if (raw === 'local') return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1615,11 +1689,11 @@ const CalendarManager = {
         return id ? this._tzLabel(id) : 'No grouping';
     },
 
-    // Zones shown on every event row (Clock #1, #2, then #3 if enabled), de-duplicated.
+    // Zones shown on every event row (Clock #1, #2, then #3/#4 if enabled), de-duplicated.
     _displayTimezones() {
         const seen = new Set();
         const out = [];
-        for (const key of ['timezone1', 'timezone2', 'timezone3']) {
+        for (const key of ['timezone1', 'timezone2', 'timezone3', 'timezone4']) {
             const id = this._resolveZone(key);
             if (!id || seen.has(id)) continue;
             seen.add(id);
@@ -1632,7 +1706,7 @@ const CalendarManager = {
     // Labels are keyed by clock slot, so find the first slot that resolves to this
     // zone and carries a non-empty label.
     _customLabelForZone(id) {
-        for (const key of ['timezone1', 'timezone2', 'timezone3']) {
+        for (const key of ['timezone1', 'timezone2', 'timezone3', 'timezone4']) {
             if (this._resolveZone(key) === id) {
                 const lbl = (localStorage.getItem(key + 'Label') || '').trim();
                 if (lbl) return lbl;
@@ -1734,6 +1808,21 @@ const CalendarManager = {
         const opts = { year: 'numeric', month: '2-digit', day: '2-digit' };
         if (tz) opts.timeZone = tz;
         return date.toLocaleDateString('en-CA', opts);
+    },
+
+    // Hour-axis "h" notation for the timeline's secondary gutter — visual
+    // parity with the primary axis ("07h"; a :30/:45-offset zone reads
+    // "12h30"), so deliberately NOT _timeStr, which strips leading zeros and
+    // renders "7:30". hourCycle 'h23' avoids the h24 midnight quirk; the '24'
+    // guard is belt-and-braces (same engine quirk _zonedDayStartMs handles).
+    _paddedTimeStr(date, tz) {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }).formatToParts(date);
+        let hour = parts.find(p => p.type === 'hour')?.value ?? '';
+        if (hour === '24') hour = '00';
+        const minute = parts.find(p => p.type === 'minute')?.value ?? '';
+        return minute === '00' ? `${hour}h` : `${hour}h${minute}`;
     },
 
     _timeStr(date, tz) {

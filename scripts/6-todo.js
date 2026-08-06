@@ -8,10 +8,14 @@
 // ASAP). Tasks and subtasks can be reordered by drag-and-drop (a task carries
 // its subtasks with it).
 //
-// Check semantics (kept consistent so a parent always reflects its children):
+// Check semantics (v4.27: completion never flows upward):
 //   - Toggling a task cascades that done-state to all of its subtasks.
-//   - Toggling a subtask sets the parent done iff every subtask is done
-//     (so unchecking any subtask unchecks the parent).
+//   - Checking subtasks — even the last one — never checks the parent; the
+//     user checks the task off themselves.
+//   - Incompleteness DOES flow upward: a done parent that gains a not-done
+//     subtask (uncheck, add, restore) goes back to not-done, so "parent is
+//     done" always still means "everything in it is done" — the sweep relies
+//     on that to archive a due parent as a whole tree.
 //
 // Recurring tasks (v3.1):
 //   Each task/subtask carries a `recur` field ('none'|'daily'|'weekly'|'monthly').
@@ -19,15 +23,32 @@
 //   is rolled forward by one period and done is reset to false (next occurrence).
 //   - Recurring PARENT toggled done → roll parent dueDate forward, uncheck parent
 //     and all subtasks (same cascade as a normal check, then recur resets done).
-//   - Recurring SUBTASK toggled done → roll that subtask's dueDate forward, uncheck
-//     it; parent.done is then recomputed as "all subs done" — the rolled-forward
-//     subtask is not done, so the parent stays not-done.
+//   - Recurring SUBTASK toggled done → roll that subtask's dueDate forward,
+//     uncheck it; the not-done rolled-forward subtask also un-checks a done
+//     parent (incompleteness flows upward).
+//   Consequence (accepted): a recurring item never stays done, so it never
+//   reaches the done archive — it rolls forward instead.
+//
+// Done archive (v4.27):
+//   Every done item carries `doneAt` (ms). Ten minutes after being checked off
+//   (DONE_ARCHIVE_DELAY_MS — the done button's progress ring animates this
+//   same window), _sweepDone moves it into a second archive (DONE_ARCHIVE_KEY),
+//   separate from the deleted-item archive but with the same TTL. A due top-level task takes
+//   its remaining subtasks with it; a due subtask inside a not-yet-due parent
+//   leaves individually (as an isSub entry, same shape delete() uses). The
+//   invariant doneAt ⇔ done is maintained everywhere done is written, because
+//   the sweep clock reads doneAt only.
+//   Done-archive entries are stamped `archivedAt`; deleted entries keep their
+//   historical `deletedAt` (no migration). Restoring from the done archive
+//   always yields a fresh, unchecked top-level task.
 // ==========================================
 
 const TodoManager = {
     STORAGE_KEY: 'todos',
     ARCHIVE_KEY: 'todoArchive',
+    DONE_ARCHIVE_KEY: 'todoDoneArchive',
     ARCHIVE_TTL_DAYS: 14,
+    DONE_ARCHIVE_DELAY_MS: 10 * 60 * 1000,
     // Ordered low → high; the badge cycles in this order and wraps back to 'tbd'.
     // 'asap' is the highest level, sitting above 'urgent'.
     URGENCY_LEVELS: ['tbd', 'trivial', 'medium', 'urgent', 'asap'],
@@ -36,11 +57,18 @@ const TodoManager = {
     RECUR_LEVELS: ['none', 'daily', 'weekly', 'monthly'],
     RECUR_LABELS: { none: 'No repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' },
 
-    state: { todos: [], archive: [] },
+    state: { todos: [], archive: [], doneArchive: [] },
 
     initialize() {
         this.load();
         this._attachCrossTabSync();
+        // A self-owned timer keeps the module independent of the app-level
+        // clock tick. 10s cadence: the done button's progress ring closes at
+        // exactly DONE_ARCHIVE_DELAY_MS, so the sweep must follow within a
+        // beat or a visibly "complete" ring lingers.
+        if (!this._sweepIntervalId) {
+            this._sweepIntervalId = setInterval(() => this._sweepDone(), 10 * 1000);
+        }
     },
 
     // Keep every open tab's To-Do card in sync. The browser fires a `storage`
@@ -52,19 +80,26 @@ const TodoManager = {
         window.addEventListener('storage', (e) => {
             // Only react to our keys. e.key === null means storage was cleared
             // wholesale (e.g. via clear()), which we also want to pick up.
-            if (e.key !== null && e.key !== this.STORAGE_KEY && e.key !== this.ARCHIVE_KEY) return;
+            if (e.key !== null && e.key !== this.STORAGE_KEY && e.key !== this.ARCHIVE_KEY
+                && e.key !== this.DONE_ARCHIVE_KEY) return;
             this._syncFromStorage();
         });
     },
 
-    // Reload state from localStorage and re-render. If the user is mid-edit in
-    // *this* tab's card (typing a task, picking a date), defer briefly so their
-    // in-progress input isn't yanked away, then retry until it's safe.
-    _syncFromStorage() {
+    // Is the user mid-edit in this tab's card (typing a task, picking a date)?
+    // Shared guard: both the cross-tab sync and the done-sweep must not yank a
+    // half-typed .todo-add/.todo-subadd away with a re-render.
+    _isEditingTodoCard() {
         const ae = document.activeElement;
-        const editing = ae && ae.closest && ae.closest('.todo-group')
-            && ae.matches('input, textarea');
-        if (editing) {
+        return !!(ae && ae.closest && ae.closest('.todo-group')
+            && ae.matches('input, textarea'));
+    },
+
+    // Reload state from localStorage and re-render. If the user is mid-edit,
+    // defer briefly so their in-progress input isn't yanked away, then retry
+    // until it's safe.
+    _syncFromStorage() {
+        if (this._isEditingTodoCard()) {
             clearTimeout(this._syncRetryId);
             this._syncRetryId = setTimeout(() => this._syncFromStorage(), 2000);
             return;
@@ -76,14 +111,28 @@ const TodoManager = {
 
     load() {
         const raw = Utils.safeJSONParse(localStorage.getItem(this.STORAGE_KEY), []);
+        this._stampedDoneAt = false;
         this.state.todos = Array.isArray(raw)
             ? raw.map(t => this._normalizeTask(t, false)).filter(Boolean)
             : [];
+        const stampedTodos = this._stampedDoneAt;
         const arch = Utils.safeJSONParse(localStorage.getItem(this.ARCHIVE_KEY), []);
         this.state.archive = Array.isArray(arch)
             ? arch.map(a => this._normalizeArchived(a)).filter(Boolean)
             : [];
+        const doneArch = Utils.safeJSONParse(localStorage.getItem(this.DONE_ARCHIVE_KEY), []);
+        this.state.doneArchive = Array.isArray(doneArch)
+            ? doneArch.map(a => this._normalizeArchived(a, 'archivedAt')).filter(Boolean)
+            : [];
         this._pruneArchive();
+        // Items checked off more than DONE_ARCHIVE_DELAY_MS before this load
+        // (browser closed in between) archive now rather than waiting for the
+        // first timer tick.
+        this._sweepDone(false);
+        // Legacy done items (pre-doneAt) were stamped in memory by
+        // _normalizeTask; persist the stamp or every reload restarts their 1h
+        // clock and they never archive.
+        if (stampedTodos) this.save();
     },
 
     save() {
@@ -92,6 +141,10 @@ const TodoManager = {
 
     saveArchive() {
         Utils.safeLocalStorageSet(this.ARCHIVE_KEY, JSON.stringify(this.state.archive));
+    },
+
+    saveDoneArchive() {
+        Utils.safeLocalStorageSet(this.DONE_ARCHIVE_KEY, JSON.stringify(this.state.doneArchive));
     },
 
     getTodos() {
@@ -129,6 +182,7 @@ const TodoManager = {
             id: typeof t.id === 'string' && t.id ? t.id : crypto.randomUUID(),
             text: typeof t.text === 'string' ? t.text : '',
             done: t.done === true,
+            doneAt: typeof t.doneAt === 'number' && isFinite(t.doneAt) ? t.doneAt : null,
             dueDate: this._validDate(t.dueDate) ? t.dueDate : null,
             urgency: this._validUrgency(t.urgency),
             recur: this._validRecur(t.recur)
@@ -137,22 +191,51 @@ const TodoManager = {
             task.subtasks = Array.isArray(t.subtasks)
                 ? t.subtasks.map(s => this._normalizeTask(s, true)).filter(Boolean)
                 : [];
-            // Keep the loaded parent state consistent with its children.
-            if (task.subtasks.length > 0) task.done = task.subtasks.every(s => s.done);
+            // Completion never flows upward, but a loaded done parent must
+            // still mean "everything in it is done" (the sweep archives it as
+            // a tree) — un-check it if any child isn't.
+            if (task.done && task.subtasks.length > 0 && !task.subtasks.every(s => s.done)) {
+                task.done = false;
+            }
         }
+        // doneAt ⇔ done: items done before this field existed get their clock
+        // started now (they archive one delay-window after the upgrade, not
+        // instantly).
+        // The flag lets load() persist the stamp once, or it only ever lives
+        // in memory and resets on every reload.
+        if (task.done && task.doneAt === null) {
+            task.doneAt = Date.now();
+            this._stampedDoneAt = true;
+        }
+        if (!task.done) task.doneAt = null;
         return task;
     },
 
-    // An archived entry is a top-level task (or a lone subtask) plus the deletion
-    // timestamp. Subtask entries remember the parent they were removed from.
-    _normalizeArchived(a) {
+    // Completion never flows upward — checking every subtask does NOT check
+    // the parent — but incompleteness does: a done parent gaining a not-done
+    // subtask would otherwise be swept into the done archive as a "finished"
+    // tree while visibly unfinished, so it goes back to not-done and its 1h
+    // clock stops.
+    _uncheckIncompleteParent(parent) {
+        if (!Array.isArray(parent.subtasks) || parent.subtasks.length === 0) return;
+        if (parent.done && !parent.subtasks.every(s => s.done)) {
+            parent.done = false;
+            parent.doneAt = null;
+        }
+    },
+
+    // An archived entry is a top-level task (or a lone subtask) plus the archival
+    // timestamp — `deletedAt` in the deleted archive (historical name, kept so
+    // stored data needs no migration), `archivedAt` in the done archive.
+    // Subtask entries remember the parent they were removed from.
+    _normalizeArchived(a, stampField = 'deletedAt') {
         if (!a || typeof a !== 'object') return null;
         const task = this._normalizeTask(a, false);
         if (!task) return null;
-        const deletedAt = typeof a.deletedAt === 'number' && isFinite(a.deletedAt)
-            ? a.deletedAt
+        const stamp = typeof a[stampField] === 'number' && isFinite(a[stampField])
+            ? a[stampField]
             : Date.now();
-        const entry = { ...task, deletedAt };
+        const entry = { ...task, [stampField]: stamp };
         if (a.isSub === true) {
             entry.isSub = true;
             entry.parentId = typeof a.parentId === 'string' ? a.parentId : null;
@@ -166,12 +249,20 @@ const TodoManager = {
         return this.ARCHIVE_TTL_DAYS * 24 * 60 * 60 * 1000;
     },
 
-    // Drop archived entries older than the retention window.
+    // Archival timestamp regardless of which archive an entry sits in.
+    archiveStamp(a) {
+        return a.archivedAt ?? a.deletedAt;
+    },
+
+    // Drop archived entries older than the retention window (both archives).
     _pruneArchive() {
         const cutoff = Date.now() - this._archiveTtlMs();
-        const before = this.state.archive.length;
+        let before = this.state.archive.length;
         this.state.archive = this.state.archive.filter(a => a.deletedAt >= cutoff);
         if (this.state.archive.length !== before) this.saveArchive();
+        before = this.state.doneArchive.length;
+        this.state.doneArchive = this.state.doneArchive.filter(a => a.archivedAt >= cutoff);
+        if (this.state.doneArchive.length !== before) this.saveDoneArchive();
     },
 
     // Whole-day count remaining before an archived entry is auto-purged.
@@ -184,6 +275,60 @@ const TodoManager = {
     getArchive() {
         this._pruneArchive();
         return [...this.state.archive].sort((a, b) => b.deletedAt - a.deletedAt);
+    },
+
+    // Done-archive entries, freshly pruned, most-recently-archived first.
+    // No sweep here: getDoneArchive is called mid-render (renderTodoArchive),
+    // and a sweep's _rerender from inside a render pass would recurse.
+    getDoneArchive() {
+        this._pruneArchive();
+        return [...this.state.doneArchive].sort((a, b) => b.archivedAt - a.archivedAt);
+    },
+
+    // Move items whose 1h done clock has elapsed into the done archive. A due
+    // top-level task takes its remaining subtasks with it; a due subtask whose
+    // parent isn't due yet leaves individually, and the parent's derived state
+    // is recomputed (it may flip done and start its own clock, or — emptied of
+    // subtasks — stand on its own flag).
+    _sweepDone(rerender = true) {
+        // Same mid-edit guard as _syncFromStorage: the timer must not rebuild
+        // the card under a half-typed .todo-add, and — since every save here
+        // is a whole-array write from this tab's snapshot — it must not write
+        // over another tab's changes while our own sync is deferred. Skipping
+        // the whole tick is safe: the next tick (or the next user action)
+        // picks the due items up.
+        if (this._isEditingTodoCard()) return;
+        const now = Date.now();
+        const due = (item) => item.done && typeof item.doneAt === 'number'
+            && now - item.doneAt >= this.DONE_ARCHIVE_DELAY_MS;
+        let moved = false;
+        this.state.todos = this.state.todos.filter(task => {
+            if (!due(task)) return true;
+            this.state.doneArchive.push({ ...task, archivedAt: now });
+            moved = true;
+            return false;
+        });
+        for (const parent of this.state.todos) {
+            const keep = parent.subtasks.filter(sub => {
+                if (!due(sub)) return true;
+                this.state.doneArchive.push({
+                    ...sub, subtasks: [],
+                    isSub: true, parentId: parent.id, parentText: parent.text || '',
+                    archivedAt: now
+                });
+                moved = true;
+                return false;
+            });
+            if (keep.length !== parent.subtasks.length) {
+                parent.subtasks = keep;
+                this._uncheckIncompleteParent(parent);
+            }
+        }
+        if (moved) {
+            this.save();
+            this.saveDoneArchive();
+            if (rerender) this._rerender();
+        }
     },
 
     // ---- Lookups ----
@@ -207,7 +352,7 @@ const TodoManager = {
         const trimmed = (text || '').trim();
         if (!trimmed) return;
         this.state.todos.push({
-            id: crypto.randomUUID(), text: trimmed, done: false,
+            id: crypto.randomUUID(), text: trimmed, done: false, doneAt: null,
             dueDate: null, urgency: 'tbd', recur: 'none', subtasks: []
         });
         if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'add-task' };
@@ -221,11 +366,11 @@ const TodoManager = {
         const trimmed = (text || '').trim();
         if (!trimmed) return;
         parent.subtasks.push({
-            id: crypto.randomUUID(), text: trimmed, done: false,
+            id: crypto.randomUUID(), text: trimmed, done: false, doneAt: null,
             dueDate: null, urgency: 'tbd', recur: 'none'
         });
         // A fresh, unchecked subtask means the parent can no longer be fully done.
-        parent.done = parent.subtasks.every(s => s.done);
+        this._uncheckIncompleteParent(parent);
         if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'add-sub', id: parentId };
         this.save();
         this._rerender();
@@ -238,7 +383,7 @@ const TodoManager = {
         const i = this.state.todos.findIndex(t => t.id === afterId);
         if (i === -1) return;
         const task = {
-            id: crypto.randomUUID(), text: '', done: false,
+            id: crypto.randomUUID(), text: '', done: false, doneAt: null,
             dueDate: null, urgency: 'tbd', recur: 'none', subtasks: []
         };
         this.state.todos.splice(i + 1, 0, task);
@@ -254,65 +399,86 @@ const TodoManager = {
         const i = parent.subtasks.findIndex(s => s.id === afterSubId);
         if (i === -1) return;
         const sub = {
-            id: crypto.randomUUID(), text: '', done: false,
+            id: crypto.randomUUID(), text: '', done: false, doneAt: null,
             dueDate: null, urgency: 'tbd', recur: 'none'
         };
         parent.subtasks.splice(i + 1, 0, sub);
         // A fresh, unchecked subtask means the parent can no longer be fully done.
-        parent.done = parent.subtasks.every(s => s.done);
+        this._uncheckIncompleteParent(parent);
         if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'edit', id: parentId, sub: sub.id };
         this.save();
         this._rerender();
     },
 
+    // Returns the archived entry's id (for the Undo toast), or null when
+    // nothing went to the archive.
     delete(id, subId) {
         if (subId) {
-            // Subtasks are archived too (recoverable), remembering their parent so
-            // they can be restored back into it if it still exists.
+            // Subtasks are archived too (recoverable), remembering their parent
+            // so they can be restored back into it if it still exists — EXCEPT
+            // an empty one (no text; deadline/urgency don't count): there is
+            // nothing to recover, so it just disappears instead of cluttering
+            // the archive. Tasks are never exempt — an untitled task can still
+            // carry named subtasks.
             const parent = this._find(id);
-            if (!parent) return;
+            if (!parent) return null;
             const sub = parent.subtasks.find(s => s.id === subId);
-            if (!sub) return;
+            if (!sub) return null;
+            const isEmpty = (sub.text || '').trim() === '';
             parent.subtasks = parent.subtasks.filter(s => s.id !== subId);
-            if (parent.subtasks.length > 0) parent.done = parent.subtasks.every(s => s.done);
-            this.state.archive.push({
-                ...sub, subtasks: [],
-                isSub: true, parentId: parent.id, parentText: parent.text || '',
-                deletedAt: Date.now()
-            });
+            this._uncheckIncompleteParent(parent);
+            if (!isEmpty) {
+                this.state.archive.push({
+                    ...sub, subtasks: [],
+                    isSub: true, parentId: parent.id, parentText: parent.text || '',
+                    deletedAt: Date.now()
+                });
+                this.saveArchive();
+            }
             this.save();
-            this.saveArchive();
             this._rerender();
-            return;
+            return isEmpty ? null : subId;
         }
         // Top-level tasks are archived (recoverable for ARCHIVE_TTL_DAYS days).
         const idx = this.state.todos.findIndex(t => t.id === id);
-        if (idx === -1) return;
+        if (idx === -1) return null;
         const [task] = this.state.todos.splice(idx, 1);
         this.state.archive.push({ ...task, deletedAt: Date.now() });
         this.save();
         this.saveArchive();
         this._rerender();
+        return id;
     },
 
-    // Move an archived entry back into the active list. A subtask goes back into
-    // its original parent when that parent still exists; otherwise (parent gone)
-    // it is restored as a new top-level task.
-    restoreFromArchive(archId) {
-        const idx = this.state.archive.findIndex(a => a.id === archId);
+    // Move an archived entry back into the active list.
+    // From the deleted archive: a subtask goes back into its original parent
+    // when that parent still exists; otherwise (parent gone) it is restored as
+    // a new top-level task.
+    // From the done archive: always a fresh, unchecked top-level task —
+    // regardless of whether the entry was a task or a subtask — so it doesn't
+    // re-archive one delay-window later.
+    restoreFromArchive(archId, src = 'deleted') {
+        const fromDone = src === 'done';
+        const list = fromDone ? this.state.doneArchive : this.state.archive;
+        const saveList = fromDone ? () => this.saveDoneArchive() : () => this.saveArchive();
+        const idx = list.findIndex(a => a.id === archId);
         if (idx === -1) return;
-        const [entry] = this.state.archive.splice(idx, 1);
-        const { deletedAt, isSub, parentId, parentText, ...task } = entry;
+        const [entry] = list.splice(idx, 1);
+        const { deletedAt, archivedAt, isSub, parentId, parentText, ...task } = entry;
 
-        if (isSub) {
+        if (fromDone) {
+            task.done = false;
+            task.doneAt = null;
+            (task.subtasks || []).forEach(s => { s.done = false; s.doneAt = null; });
+        } else if (isSub) {
             const parent = parentId ? this._find(parentId) : null;
             if (parent) {
                 const sub = this._normalizeTask(task, true);
                 if (parent.subtasks.some(s => s.id === sub.id)) sub.id = crypto.randomUUID();
                 parent.subtasks.push(sub);
-                parent.done = parent.subtasks.every(s => s.done);
+                this._uncheckIncompleteParent(parent);
                 this.save();
-                this.saveArchive();
+                saveList();
                 this._rerender();
                 return;
             }
@@ -323,16 +489,19 @@ const TodoManager = {
         if (this.state.todos.some(t => t.id === task.id)) task.id = crypto.randomUUID();
         this.state.todos.push(this._normalizeTask(task, false));
         this.save();
-        this.saveArchive();
+        saveList();
         this._rerender();
     },
 
     // Permanently remove a single archived entry.
-    deleteFromArchive(archId) {
-        const before = this.state.archive.length;
-        this.state.archive = this.state.archive.filter(a => a.id !== archId);
-        if (this.state.archive.length !== before) {
-            this.saveArchive();
+    deleteFromArchive(archId, src = 'deleted') {
+        const fromDone = src === 'done';
+        const list = fromDone ? this.state.doneArchive : this.state.archive;
+        const next = list.filter(a => a.id !== archId);
+        if (next.length !== list.length) {
+            if (fromDone) this.state.doneArchive = next;
+            else this.state.archive = next;
+            fromDone ? this.saveDoneArchive() : this.saveArchive();
             this._rerender();
         }
     },
@@ -367,8 +536,9 @@ const TodoManager = {
         const task = this._find(id);
         if (!task) return;
         task.done = !task.done;
+        task.doneAt = task.done ? Date.now() : null;
         // Checking a task cascades to all subtasks; unchecking does the same.
-        task.subtasks.forEach(s => { s.done = task.done; });
+        task.subtasks.forEach(s => { s.done = task.done; s.doneAt = task.doneAt; });
 
         // Rollover: if a recurring task is being completed, advance its due date
         // and reset it to not-done (and un-check all its subtasks). The user sees
@@ -376,7 +546,8 @@ const TodoManager = {
         if (task.done && task.recur !== 'none') {
             task.dueDate = this._advanceDueDate(task.dueDate, task.recur);
             task.done = false;
-            task.subtasks.forEach(s => { s.done = false; });
+            task.doneAt = null;
+            task.subtasks.forEach(s => { s.done = false; s.doneAt = null; });
         }
 
         if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'toggle', id };
@@ -389,6 +560,7 @@ const TodoManager = {
         const sub = parent && parent.subtasks.find(s => s.id === subId);
         if (!sub) return;
         sub.done = !sub.done;
+        sub.doneAt = sub.done ? Date.now() : null;
 
         // Rollover: if a recurring subtask is being completed, advance its due
         // date and reset it to not-done. The parent's done state is then
@@ -397,10 +569,12 @@ const TodoManager = {
         if (sub.done && sub.recur !== 'none') {
             sub.dueDate = this._advanceDueDate(sub.dueDate, sub.recur);
             sub.done = false;
+            sub.doneAt = null;
         }
 
-        // Parent is done only when every subtask is done.
-        parent.done = parent.subtasks.every(s => s.done);
+        // Completion never flows upward — but unchecking a subtask under a
+        // done parent un-checks the parent too.
+        this._uncheckIncompleteParent(parent);
         if (window.UIRenderer) UIRenderer._pendingTodoFocus = { action: 'toggle', id: parentId, sub: subId };
         this.save();
         this._rerender();

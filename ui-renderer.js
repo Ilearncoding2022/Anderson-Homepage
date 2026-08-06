@@ -174,8 +174,8 @@ const UIRenderer = {
             selector = '.todo-add';
         } else if (f.action === 'toggle') {
             selector = f.sub
-                ? `.todo-check[data-id="${CSS.escape(f.id)}"][data-sub="${CSS.escape(f.sub)}"]`
-                : `.todo-check[data-id="${CSS.escape(f.id)}"]:not([data-sub])`;
+                ? `.todo-done-btn[data-id="${CSS.escape(f.id)}"][data-sub="${CSS.escape(f.sub)}"]`
+                : `.todo-done-btn[data-id="${CSS.escape(f.id)}"]:not([data-sub])`;
         } else if (f.action === 'reorder') {
             // Keep focus on the drag handle the user just moved with the keyboard.
             selector = f.sub
@@ -444,6 +444,13 @@ const UIRenderer = {
         if (this._viewMenuKeydown) document.removeEventListener('keydown', this._viewMenuKeydown, true);
         this._calLegendDismiss = this._calLegendKeydown = null;
         this._viewMenuDismiss = this._viewMenuKeydown = this._viewMenuClose = null;
+        // The clock context menu is body-appended, so replacing the calendar
+        // card would neither remove its node nor its document listeners —
+        // strip both here alongside the other calendar menus.
+        if (this._clockTzMenuDismiss) document.removeEventListener('click', this._clockTzMenuDismiss, true);
+        if (this._clockTzMenuKeydown) document.removeEventListener('keydown', this._clockTzMenuKeydown, true);
+        this._clockTzMenuDismiss = this._clockTzMenuKeydown = this._closeClockTzMenu = null;
+        document.querySelector('.clock-tz-menu')?.remove();
     },
 
     renderCalendarCard() {
@@ -976,6 +983,86 @@ const UIRenderer = {
         document.querySelector('#calViewMenu .cal-menu-switch')?.focus();
     },
 
+    // Right-click menu for a secondary header clock: one checkable item that
+    // shows/hides the timeline's secondary time-zone gutter for that clock's
+    // zone. Lives here (not 3-app-init) so its document-level listeners are
+    // torn down with the other calendar menus (_teardownCalendarMenus) before
+    // a card re-render can orphan them. Invoked from the header's delegated
+    // contextmenu handler; `ev` is the contextmenu event (keyboard Shift+F10 /
+    // menu key report 0,0 coordinates, so those anchor to the clock instead).
+    showClockTzMenu(clockEl, zone, ev) {
+        const cm = window.CalendarManager;
+        if (!cm) return;
+        // One open menu at a time, of any kind.
+        this._viewMenuClose?.(false);
+        this._closeClockTzMenu?.(false);
+
+        const checked = cm.getSecondaryTzChoice() === zone;
+        const menu = document.createElement('div');
+        menu.className = 'card-context-menu clock-tz-menu';
+        menu.setAttribute('role', 'menu');
+        menu.setAttribute('aria-label', `Calendar options — ${cm._tzLabel(zone)}`);
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'card-context-item';
+        item.setAttribute('role', 'menuitemcheckbox');
+        item.setAttribute('aria-checked', String(checked));
+        item.textContent = `${checked ? '✓ ' : ''}Show in calendar`;
+        menu.appendChild(item);
+
+        let x = ev?.pageX || 0;
+        let y = ev?.pageY || 0;
+        if (!x && !y) {
+            const r = clockEl.getBoundingClientRect();
+            x = r.left + window.scrollX + r.width / 2;
+            y = r.bottom + window.scrollY;
+        }
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        document.body.appendChild(menu);
+        // Keep the pane on screen near the viewport edges (the header spans
+        // the full width, so the right edge is a real case).
+        const mr = menu.getBoundingClientRect();
+        if (mr.right > window.innerWidth) menu.style.left = `${Math.max(0, x - mr.width)}px`;
+        if (mr.bottom > window.innerHeight) menu.style.top = `${Math.max(0, y - mr.height)}px`;
+
+        const close = (refocus) => {
+            menu.remove();
+            document.removeEventListener('click', this._clockTzMenuDismiss, true);
+            document.removeEventListener('keydown', this._clockTzMenuKeydown, true);
+            this._clockTzMenuDismiss = this._clockTzMenuKeydown = this._closeClockTzMenu = null;
+            if (refocus) clockEl.focus();
+        };
+        this._closeClockTzMenu = close;
+
+        item.addEventListener('click', () => {
+            // Close BEFORE toggling: the toggle re-renders the calendar card,
+            // whose teardown would otherwise rip this menu's state out from
+            // under the close() that follows.
+            close(true);
+            cm.toggleSecondaryTz(zone);
+            // The choice is stored even where the column can't show right now;
+            // say so instead of appearing to do nothing.
+            const nowOn = cm.getSecondaryTzChoice() === zone;
+            if (nowOn && (cm.getViewMode() === 'list' || !cm.getTimelineMode()
+                || cm.getSecondaryTimelineZone() !== zone)) {
+                UI.showToast("Saved — the second time column shows in the calendar's hour-by-hour timeline view.");
+            }
+        });
+
+        // The opening event is 'contextmenu' (or a keyboard equivalent), never
+        // 'click', so registering the dismiss listeners immediately is safe —
+        // the gesture that opened the menu cannot also close it.
+        this._clockTzMenuDismiss = (e) => { if (!menu.contains(e.target)) close(false); };
+        this._clockTzMenuKeydown = (e) => {
+            if (e.key === 'Escape') { e.stopPropagation(); close(true); return; }
+            if (e.key === 'Tab') close(false);   // single item: don't trap, just fold
+        };
+        document.addEventListener('click', this._clockTzMenuDismiss, true);
+        document.addEventListener('keydown', this._clockTzMenuKeydown, true);
+        item.focus();
+    },
+
     _calendarSetupPrompt() {
         return `
             <div class="calendar-setup-prompt">
@@ -1203,16 +1290,25 @@ const UIRenderer = {
         const itemHTML = (ev, dup) => {
             const title = Utils.sanitizeHTML(ev.title || 'Untitled');
             const t = Utils.sanitizeHTML(timeText(ev));
+            // The visible ticker drops the "in " prefix ("2h 59m ·"); the
+            // aria-label keeps it — "starting in 2h 59m" is the natural
+            // phrasing, and formatBarCountdown stays shared with the list
+            // format, which still shows the word.
+            const tShort = Utils.sanitizeHTML(timeText(ev).replace(/^in /, ''));
             const start = new Date(ev.start).getTime();
             const a11y = dup
                 ? `tabindex="-1" aria-hidden="true"`
                 : `tabindex="0" role="button" aria-label="View details: ${title}, starting ${t}"`;
+            // Countdown before the name (user request): the ticking number is
+            // what you scan the strip for. The "·" separator lives INSIDE the
+            // time span — _tickUpcomingBar rewrites that span's textContent
+            // every minute and must reproduce it, so the two must stay agreed.
             return `
                 <span class="cal-upcoming-item cal-upcoming-tick" data-bar-start="${start}"
                       ${this._calEventDataAttrs(ev)} ${a11y}>
                     ${dot(ev)}
+                    <span class="cal-upcoming-time">${tShort} ·</span>
                     <span class="cal-upcoming-name">${title}</span>
-                    <span class="cal-upcoming-time">· ${t}</span>
                 </span>`;
         };
         const seq = (dup) => `<div class="cal-upcoming-seq"${dup ? ' aria-hidden="true"' : ''}>${events.map(ev => itemHTML(ev, dup)).join('')}</div>`;
@@ -1303,6 +1399,11 @@ const UIRenderer = {
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
+        // Optional secondary time-zone gutter (right-click a header clock →
+        // "Show in calendar"). Null while the choice is unset, orphaned (no
+        // enabled clock has the zone) or equal to the axis's own zone — the
+        // whole grid then renders exactly as before, one gutter column.
+        const tz2 = cm.getSecondaryTimelineZone();
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
         // one reduced-height row each, not their real length.
         const spanHours = model.displaySpanMin / 60;
@@ -1319,9 +1420,18 @@ const UIRenderer = {
 
         // A single CSS grid holds three row-groups that share one column template
         // and one horizontal scroll, so the day headers, all-day band, and hour
-        // grid stay aligned: [gutter | day-1 | … | day-N].
+        // grid stay aligned: [gutter | day-1 | … | day-N] — or, with a secondary
+        // zone active, [gutter2 | gutter | day-1 | … | day-N]. The corner and
+        // all-day-label cells are AUTO-placed, so each of those rows needs one
+        // extra leading cell when the extra column exists, or auto-placement
+        // shoves the day headers/cells a column right of the hour grid.
         // Row 1 — per-day headers (matches the chip day view's column headers).
-        const headers = `<div class="cal-tl-corner" aria-hidden="true"></div>`
+        // The secondary corner carries the zone's short label — it is the one
+        // place the column identifies itself (the gutter shows bare times).
+        const corner2 = tz2
+            ? `<div class="cal-tl-corner cal-tl-corner2" aria-hidden="true" title="${Utils.sanitizeHTML(tz2)}">${Utils.sanitizeHTML(cm._tzLabel(tz2))}</div>`
+            : '';
+        const headers = corner2 + `<div class="cal-tl-corner" aria-hidden="true"></div>`
             + model.days.map(d =>
                 `<div class="cal-tl-dayhead${d.day.isToday ? ' is-today' : ''}">${Utils.sanitizeHTML(d.day.isToday ? 'Today · ' + d.day.label : d.day.label)}</div>`
             ).join('');
@@ -1329,7 +1439,8 @@ const UIRenderer = {
         // Row 2 — all-day band (only when the window has any all-day events).
         const hasAllDay = model.days.some(d => d.allDay.length > 0);
         const alldayRow = hasAllDay
-            ? `<div class="cal-tl-allday-label" aria-hidden="true">all-day</div>`
+            ? (tz2 ? `<div class="cal-tl-allday-spacer" aria-hidden="true"></div>` : '')
+              + `<div class="cal-tl-allday-label" aria-hidden="true">all-day</div>`
               + model.days.map(d =>
                     `<div class="cal-tl-allday-cell${d.day.isToday ? ' is-today' : ''}">${d.allDay.map(ev => this._calendarDayChip(ev, win.tz, d.day.label)).join('')}</div>`
                 ).join('')
@@ -1341,11 +1452,25 @@ const UIRenderer = {
         // skip its cells — auto-placed columns would be pushed out of the row.
         // Explicitly placed items may overlap freely.
         const hourRow = hasAllDay ? 3 : 2;
+        // Secondary gutter: same hour lines, formatted in tz2 off each line's
+        // instant (h.atMs) — real minutes included, so :30/:45-offset zones read
+        // "18:30". Class is cal-tl-gutter2, deliberately NOT also cal-tl-gutter:
+        // _sizeTimelineHours measures querySelector('.cal-tl-gutter') and must
+        // keep finding the primary. Labels reuse .cal-tl-hour (typography and,
+        // critically, its no-`zoom` rule — zoom would scale the calc() top and
+        // drag the labels off the gridlines) plus a dimming modifier.
+        const gutter2 = tz2 ? `
+            <div class="cal-tl-gutter2" style="grid-row:${hourRow}; grid-column:1; height:var(--tl-gridh)" aria-hidden="true">
+                ${model.hours.map(h =>
+                    `<span class="cal-tl-hour cal-tl-hour--alt" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${cm._paddedTimeStr(new Date(h.atMs), tz2)}</span>`
+                ).join('')}
+            </div>` : '';
         const gutter = `
-            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:1; height:var(--tl-gridh)" aria-hidden="true">
+            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:${tz2 ? 2 : 1}; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h => {
                     // topPct comes from the model's compressed (gap-collapsed) mapping.
-                    return `<span class="cal-tl-hour" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${h.label}:00</span>`;
+                    // "14h" notation (matching the gap bands and the secondary gutter).
+                    return `<span class="cal-tl-hour" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${h.label}h</span>`;
                 }).join('')}
             </div>`;
 
@@ -1392,7 +1517,7 @@ const UIRenderer = {
             const nowLine = d.nowTopPct != null
                 ? `<div class="cal-tl-now" style="top:calc(var(--tl-gridh)*${frac(d.nowTopPct)})" aria-hidden="true"></div>` : '';
             return `
-                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + 2}; height:var(--tl-gridh); ${lineBg}">
+                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + (tz2 ? 3 : 2)}; height:var(--tl-gridh); ${lineBg}">
                     ${nowLine}${blocks || ''}
                 </div>`;
         }).join('');
@@ -1409,9 +1534,10 @@ const UIRenderer = {
             : '';
 
         return `
-            <div class="calendar-timeline" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
+            <div class="calendar-timeline${tz2 ? ' is-two-tz' : ''}" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
                 ${headers}
                 ${alldayRow}
+                ${gutter2}
                 ${gutter}
                 ${cols}
                 ${gapsHtml}
@@ -1603,7 +1729,6 @@ const UIRenderer = {
         const remaining = tm?.remainingCount() || 0;
         const addOpen = this._todoAddOpen || (this._todoAddOpen = new Set());
         const collapsed = this._todoCollapsed || (this._todoCollapsed = new Set());
-        const multi = this._todoMultiSelect();
 
         const itemsHTML = todos.map(task => {
             const pSafe = Utils.sanitizeHTML(task.id);
@@ -1635,7 +1760,7 @@ const UIRenderer = {
         const todoLayout = this._getCardLayout('__todo__');
 
         return `
-            <div class="app-group virtual-group todo-group${multi ? ' is-multiselect' : ''}"
+            <div class="app-group virtual-group todo-group"
                  data-group-id="__todo__"
                  data-card-width="${todoLayout.width}"
                  style="--card-tint: rgba(156, 39, 176, 0.18);">
@@ -1645,11 +1770,8 @@ const UIRenderer = {
                     </div>
                     <div class="group-actions">
                         ${this._cardWidthButton('__todo__')}
-                        <button type="button" class="group-action-btn todo-multiselect-btn${multi ? ' is-on' : ''}" data-todo-action="multiselect-toggle"
-                                aria-pressed="${multi}" title="${multi ? 'Multi-select on — hide checkboxes' : 'Multi-select — show checkboxes'}"
-                                aria-label="Multi-select — To-Do"><svg class="ico" aria-hidden="true"><use href="#ico-check"></use></svg></button>
                         <button type="button" class="group-action-btn todo-archive-btn" data-todo-action="open-archive"
-                                title="View deleted-item archive" aria-label="View deleted-item archive"><svg class="ico" aria-hidden="true"><use href="#ico-archive"></use></svg></button>
+                                title="View archive (deleted & done)" aria-label="View archive — deleted and done items"><svg class="ico" aria-hidden="true"><use href="#ico-archive"></use></svg></button>
                     </div>
                 </div>
                 <div class="todo-list">
@@ -1661,12 +1783,6 @@ const UIRenderer = {
                 ${this._cardResizeHandle('__todo__')}
             </div>
         `;
-    },
-
-    // Multi-select shows the done-checkboxes; off (the default) keeps rows
-    // clean. Persisted so the choice survives reloads and other tabs.
-    _todoMultiSelect() {
-        return localStorage.getItem('todoMultiSelect') === '1';
     },
 
     // Fold/unfold one task's subtask list. Shared by the row's chevron button
@@ -1764,8 +1880,25 @@ const UIRenderer = {
         return `
             <div class="todo-item ${isSub ? 'todo-sub' : ''} ${task.done ? 'done' : ''}" ${ids}>
                 ${dragHandle}${collapseBtn}
-                <input type="checkbox" class="todo-check" data-todo-action="toggle" ${ids}
-                       ${task.done ? 'checked' : ''} aria-label="${task.done ? 'Mark not done' : 'Mark done'}: ${name}">
+                ${(() => {
+                    // Done items wear a progress ring around the check: the arc
+                    // sweeps the DONE_ARCHIVE_DELAY_MS window, and a closed loop
+                    // means the sweep is about to file the item away. The CSS
+                    // animation runs the window client-side; a negative delay
+                    // phases it to the true elapsed time so re-renders (and
+                    // reloads) resume mid-arc instead of restarting. The static
+                    // --done-progress is the reduced-motion fallback, where the
+                    // animation is disabled and the ring only steps on renders.
+                    let ring = '';
+                    if (task.done && typeof task.doneAt === 'number') {
+                        const total = tm.DONE_ARCHIVE_DELAY_MS / 1000;
+                        const elapsed = Math.max(0, Math.min(total, (Date.now() - task.doneAt) / 1000));
+                        ring = ` style="--done-ring-dur:${total}s; --done-ring-delay:-${elapsed.toFixed(1)}s; --done-progress:${(elapsed / total).toFixed(4)}"`;
+                    }
+                    return `<button type="button" class="todo-done-btn" data-todo-action="toggle" ${ids}${ring}
+                        aria-pressed="${task.done}" title="${task.done ? 'Mark not done' : 'Mark done'}"
+                        aria-label="${task.done ? 'Mark not done' : 'Mark done'}: ${name}"><svg class="ico" aria-hidden="true"><use href="#ico-check-bold"></use></svg></button>`;
+                })()}
                 <textarea class="todo-text" data-todo-action="text" ${ids} rows="1"
                        placeholder="${isSub ? 'Subtask' : 'Task'}…" aria-label="${isSub ? 'Subtask' : 'Task'} text"
                        >${safeText}</textarea>
@@ -1907,9 +2040,7 @@ const UIRenderer = {
             if (!el) return;
             const action = el.dataset.todoAction;
             const { id, sub } = ids(el);
-            if (action === 'toggle') {
-                sub ? TodoManager.toggleSubtask(id, sub) : TodoManager.toggleTask(id);
-            } else if (action === 'text') {
+            if (action === 'text') {
                 TodoManager.setText(id, sub, el.value);
             }
             // Note: the due date is set inside the schedule modal (see
@@ -1921,7 +2052,10 @@ const UIRenderer = {
             if (!el) return;
             const action = el.dataset.todoAction;
             const { id, sub } = ids(el);
-            if (action === 'urgency') {
+            if (action === 'toggle') {
+                e.preventDefault();
+                sub ? TodoManager.toggleSubtask(id, sub) : TodoManager.toggleTask(id);
+            } else if (action === 'urgency') {
                 e.preventDefault();
                 TodoManager.cycleUrgency(id, sub);
             } else if (action === 'schedule') {
@@ -1938,13 +2072,16 @@ const UIRenderer = {
                 // so a non-blocking undo toast replaces the old confirm() dialog,
                 // matching the pattern already used for website/group deletes.
                 // The archived entry keeps the same id as the live item, so Undo
-                // can restore it directly from the archive.
-                const archId = sub || id;
+                // can restore it directly from the archive. delete() returns
+                // null when nothing was archived (an empty subtask just
+                // disappears) — no toast then: there is nothing to undo.
                 this._todoAddOpen?.delete(id);
-                TodoManager.delete(id, sub);
-                UI.showUndoToast(`${label} deleted`, () => {
-                    TodoManager.restoreFromArchive(archId);
-                });
+                const archId = TodoManager.delete(id, sub);
+                if (archId) {
+                    UI.showUndoToast(`${label} deleted`, () => {
+                        TodoManager.restoreFromArchive(archId);
+                    });
+                }
             } else if (action === 'add-sub-toggle') {
                 e.preventDefault();
                 const set = this._todoAddOpen || (this._todoAddOpen = new Set());
@@ -1958,10 +2095,6 @@ const UIRenderer = {
                     this._todoCollapsed?.delete(id);
                     this._pendingTodoFocus = { action: 'add-sub', id };
                 }
-                this.renderTodoCard();
-            } else if (action === 'multiselect-toggle') {
-                e.preventDefault();
-                Utils.safeLocalStorageSet('todoMultiSelect', this._todoMultiSelect() ? '0' : '1');
                 this.renderTodoCard();
             } else if (action === 'collapse-toggle') {
                 e.preventDefault();
@@ -2045,19 +2178,36 @@ const UIRenderer = {
             if (el) {
                 const action = el.dataset.todoArchAction;
                 const archId = el.dataset.archId;
+                // Which archive the entry lives in ('deleted' | 'done') —
+                // stamped on the buttons by _renderArchiveItem.
+                const src = el.dataset.archSrc === 'done' ? 'done' : 'deleted';
                 if (action === 'restore') {
-                    TodoManager.restoreFromArchive(archId);
+                    TodoManager.restoreFromArchive(archId, src);
                 } else if (action === 'del-forever') {
                     if (window.confirm('Permanently delete this archived item? This cannot be undone.')) {
-                        TodoManager.deleteFromArchive(archId);
+                        TodoManager.deleteFromArchive(archId, src);
                     }
                 } else if (action === 'close') {
                     this.closeTodoArchive();
                 }
                 return;
             }
+            const tab = e.target.closest('#todoArchTabs .changelog-tab');
+            if (tab) { this.showTodoArchiveTab(tab.dataset.tab); return; }
             // Click on the modal backdrop (outside the content) closes it.
             if (e.target.id === 'todoArchiveModal') this.closeTodoArchive();
+        });
+
+        // Arrow-key roving between the two archive tabs, same pattern as the
+        // changelog tablist (3-app-init.js).
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const tab = e.target.closest?.('#todoArchTabs .changelog-tab');
+            if (!tab) return;
+            e.preventDefault();
+            const next = tab.dataset.tab === 'deleted' ? 'done' : 'deleted';
+            this.showTodoArchiveTab(next);
+            document.getElementById(next === 'done' ? 'todoArchTabDone' : 'todoArchTabDeleted')?.focus();
         });
 
         document.addEventListener('keydown', (e) => {
@@ -2212,53 +2362,98 @@ const UIRenderer = {
         modal.classList.remove('show');
     },
 
-    // Re-render whichever archive views are currently visible.
+    // Re-render whichever archive views are currently visible. This is called
+    // from every TodoManager._rerender(), which since v4.27 includes the 60s
+    // done-sweep timer and cross-tab storage events — so it must never move
+    // focus unless the render itself detached the focused control.
     refreshArchiveViews() {
         const modal = document.getElementById('todoArchiveModal');
         if (modal && modal.classList.contains('show')) {
+            const hadFocus = modal.contains(document.activeElement);
             this.renderTodoArchive(document.getElementById('todoArchiveModalBody'));
-            // Re-rendering the body detaches the nodes the focus trap captured,
-            // so rebuild it over the fresh DOM.
-            Utils.releaseFocus(modal, this._archiveFocusTrap);
-            this._archiveFocusTrap = Utils.trapFocus(modal);
+            // No trap rebuild: only the panels' innerHTML was replaced, the
+            // trap's handler lives on the modal and re-queries focusables per
+            // Tab (Utils.trapFocus), and a rebuild would re-run the initial
+            // focus() — yanking focus on every background refresh.
+            // But if the focused control itself was rebuilt away (e.g. the
+            // Restore button just clicked), focus fell to <body>, outside the
+            // trap — land on the active tab so keyboard flow stays inside.
+            if (hadFocus && !modal.contains(document.activeElement)) {
+                modal.querySelector('#todoArchTabs .changelog-tab.active')?.focus();
+            }
         }
+        // The Settings copy is rendered fresh by openSettings(); repainting it
+        // while that modal is closed is pure waste on a 60s timer.
         const settingsBody = document.getElementById('todoArchiveSettings');
-        if (settingsBody) this.renderTodoArchive(settingsBody, 'h4');
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsBody && settingsModal?.classList.contains('show')) {
+            this.renderTodoArchive(settingsBody, 'h4');
+        }
     },
 
-    // headingLevel: the archive renders both in its own modal (under that
-    // modal's h2) and inside Settings → To-Do (under the "Deleted-task
-    // archive" h3), so the caller picks the level that keeps the outline flat.
+    // Flip the archive modal between its Deleted and Done panels — the same
+    // moves as AppInit.showChangelogTab, scoped to this modal's tablist.
+    showTodoArchiveTab(name) {
+        document.querySelectorAll('#todoArchTabs .changelog-tab').forEach(tab => {
+            const on = tab.dataset.tab === name;
+            tab.classList.toggle('active', on);
+            tab.setAttribute('aria-selected', String(on));
+        });
+        document.querySelectorAll('#todoArchiveModalBody .todo-archive-panel').forEach(panel => {
+            panel.hidden = panel.dataset.tab !== name;
+            if (!panel.hidden) panel.scrollTop = 0;
+        });
+    },
+
+    // Renders BOTH archives (deleted + done) into whichever surface `container`
+    // is: the modal body (which carries the two tab panels — each archive goes
+    // into its own) or the Settings → To-Do container (no tabs; both sections
+    // stacked, `headingLevel` keeping the outline flat under the tab's h3).
     renderTodoArchive(container, headingLevel = 'h3') {
         if (!container) return;
-        const tag = headingLevel === 'h4' ? 'h4' : 'h3';
         const tm = window.TodoManager;
-        const archive = tm?.getArchive() || [];
         const ttl = tm?.ARCHIVE_TTL_DAYS ?? 14;
+        const deleted = tm?.getArchive() || [];
+        const done = tm?.getDoneArchive() || [];
 
-        if (archive.length === 0) {
-            container.innerHTML = `<div class="todo-empty">No archived items. Deleted tasks are kept here for ${ttl} days.</div>`;
+        const list = (items, src, emptyText) => items.length === 0
+            ? `<div class="todo-empty">${emptyText}</div>`
+            : items.map(a => this._renderArchiveItem(a, src)).join('');
+        const emptyDeleted = `No deleted items. Deleted tasks are kept here for ${ttl} days.`;
+        const emptyDone = `No completed items. Done tasks land here 10 minutes after being checked off and stay for ${ttl} days.`;
+
+        const delPanel = container.querySelector('#todoArchPanelDeleted');
+        const donePanel = container.querySelector('#todoArchPanelDone');
+        if (delPanel && donePanel) {
+            delPanel.innerHTML = list(deleted, 'deleted', emptyDeleted);
+            donePanel.innerHTML = list(done, 'done', emptyDone);
+            const chip = (id, n) => {
+                const el = document.getElementById(id)?.querySelector('.changelog-tab-count');
+                if (el) el.textContent = n ? String(n) : '';
+            };
+            chip('todoArchTabDeleted', deleted.length);
+            chip('todoArchTabDone', done.length);
             return;
         }
 
-        const section = (title, items) => items.length === 0 ? '' : `
+        const tag = headingLevel === 'h4' ? 'h4' : 'h3';
+        const section = (title, items, src, emptyText) => `
             <div class="todo-archive-section">
                 <${tag} class="todo-archive-heading">${title} <span class="group-count">(${items.length})</span></${tag}>
-                ${items.map(a => this._renderArchiveItem(a)).join('')}
+                ${list(items, src, emptyText)}
             </div>`;
-
         container.innerHTML =
-            section('Done &amp; deleted', archive.filter(a => a.done)) +
-            section('Not done &amp; deleted', archive.filter(a => !a.done));
+            section('Deleted', deleted, 'deleted', emptyDeleted) +
+            section('Done', done, 'done', emptyDone);
     },
 
-    _renderArchiveItem(a) {
+    _renderArchiveItem(a, src = 'deleted') {
         const tm = window.TodoManager;
         const safeId = Utils.sanitizeHTML(a.id);
         const name = Utils.sanitizeHTML(a.text || '(untitled task)');
         const urgency = tm.URGENCY_LEVELS.includes(a.urgency) ? a.urgency : 'tbd';
         const urgencyLabel = tm.URGENCY_LABELS[urgency];
-        const days = tm.daysUntilPurge(a.deletedAt);
+        const days = tm.daysUntilPurge(tm.archiveStamp(a));
 
         const meta = [`<span class="todo-urgency urg-${urgency}">${urgencyLabel}</span>`];
         if (a.isSub) {
@@ -2282,9 +2477,11 @@ const UIRenderer = {
                 </div>
                 <div class="todo-archive-actions">
                     <button type="button" class="todo-archive-action restore" data-todo-arch-action="restore"
-                            data-arch-id="${safeId}" aria-label="Restore ${name}">Restore</button>
+                            data-arch-id="${safeId}" data-arch-src="${src}"
+                            aria-label="${src === 'done' ? `Return ${name} to To-Do` : `Restore ${name}`}">${src === 'done' ? 'Return to To-Do' : 'Restore'}</button>
                     <button type="button" class="todo-archive-action del-forever" data-todo-arch-action="del-forever"
-                            data-arch-id="${safeId}" aria-label="Delete ${name} forever">Delete forever</button>
+                            data-arch-id="${safeId}" data-arch-src="${src}"
+                            aria-label="Delete ${name} forever">Delete forever</button>
                 </div>
             </div>
         `;

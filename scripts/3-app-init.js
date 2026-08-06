@@ -292,13 +292,15 @@ const App = {
     _cachedTimezones: {
         tz1: null,
         tz2: null,
-        tz3: null
+        tz3: null,
+        tz4: null
     },
 
     _loadTimezones() {
         this._cachedTimezones.tz1 = localStorage.getItem('timezone1') || 'local';
         this._cachedTimezones.tz2 = localStorage.getItem('timezone2') || 'UTC';
         this._cachedTimezones.tz3 = localStorage.getItem('timezone3') || 'none';
+        this._cachedTimezones.tz4 = localStorage.getItem('timezone4') || 'none';
     },
 
     // Current GMT offset for a stored clock value ('local'/'UTC'/IANA id), e.g.
@@ -336,16 +338,16 @@ const App = {
 
     // ---- Clock slot reordering (Settings → Appearance → Clocks) ----
     //
-    // Everything downstream of a clock — the header clocks, the 1/2/3 grouping
+    // Everything downstream of a clock — the header clocks, the 1-4 grouping
     // shortcuts, CalendarManager._resolveZone, the custom labels — is keyed by
     // slot number, so "make this clock #1" is purely a matter of moving the
-    // stored (zone, label) pairs between slots. The three Settings rows keep
-    // their fixed #1/#2/#3 labels and never move; only the values do.
+    // stored (zone, label) pairs between slots. The four Settings rows keep
+    // their fixed #1-#4 labels and never move; only the values do.
 
-    _clockDefaults: { 1: 'local', 2: 'UTC', 3: 'none' },
+    _clockDefaults: { 1: 'local', 2: 'UTC', 3: 'none', 4: 'none' },
 
     _readClockSlots() {
-        return [1, 2, 3].map(slot => ({
+        return [1, 2, 3, 4].map(slot => ({
             slot,
             tz: localStorage.getItem('timezone' + slot) || this._clockDefaults[slot],
             label: localStorage.getItem('timezone' + slot + 'Label') || ''
@@ -378,9 +380,9 @@ const App = {
         let next = order.map(s => bySlot.get(s)).filter(Boolean);
         if (next.length !== bySlot.size) return false;
 
-        // Only slot #3 offers "Disabled", and updateClock() only knows how to
-        // hide clock 3 — so a disabled clock sinks to the bottom wherever it was
-        // dropped, and the clocks that do have a zone keep their new order.
+        // Slots #3 and #4 offer "Disabled", and only slots that hold a zone
+        // render a clock — so a disabled clock sinks to the bottom wherever it
+        // was dropped, and the clocks that do have a zone keep their new order.
         next = [...next.filter(c => c.tz !== 'none'), ...next.filter(c => c.tz === 'none')];
         if (next.every((c, i) => c.slot === i + 1)) return false;
 
@@ -492,8 +494,8 @@ const App = {
             e.preventDefault();
             const from = Number(handle.dataset.clockSlot);
             const to = from + (e.key === 'ArrowUp' ? -1 : 1);
-            if (to < 1 || to > 3) return;
-            const order = [1, 2, 3];
+            if (to < 1 || to > 4) return;
+            const order = [1, 2, 3, 4];
             [order[from - 1], order[to - 1]] = [order[to - 1], order[from - 1]];
             // The rows don't move, so follow the clock the user is carrying to
             // the grip of the slot it landed in.
@@ -531,7 +533,7 @@ const App = {
         if (!header || this._clockClicksWired) return;
         this._clockClicksWired = true;
 
-        const idToMode = { clock: 'tz1', clock2: 'tz2', clock3: 'tz3' };
+        const idToMode = { clock: 'tz1', clock2: 'tz2', clock3: 'tz3', clock4: 'tz4' };
         const activate = (target) => {
             const clockEl = target?.closest?.('.digital-clock');
             if (!clockEl || !header.contains(clockEl)) return;
@@ -565,6 +567,23 @@ const App = {
             Utils.safeLocalStorageSet('clockPlateLight', this._clockPlateLight ? '1' : '0');
             this._applyClockGroupingHighlight();
         });
+
+        // Right-click on a SECONDARY clock offers "Show in calendar" — the
+        // timeline's secondary time-zone gutter (UIRenderer.showClockTzMenu).
+        // The primary (rainbow) clock keeps the browser's native menu: its zone
+        // is the axis itself, so a second copy could never render. preventDefault
+        // only on handled hits — the rest of the header keeps its native menu.
+        header.addEventListener('contextmenu', (e) => {
+            const clockEl = e.target?.closest?.('.digital-clock');
+            if (!clockEl || !header.contains(clockEl)) return;
+            if (clockEl.classList.contains('clock-rainbow')) return;
+            const mode = idToMode[clockEl.id];
+            if (!mode) return;
+            const zone = window.CalendarManager?._resolveZone?.('timezone' + mode.slice(2));
+            if (!zone) return;   // disabled slot — nothing to show
+            e.preventDefault();
+            window.UIRenderer?.showClockTzMenu?.(clockEl, zone, e);
+        });
     },
 
     // Is the calendar's "Today & Now" action available right now? The button only
@@ -581,13 +600,14 @@ const App = {
         return true;
     },
 
-    // Group the calendar by clock slot 'tz1'|'tz2'|'tz3'. Shared by the clock
-    // click/Enter/Space delegate above and the 1/2/3 shortcuts so both paths
+    // Group the calendar by clock slot 'tz1'…'tz4'. Shared by the clock
+    // click/Enter/Space delegate above and the 1-4 shortcuts so both paths
     // behave identically.
     _activateClockGrouping(mode) {
         const cm = window.CalendarManager;
         if (!cm) return;
-        if (mode === 'tz3' && this._cachedTimezones.tz3 === 'none') return;
+        // A slot holding the Disabled sentinel has no clock to group by.
+        if (this._cachedTimezones[mode] === 'none') return;
 
         // Re-selecting the clock that's already grouping the calendar has nothing
         // to change, so it acts as "Today & Now" for that zone instead. Compared by
@@ -613,7 +633,7 @@ const App = {
         cm.setGrouping(mode);
     },
 
-    // Global shortcuts: 1/2/3 pick the main clock (calendar grouping + rainbow
+    // Global shortcuts: 1-4 pick the main clock (calendar grouping + rainbow
     // highlight) when focus isn't on a control.
     _wireGlobalShortcuts() {
         if (this._globalShortcutsWired) return;
@@ -638,35 +658,45 @@ const App = {
                 return;
             }
 
-            const keyToMode = { '1': 'tz1', '2': 'tz2', '3': 'tz3' };
+            const keyToMode = { '1': 'tz1', '2': 'tz2', '3': 'tz3', '4': 'tz4' };
             const mode = keyToMode[e.key];
             if (!mode) return;
-            this._activateClockGrouping(mode);   // no-ops when tz3 is disabled
+            this._activateClockGrouping(mode);   // no-ops when the slot is disabled
         });
     },
 
     updateClock() {
-        const timezone1 = this._cachedTimezones.tz1;
-        const timezone2 = this._cachedTimezones.tz2;
         const timezone3 = this._cachedTimezones.tz3;
+        const timezone4 = this._cachedTimezones.tz4;
 
-        this.updateClockDisplay('clock', timezone1, 'timezone1');
-        this.updateClockDisplay('clock2', timezone2, 'timezone2');
+        this.updateClockDisplay('clock', this._cachedTimezones.tz1, 'timezone1');
+        this.updateClockDisplay('clock2', this._cachedTimezones.tz2, 'timezone2');
 
-        const clock3El = document.getElementById('clock3');
-        if (clock3El) {
-            if (timezone3 === 'none') {
-                clock3El.style.display = 'none';
+        // Slots #3 and #4 are optional: the Disabled sentinel hides the element.
+        for (const [elId, tz, slotKey] of [
+            ['clock3', timezone3, 'timezone3'],
+            ['clock4', timezone4, 'timezone4']
+        ]) {
+            const el = document.getElementById(elId);
+            if (!el) continue;
+            if (tz === 'none') {
+                el.style.display = 'none';
             } else {
-                clock3El.style.display = '';
-                this.updateClockDisplay('clock3', timezone3, 'timezone3');
+                el.style.display = '';
+                this.updateClockDisplay(elId, tz, slotKey);
             }
-            // A third clock widens the centre column by ~190px, which is width the
-            // usage widget's title/countdowns can no longer have. CSS can't see an
-            // inline display:none, so mirror the state onto the header as a class
-            // (see the .header.has-three-clocks rules in 2-components.css).
-            document.querySelector('.header')
-                ?.classList.toggle('has-three-clocks', timezone3 !== 'none');
+        }
+
+        // Every extra clock widens the centre column, which is width the usage
+        // widget's title/countdowns can no longer have. CSS can't see an inline
+        // display:none, so mirror the count onto the header as a class (see the
+        // .header.has-three-clocks / .has-four-clocks rules in 2-components.css).
+        // The two classes are mutually exclusive by construction.
+        const extra = (timezone3 !== 'none' ? 1 : 0) + (timezone4 !== 'none' ? 1 : 0);
+        const header = document.querySelector('.header');
+        if (header) {
+            header.classList.toggle('has-three-clocks', extra === 1);
+            header.classList.toggle('has-four-clocks', extra === 2);
         }
 
         this._applyClockGroupingHighlight();
@@ -679,7 +709,7 @@ const App = {
     // a grouping change picks up within a second; toggle() is a no-op when the
     // class is already in the desired state, so it never restarts the animation.
     _applyClockGroupingHighlight() {
-        const modeToId = { tz1: 'clock', tz2: 'clock2', tz3: 'clock3' };
+        const modeToId = { tz1: 'clock', tz2: 'clock2', tz3: 'clock3', tz4: 'clock4' };
         const grouping = window.CalendarManager?.getGrouping?.();
         const activeId = (grouping && grouping !== 'none') ? modeToId[grouping] : null;
 
@@ -688,7 +718,7 @@ const App = {
         // the already-resized layout. Snapshot only on an actual change (this
         // runs every second) and never on the initial layout pass.
         const changed = this._primaryClockId !== activeId;
-        const clocks = ['clock', 'clock2', 'clock3']
+        const clocks = ['clock', 'clock2', 'clock3', 'clock4']
             .map(id => document.getElementById(id)).filter(Boolean);
         const animate = changed && this._primaryClockId !== undefined
             && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -710,7 +740,7 @@ const App = {
     // selected it owns .header-center alone and the other clocks sit in
     // .header-side-clocks (the left-zone spot the search bar used to occupy);
     // with no selection all clocks sit in the centre. appendChild in fixed
-    // slot order keeps 1/2/3 order inside whichever container a clock lands in.
+    // slot order keeps 1-4 order inside whichever container a clock lands in.
     // The move is animated FLIP-style: old positions were snapshotted by the
     // caller, so after reparenting each clock plays a translate+fade from where
     // it was to where it now is. WAAPI (el.animate) rather than a CSS
@@ -730,7 +760,7 @@ const App = {
         if (!firstRects) return;
         clocks.forEach(el => {
             const first = firstRects.get(el);
-            if (!first || (first.width === 0 && first.height === 0)) return; // hidden clock3
+            if (!first || (first.width === 0 && first.height === 0)) return; // hidden clock3/clock4
             const last = el.getBoundingClientRect();
             const dx = first.left - last.left;
             const dy = first.top - last.top;
@@ -954,7 +984,7 @@ const App = {
             if (window.UIRenderer) UIRenderer.render();
         });
 
-        ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
+        ['timezone1', 'timezone2', 'timezone3', 'timezone4'].forEach(key => {
             document.getElementById(key)?.addEventListener('change', (e) => {
                 Utils.safeLocalStorageSet(key, e.target.value);
                 this._loadTimezones();
@@ -968,7 +998,7 @@ const App = {
 
         // Custom per-clock labels: override the derived zone name in the header
         // clocks and anywhere else the zone is shown (calendar event rows/headers).
-        ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
+        ['timezone1', 'timezone2', 'timezone3', 'timezone4'].forEach(key => {
             document.getElementById(key + 'Label')?.addEventListener('input', (e) => {
                 Utils.safeLocalStorageSet(key + 'Label', e.target.value.trim());
                 this.updateClock();

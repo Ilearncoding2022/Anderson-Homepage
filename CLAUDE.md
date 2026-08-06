@@ -14,21 +14,26 @@ Offline HTML + CSS + vanilla JavaScript webapp. No build tools, no frameworks, n
 All tokens live in `styles/1-core.css`. Use them; don't hardcode colours, radii,
 or font stacks, and don't add new `:root` variables without a reason.
 
-**Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly three
+**Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly four
 places app-wide: the Today & Now running-light beam, the calendar's
-current-time bar (`.cal-tl-now`), and the armed auto-allow pill's approval tick
-(`.pb-arm-tick`). Green used to do fourteen different jobs, which left the beam
+current-time bar (`.cal-tl-now`), the armed auto-allow pill's approval tick
+(`.pb-arm-tick`), and the To-Do card's done check with its archive-countdown
+ring (`.todo-done-btn` — one control, one whitelist entry; v4.27,
+user-requested). Green used to do fourteen different jobs, which left the beam
 competing with everything around it. For anything that used to be green, use
 `--ok-neutral` (healthy/done), `--structural` (borders, rules), `--accent`
 (interactive/active), or `--warn`/`--danger`.
 
-The tick is the one deliberate widening, and it is instructive about *why* the
-rule is worded as a whitelist rather than a ban: at 10px on `--ok-neutral` it
-was invisible next to near-white digits, and neutral is exactly right for a
+The tick was the first deliberate widening, and it is instructive about *why*
+the rule is worded as a whitelist rather than a ban: at 10px on `--ok-neutral`
+it was invisible next to near-white digits, and neutral is exactly right for a
 resting state but wrong for a mark that means "this fired". It works only as a
 set — `#ico-check-bold`, 12px, and the saturated green — so don't neutralise
-one of the three and assume the others carry it. Nothing else gets added to
-this list without the same kind of argument.
+one of the three and assume the others carry it. The To-Do done check is the
+same argument ("this completed", not "this is healthy") and reuses the same
+set — 12px on task rows, scaled to 10px inside the tighter 15px control on
+subtask rows, where saturation carries the visibility that size did. Nothing
+else gets added to this list without that kind of argument.
 
 **Do not modify these three** without an explicit request — the user chose them:
 the Today & Now beam (`@property --cal-today-beam` and

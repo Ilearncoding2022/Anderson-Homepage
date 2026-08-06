@@ -18,8 +18,8 @@
 // adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
 // them into the <title>, the menu's "What's new" item, and the changelog modal
 // header, so those three spots can never drift out of sync.
-const APP_VERSION = 'v4.26';
-const APP_RELEASE_DATE = '2026-08-05';
+const APP_VERSION = 'v4.27';
+const APP_RELEASE_DATE = '2026-08-06';
 
 // Six hues, two intensities each. Intensity is the hierarchy tool now — a
 // "calm" 0.10 tint for groups that shouldn't shout, a "bold" 0.28 tint for
@@ -108,14 +108,14 @@ const Storage = {
         'websites', 'groups', 'theme', 'view', 'iconSize',
         'backgroundPosition', 'backgroundBlur',
         'calendarProxyUrl', 'calendarProxyToken', 'calendarSources',
-        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarHeight',
+        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarHeight',
         'calendarCountdownPlacement', 'calendarCountdownWindow',
         'calendarCountdownWarnMins', 'calendarCountdownUrgentMins',
         'calendarUpcomingBarCount', 'calendarUpcomingBarFormat',
         'calendarCachedEvents', 'calendarLastFetched', 'calendarBuckets',
-        'columnLayout', 'timezone1', 'timezone2', 'timezone3',
-        'timezone1Label', 'timezone2Label', 'timezone3Label',
-        'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive',
+        'columnLayout', 'timezone1', 'timezone2', 'timezone3', 'timezone4',
+        'timezone1Label', 'timezone2Label', 'timezone3Label', 'timezone4Label',
+        'pomodoroState', 'pomodoroHistory', 'todos', 'todoArchive', 'todoDoneArchive',
         'todoFontSettings', 'calendarFontSettings',
         'virtualGroupPositions', 'minimapOpen',
         'claudeProjectsSettings', 'claudeProjectsNames'
@@ -538,8 +538,19 @@ const Storage = {
             const clamped = Math.max(1, Math.min(15, Number(data.calendarDaysAhead)));
             Utils.safeLocalStorageSet('calendarDaysAhead', String(clamped));
         }
-        if (['tz1', 'tz2', 'none'].includes(data.calendarGrouping)) {
+        if (['tz1', 'tz2', 'tz3', 'tz4', 'none'].includes(data.calendarGrouping)) {
             Utils.safeLocalStorageSet('calendarGrouping', data.calendarGrouping);
+        }
+        // Timeline secondary-column zone: an IANA id, validated like the clock
+        // zones below — an unformattable zone must not be stored.
+        if (data.calendarSecondaryTz && typeof data.calendarSecondaryTz === 'string') {
+            const zone = data.calendarSecondaryTz.trim();
+            if (zone !== '') {
+                try {
+                    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+                    Utils.safeLocalStorageSet('calendarSecondaryTz', zone);
+                } catch { /* unknown zone — dropped */ }
+            }
         }
         const heightOpts = ['auto', ...Array.from({ length: 19 }, (_, i) => String(1 + i * 0.5))];
         if (heightOpts.includes(data.calendarHeight)) {
@@ -572,13 +583,25 @@ const Storage = {
         }
 
         // ---- Timezone clocks ----
-        ['timezone1', 'timezone2', 'timezone3'].forEach(key => {
-            if (data[key] && typeof data[key] === 'string' && data[key].trim() !== '') {
-                Utils.safeLocalStorageSet(key, data[key]);
+        ['timezone1', 'timezone2', 'timezone3', 'timezone4'].forEach(key => {
+            if (!data[key] || typeof data[key] !== 'string') return;
+            const zone = data[key].trim();
+            if (zone === '') return;
+            // An imported file is untrusted input like any other. An unknown
+            // zone would make updateClockDisplay's toLocaleTimeString throw a
+            // RangeError on every 1s tick, so only store the sentinels or a
+            // zone this browser can actually format with.
+            if (zone !== 'none' && zone !== 'local') {
+                try {
+                    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+                } catch {
+                    return;
+                }
             }
+            Utils.safeLocalStorageSet(key, zone);
         });
         // Custom clock labels (may be intentionally blank — allow clearing on import).
-        ['timezone1Label', 'timezone2Label', 'timezone3Label'].forEach(key => {
+        ['timezone1Label', 'timezone2Label', 'timezone3Label', 'timezone4Label'].forEach(key => {
             if (typeof data[key] === 'string') {
                 Utils.safeLocalStorageSet(key, data[key].slice(0, 24).trim());
             }
@@ -651,6 +674,14 @@ const Storage = {
                 : Utils.safeJSONParse(data.todoArchive, null);
             if (Array.isArray(ta)) {
                 Utils.safeLocalStorageSet('todoArchive', JSON.stringify(ta));
+            }
+        }
+        if (data.todoDoneArchive) {
+            const tda = Array.isArray(data.todoDoneArchive)
+                ? data.todoDoneArchive
+                : Utils.safeJSONParse(data.todoDoneArchive, null);
+            if (Array.isArray(tda)) {
+                Utils.safeLocalStorageSet('todoDoneArchive', JSON.stringify(tda));
             }
         }
 

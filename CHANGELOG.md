@@ -5,6 +5,82 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.27] — 2026-08-06
+
+### Checking off a task is now the To-Do card's first-class gesture
+
+- **An always-visible done toggle (new):** every task and subtask row starts
+  with a round check button — dim at rest, lit bright green with a
+  strikethrough once done. This green is the reserved signal green, added as
+  its fourth (and deliberate) use alongside the Today & Now beam, the
+  calendar's now-bar and the auto-allow tick. Checking a task still checks
+  all of its subtasks, but completion never flows upward — finishing the
+  last subtask leaves the task itself for you to check off. Unchecking a
+  subtask under a done task still un-checks the task.
+- **The Multi-select toggle is gone (changed):** it existed only to show or
+  hide the old done-checkboxes, and with the check always on the row it had
+  nothing left to do.
+- **Done items file themselves away (new):** ten minutes after being
+  checked off, a done item moves out of the card into a new done-item
+  archive — and the check's ring fills with green around it as that clock
+  runs, so a closed loop means "leaving now". A done task takes its
+  subtasks with it; a done subtask inside an unfinished task leaves on its
+  own. Unchecking while the ring is still open cancels the move. Recurring
+  items never make the trip — completing one rolls it forward to its next
+  occurrence, as before.
+- **Deleting an empty subtask just deletes it (changed):** a subtask with
+  no text (deadline or urgency don't count) disappears on delete instead
+  of going to the archive — there is nothing in it to recover, so no Undo
+  toast either.
+
+### Two archives, one modal
+
+- **Deleted and Done are now separate tabs (changed):** the card's archive
+  modal splits into a Deleted tab (the existing 14-day deleted-item
+  archive, unchanged) and a Done tab (the new one, same 14-day retention),
+  each with its own count. Settings → To-Do shows both lists stacked.
+- **Return to To-Do (new):** anything in the Done tab can be returned to
+  the card as a fresh, unchecked top-level task — regardless of whether it
+  was originally a task or a subtask.
+
+### A fourth clock, and quieter companions
+
+- **Clock #4 (new):** the Clocks settings gain a fourth row, disabled by
+  default, with the same timezone list, custom label, drag-to-reorder grip
+  and calendar-grouping shortcut (press 4) as the others.
+- **The selected clock stands out more (changed):** the primary clock in
+  the centre steps up another 4pt, while every other clock steps down
+  about a tenth — so the header can carry four clocks without crowding
+  the usage bars, and the one grouping the calendar is unmistakable.
+  Which clock is "primary" follows the selection, wherever it sits.
+- **A clock can lend its zone to the calendar (new):** right-click any
+  secondary header clock and choose "Show in calendar" to add a second
+  time column to the hour-by-hour timeline, showing every hour line in
+  that clock's zone (real minutes included — India reads "18:30"). The
+  column is a manual choice and never follows the grouping: it hides
+  itself while its clock is disabled or while its zone is the calendar's
+  own, and comes back when they differ again. Right-click the same clock
+  to remove it.
+
+### Calendar timeline & ticker
+
+- **Hour axis in "h" notation (changed):** the timeline's time rows read
+  "14h" instead of "14:00" — and the secondary column writes half-hour
+  zones as "12h30". The "no events" bands use the same notation.
+- **Countdown first in the ticker (changed):** the scrolling upcoming-events
+  strip now leads each entry with its countdown, without the word "in"
+  ("12h 48m · Event"), shows up to 40 characters of the event name (up
+  from ~25), and doubles the gap between entries so they read as separate
+  items. Screen readers still hear the full "starting in 12h 48m".
+
+### Odds and ends
+
+- **Usage bars nudged inboard (changed):** the header's Claude usage
+  cluster sits 20px further from the right edge on wide windows.
+- **Imported backups keep their calendar grouping (fixed):** restoring a
+  backup silently dropped a calendar grouped by Clock #3 (and would have
+  dropped #4) back to Clock #1; the import now accepts every clock slot.
+
 ## [v4.26] — 2026-08-05
 
 ### A leaner usage gauge

@@ -403,6 +403,13 @@
                 </div>
                 <div class="clock-date">Loading...</div>
             </div>
+            <div id="clock4" class="digital-clock clock-secondary" role="button" tabindex="0" aria-keyshortcuts="4" title="Group the calendar by this time zone (press 4) — again for Today &amp; Now">
+                <div class="clock-headline">
+                    <span class="clock-city">--</span>
+                    <span class="clock-time">--:--</span>
+                </div>
+                <div class="clock-date">Loading...</div>
+            </div>
         </div>
         <div class="header-zone-right">
             <!-- Claude token-usage bars — populated by scripts/8-usage.js from the
@@ -651,10 +658,10 @@
                     </select>
                 </div>
                 <h3 class="settings-subhead">Clocks</h3>
-                <!-- Drag a row's grip to change which zone/label is clock #1, #2 or #3.
+                <!-- Drag a row's grip to change which zone/label is clock #1–#4.
                      The rows themselves stay in slot order — the grip moves the
                      values between slots (App._wireClockReorder). -->
-                <p class="settings-hint clock-reorder-hint">Drag a row's grip (or focus it and press ↑ / ↓) to change which clock is #1, #2 and #3.</p>
+                <p class="settings-hint clock-reorder-hint">Drag a row's grip (or focus it and press ↑ / ↓) to change which clock is #1, #2, #3 and #4.</p>
                 <div class="clock-rows" id="clockRows">
                 <div class="clock-row" data-clock-slot="1">
                 <button type="button" class="clock-drag-handle" data-clock-slot="1"
@@ -767,6 +774,45 @@
                 <div class="form-group">
                     <label for="timezone3Label">Clock #3 Custom Label</label>
                     <input type="text" id="timezone3Label" class="timezone-label-input"
+                           maxlength="24" autocomplete="off"
+                           placeholder="Leave blank for auto">
+                </div>
+                </div>
+                <div class="clock-row" data-clock-slot="4">
+                <button type="button" class="clock-drag-handle" data-clock-slot="4"
+                        title="Drag to reorder (or use ↑/↓ keys)"
+                        aria-label="Reorder clock #4. Use Arrow Up and Arrow Down to move."><span aria-hidden="true">⠿</span></button>
+                <div class="form-group">
+                    <label for="timezone4">Clock #4 Timezone</label>
+                    <select id="timezone4" class="timezone-select">
+                        <option value="none" selected>Disabled</option>
+                        <option value="local">Local Time (Auto-detect)</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">Eastern Time (New York)</option>
+                        <option value="America/Chicago">Central Time (Chicago)</option>
+                        <option value="America/Denver">Mountain Time (Denver)</option>
+                        <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                        <option value="America/Anchorage">Alaska Time</option>
+                        <option value="Pacific/Honolulu">Hawaii Time</option>
+                        <option value="Europe/London">London (GMT/BST)</option>
+                        <option value="Europe/Paris">Paris (CET/CEST)</option>
+                        <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                        <option value="Europe/Moscow">Moscow (MSK)</option>
+                        <option value="Asia/Dubai">Dubai (GST)</option>
+                        <option value="Asia/Kolkata">India (IST)</option>
+                        <option value="Asia/Shanghai">Shanghai (CST)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Asia/Seoul">Seoul (KST)</option>
+                        <option value="Asia/Singapore">Singapore (SGT)</option>
+                        <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                        <option value="Asia/Ho_Chi_Minh">Vietnam (ICT)</option>
+                        <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                        <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="timezone4Label">Clock #4 Custom Label</label>
+                    <input type="text" id="timezone4Label" class="timezone-label-input"
                            maxlength="24" autocomplete="off"
                            placeholder="Leave blank for auto">
                 </div>
@@ -910,9 +956,9 @@
                     <p class="settings-hint">Choose a font for all text in the To-Do card, and a size (in pixels) for each kind of text.</p>
                     <div id="todoFontSettings"></div>
                 </div>
-                <h3 class="settings-subhead">Deleted-task archive</h3>
+                <h3 class="settings-subhead">Archive</h3>
                 <div class="form-group">
-                    <p class="settings-hint">Deleted tasks and subtasks are kept here for 14 days, then removed automatically. A restored subtask returns to its original task (or becomes its own task if that task is gone).</p>
+                    <p class="settings-hint">Deleted and completed items are kept here for 14 days, then removed automatically. A restored deleted subtask returns to its original task (or becomes its own task if that task is gone); a completed item always returns as a fresh, unchecked task.</p>
                     <div id="todoArchiveSettings"></div>
                 </div>
             </div>
@@ -1036,8 +1082,21 @@
                 <h2 id="todoArchiveTitle" class="has-ico"><svg class="ico" aria-hidden="true"><use href="#ico-archive"></use></svg> Archived To-Dos</h2>
                 <button class="close-modal" id="closeTodoArchive" data-todo-arch-action="close" aria-label="Close">×</button>
             </div>
-            <p class="settings-hint">Deleted tasks are kept for 14 days, then removed automatically.</p>
-            <div id="todoArchiveModalBody" class="todo-archive-body"></div>
+            <p class="settings-hint">Deleted and completed items are kept for 14 days, then removed automatically. Completed items move here 10 minutes after being checked off.</p>
+            <!-- Same tab recipe as the changelog modal (2-components.css) — the
+                 count chips are filled by renderTodoArchive. -->
+            <div class="changelog-tabs" id="todoArchTabs" role="tablist" aria-label="Archive sections">
+                <button type="button" class="changelog-tab active" id="todoArchTabDeleted" data-tab="deleted"
+                        role="tab" aria-selected="true" aria-controls="todoArchPanelDeleted">Deleted<span class="changelog-tab-count"></span></button>
+                <button type="button" class="changelog-tab" id="todoArchTabDone" data-tab="done"
+                        role="tab" aria-selected="false" aria-controls="todoArchPanelDone">Done<span class="changelog-tab-count"></span></button>
+            </div>
+            <div id="todoArchiveModalBody" class="todo-archive-body">
+                <div class="todo-archive-panel" id="todoArchPanelDeleted" data-tab="deleted" role="tabpanel"
+                     aria-labelledby="todoArchTabDeleted" tabindex="0"></div>
+                <div class="todo-archive-panel" id="todoArchPanelDone" data-tab="done" role="tabpanel"
+                     aria-labelledby="todoArchTabDone" tabindex="0" hidden></div>
+            </div>
         </div>
     </div>
 
