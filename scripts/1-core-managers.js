@@ -18,7 +18,7 @@
 // adds a CHANGELOG.md entry — nothing else. AppInit.applyVersionStamp() writes
 // them into the <title>, the menu's "What's new" item, and the changelog modal
 // header, so those three spots can never drift out of sync.
-const APP_VERSION = 'v4.28';
+const APP_VERSION = 'v4.29';
 const APP_RELEASE_DATE = '2026-08-06';
 
 // Six hues, two intensities each. Intensity is the hierarchy tool now — a
