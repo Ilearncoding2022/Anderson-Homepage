@@ -5,6 +5,22 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.30] — 2026-08-06
+
+### The calendar card's styles get their own stylesheet
+
+- **`3.1-groups-calendar.css` (new):** the calendar sections of
+  `3-groups-cards.css` — the events card, the day-view timeline, the event
+  detail modal, and the stale/error badge — were one contiguous 1,860-line
+  block, now extracted verbatim into their own sheet, linked immediately
+  after the base file so the cascade order is unchanged. The base sheet
+  drops from about 2,560 lines to about 700.
+- **Nothing was restyled:** concatenating the two files back together
+  reproduces the old stylesheet byte for byte, and the protected pieces —
+  the Today & Now beam, the current-time bar — moved untouched.
+- Shared layout rules that size the calendar card alongside the other
+  cards stay in the base sheet, in their original cascade position.
+
 ## [v4.29] — 2026-08-06
 
 ### The calendar file sheds 440 lines of server-side documentation
