@@ -5,6 +5,26 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.32] — 2026-08-06
+
+### The projects widget becomes a six-file family
+
+- **`9-projects.js` slims from ~3,400 lines to a 660-line base** holding the
+  widget's state, the data poll, and state derivation. The rest moves into
+  five siblings, one per concern: `9.1-projects-approve.js` (the remote
+  Allow/Deny strip), `9.2-projects-autoallow.js` (the timed auto-allow
+  pill), `9.3-projects-alerts.js` (tab flash and sound),
+  `9.4-projects-render.js` (bars, rows, tooltips, tickers), and
+  `9.5-projects-settings.js` (the Settings tabs), each extending the same
+  `ProjectsWidget` object.
+- **The startup call moves with the split:** `ProjectsWidget.start()` now
+  runs at the end of the last-loaded file, so every part of the family is
+  in place before the widget wakes up.
+- **Verified, not assumed:** all 169 methods and properties were evaluated
+  in both the old and new arrangement and compared — identical sets, and
+  every load-bearing comment (the pending-permission rules, the tombstone
+  rules, the sweep ordering) traveled with its code.
+
 ## [v4.31] — 2026-08-06
 
 ### The UI renderer becomes a three-file family
