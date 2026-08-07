@@ -194,7 +194,7 @@ const Minimap = {
         // Background color. Gated through isValidColor because `background` is a
         // shorthand: an imported group colour of `url(http://…)` is a legal value
         // here and would fire an outbound request from an app that is meant to
-        // make none. ui-renderer.js gates the same field the same way.
+        // make none. scripts/10-renderer.js gates the same field the same way.
         block.style.background = Utils.isValidColor(group.color)
             ? group.color
             : 'rgba(100,100,100,0.3)';
