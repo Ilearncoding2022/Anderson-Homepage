@@ -389,6 +389,6 @@ For any non-trivial feature, follow this order:
 
 - Use semantic HTML elements (`<main>`, `<section>`, `<nav>`, `<article>`, etc.)
 - CSS: use custom properties (variables) for theming, mobile-first responsive design
-- JS: use ES modules via `<script type="module">`, no global variables
+- JS: plain (non-module) scripts loaded via ordered `<script>` tags at the end of `<body>` — ES modules are unavailable from `file://`; each feature exposes one global object, and large features may span multiple files that extend the base object via `Object.assign(TheObject, {...})` continuation files
 - Store app data in localStorage with JSON serialization
 - No external CDN links — everything runs fully offline
