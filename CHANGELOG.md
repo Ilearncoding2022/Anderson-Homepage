@@ -5,6 +5,21 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.35] — 2026-08-06
+
+### The persistence layer gets its own file
+
+- **`1.1-core-storage.js` (new):** the `Storage` object — 665 lines of
+  localStorage load/save, migrations, and sorting — moves out of
+  `1-core-managers.js`, which drops to 584 lines and keeps the version
+  constants, the colour palettes, `AppState`, and the group/website
+  managers.
+- **Load-order safety was checked, not assumed:** every `Storage` reference
+  that runs at script-load time was audited; all of them run after the
+  whole page has loaded, so the split can't race its own definition.
+- Verified by splicing the extracted block back into its old position and
+  comparing byte for byte: identical.
+
 ## [v4.34] — 2026-08-06
 
 ### The storage meter moves out of the startup file
