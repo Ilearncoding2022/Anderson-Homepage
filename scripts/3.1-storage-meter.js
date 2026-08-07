@@ -62,3 +62,9 @@ const StorageMeter = {
         this._timer = setInterval(() => this.update(), 2000);
     }
 };
+
+// Export moved here from 3-app-init.js's GLOBAL EXPORTS block (v4.36): this
+// file loads after 3-app-init.js, so the export must live with the object.
+// App.init()'s `if (window.StorageMeter)` guard runs on DOMContentLoaded,
+// well after this line.
+window.StorageMeter = StorageMeter;
