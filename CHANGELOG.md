@@ -5,6 +5,17 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.34] — 2026-08-06
+
+### The storage meter moves out of the startup file
+
+- **`3.1-storage-meter.js` (new):** the storage usage meter widget leaves
+  `3-app-init.js`, which now holds only the App startup sequence. The meter
+  starts from `App.init()` as before — that call runs after every script
+  has loaded, so the move is invisible at runtime.
+- Verified by splicing the extracted block back into its old position and
+  comparing byte for byte against the previous file: identical.
+
 ## [v4.33] — 2026-08-06
 
 ### The Pomodoro card becomes a four-file family
