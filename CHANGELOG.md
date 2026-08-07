@@ -5,6 +5,26 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.28] — 2026-08-06
+
+### Spring cleaning: six thousand lines of dead code removed
+
+- **Root `styles.css` deleted:** a pre-split relic of the old single-stylesheet
+  era. The app has linked only the numbered `styles/` files since the split;
+  nothing referenced it, but anyone grepping for a selector could land in the
+  dead copy and edit the wrong file.
+- **Orphaned IP-info feature removed:** `scripts/4-ip-info.js` and
+  `styles/5-ip-info.css` were referenced by no script tag and no loader — the
+  feature had silently fallen off the page. Removing it also frees the `4-`
+  slot that collided with `4-pomodoro.js`.
+- **`.contrast-backup/` deleted:** eight snapshot files from the contrast
+  audit; git history already preserves them.
+- **CLAUDE.md corrected:** the conventions section claimed ES modules, which
+  the app cannot use from `file://`. It now documents the real pattern —
+  plain ordered script tags, one global object per feature, and
+  `Object.assign` continuation files for features that span multiple files.
+- No behavior change: none of the deleted files were loaded by the app.
+
 ## [v4.27] — 2026-08-06
 
 ### Checking off a task is now the To-Do card's first-class gesture
