@@ -1,0 +1,1863 @@
+/* Calendar-card styles, split from 3-groups-cards.css (family 3.1). */
+/* Verbatim extraction — cascade order preserved; see CLAUDE.md. */
+
+/* ========================================
+   12. CALENDAR EVENTS
+   ======================================== */
+
+.calendar-group {
+    border: 2px solid var(--structural);
+    font-family: var(--cal-font-family, inherit);
+}
+
+/* Inputs/buttons don't inherit font-family by default — force the card font. */
+.calendar-group input,
+.calendar-group button {
+    font-family: inherit;
+}
+
+.calendar-group .group-title {
+    font-size: 1.3rem;
+    white-space: nowrap;
+}
+
+.calendar-icon-link {
+    /* An <a> with no colour set falls back to the UA's link colours — the
+       icon inside inherits currentColor, so it rendered in visited-link
+       purple. Inherit the title's ink instead so it reads as card chrome. */
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.calendar-icon-link:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+.calendar-events-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    /* Fallback height. Overridden dynamically by matchCalendarHeight() —
+       max-height always, and (when the timeline view is active, which needs
+       a definite box to fill rather than a shrink-wrapped one) min-height too. */
+    max-height: 38vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) rgba(255,255,255,0.05);
+    padding-right: 0.25rem;
+}
+
+.calendar-events-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.calendar-events-container::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+}
+
+.calendar-events-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+
+.calendar-events-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+/* Legend swatch, reused inside the (i) popover list (see cal-legend-pop-item) */
+.calendar-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.calendar-day-header {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 0.5rem 0 0.25rem;
+}
+
+.calendar-day-header:first-child {
+    padding-top: 0;
+}
+
+.calendar-event-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid var(--structural);
+    transition: background 0.2s;
+}
+
+.calendar-event-item:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* Paler rule distinguishes an all-day entry from a timed one. */
+.calendar-event-item.all-day {
+    border-left-color: var(--structural-soft);
+}
+
+/* Stacked per-timezone date + time rows */
+.calendar-event-times {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: 215px;   /* widened 15% from 187px; .calendar-event-details (flex:1) absorbs it */
+    flex-shrink: 0;
+}
+
+.calendar-event-tz {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    /* One size control scales the whole row; label/time keep their ratio via em. */
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+}
+
+.tz-label {
+    flex-shrink: 0;
+    width: 3.2em;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 0.1rem 0.2rem;
+}
+
+.tz-when {
+    font-size: 1em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-event-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.calendar-event-title {
+    font-size: var(--cal-fs-event, 0.85rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
+}
+
+/* Today's already-finished events stay listed but struck through (title only). */
+.calendar-event-item.is-passed .calendar-event-title {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.calendar-event-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: white;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    opacity: 0.85;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.calendar-event-location {
+    font-size: var(--cal-fs-details, 0.75rem);
+    zoom: var(--cal-z-details, 1);
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 0.15rem;
+}
+
+/* ---- Per-event countdown timers ---- */
+.event-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1.2;
+    /* Keep tier colours legible over the user's chosen background */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.event-countdown .ec-icon {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+/* Placement: right-aligned pill (top-right edge of the card) */
+.ec-pill {
+    margin-left: auto;
+    align-self: flex-start;
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Placement: extra row beneath the per-timezone times */
+.ec-time-column {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+/* Placement: line beneath the event title */
+.ec-title {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+/* Placement: prominent block on the far right, divided from the details.
+   Stacks a muted "In" label over the larger ticking time value. */
+.ec-right-column {
+    margin-left: auto;
+    align-self: stretch;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.05rem;
+    /* Fixed width so every row's countdown column aligns, sized to fit the
+       widest value line ("##h ##m") without wrapping. */
+    width: 84px;
+    box-sizing: border-box;
+    padding-left: 0.6rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.95rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.ec-right-column .ec-prefix {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+    line-height: 1;
+}
+
+.ec-right-column .ec-text {
+    line-height: 1.1;
+}
+
+.ec-right-column .ec-prefix[hidden] {
+    display: none;
+}
+
+/* Urgency tiers (colour applies to every placement) */
+.event-countdown.tier-neutral {
+    color: var(--ok-neutral);
+}
+
+.event-countdown.tier-warning {
+    color: #FFD699;
+}
+
+.event-countdown.tier-urgent {
+    color: #FFA39C;
+    animation: ec-pulse 1.1s ease-in-out infinite;
+}
+
+/* rgb(127,168,201) is --ok-neutral's own value — no translucent-tint token
+   exists for it, so its channels are hardcoded here rather than adding one. */
+.ec-pill.tier-neutral {
+    background: rgba(127, 168, 201, 0.18);
+}
+
+.ec-pill.tier-warning {
+    background: rgba(255, 167, 38, 0.20);
+}
+
+.ec-pill.tier-urgent {
+    background: rgba(244, 67, 54, 0.22);
+}
+
+@keyframes ec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .event-countdown.tier-urgent {
+        animation: none;
+    }
+}
+
+/* Header row wraps instead of overflowing when the card is column-width.
+   position:relative anchors the absolutely-centered "Today & Now" button. */
+.calendar-group .group-title-container {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+    min-width: 0;
+    position: relative;
+}
+
+/* Calendar header controls */
+.calendar-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    /* Clearance from the timezone/grouping dropdown that ends .group-title (the
+       container has no column-gap, so these would otherwise sit flush). Matches
+       the 0.5rem gap between the WEEK/VN dropdowns so the refresh button keeps
+       the header's spacing rhythm. */
+    margin-left: 0.5rem;
+    /* Small gap before whatever sits next: the width toggle (its last child),
+       or the header ticker when the card is wide enough to keep it inline. */
+    margin-right: 0.4rem;
+    flex-shrink: 0;
+}
+
+.calendar-last-updated {
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-error-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(244, 67, 54, 0.7);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.calendar-refresh-btn {
+    color: rgba(255, 255, 255, 0.7);
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    /* .glass-control recipe (see 1-core.css). */
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.2s ease, box-shadow 0.2s ease, color 0.2s, transform 0.2s;
+}
+
+.calendar-refresh-btn:hover {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    color: white;
+    transform: rotate(90deg);
+}
+
+/* Width toggle, relocated here from the hover-revealed .group-actions — sized
+   and colored to match the refresh button so the always-visible cluster reads
+   as one group. Color/background/hover are scoped with :not(.is-full) so the
+   pressed-state rule below (.card-width-btn.is-full, same 0,2,0 specificity
+   but declared earlier) isn't overridden by source order when both apply. */
+.calendar-header-meta .card-width-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-control);
+    font-size: 0.9rem;
+}
+
+/* Matches the refresh button's glass-control fill so the always-visible
+   header cluster reads as one group. */
+.calendar-header-meta .card-width-btn:not(.is-full) {
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.calendar-header-meta .card-width-btn:hover:not(.is-full) {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    color: #fff;
+    transform: none;
+}
+
+/* "Today & Now" (day views only) pinned to the true horizontal centre of the
+   header row, independent of the left title cluster and the right controls.
+   Absolute → out of flow, so it never shifts the title/meta/ticker layout.
+   Higher specificity than .cal-nav-today so it wins the margin/size overrides
+   regardless of source order. z-index lifts it over the ticker it may overlap. */
+.calendar-group .cal-header-today {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 4;
+    margin: 0;
+    /* 15% larger than the original 26px / 0.75rem / 0.7rem — box and text scale
+       together so the padding-to-text ratio is unchanged. */
+    height: 30px;
+    padding: 0 0.8625rem;
+    font-size: 0.805rem;
+    white-space: nowrap;
+    isolation: isolate;
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(20, 30, 20, 0.55);
+}
+
+/* A column-width card's header has no free middle: the title cluster and the
+   meta controls already fill it, so a centred button lands on top of them.
+   There it goes to the far right end of the row instead, in normal flow —
+   margin-left:auto eats the leftover width, and being in flow means the row
+   wraps around it rather than letting anything overlap.
+   `relative` (not `static`): the running-light ring below is an absolutely
+   positioned ::before, and a static button would drop out of the positioned
+   ancestor chain, sending the ring to the header row's box instead. */
+.calendar-group[data-card-width="column"] .cal-header-today {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    margin-left: auto;
+}
+
+/* Green running-light border: a bright head with a fading trailing plume that
+   circles the button. A conic-gradient whose start angle is animated (needs the
+   registered custom property below to interpolate) is masked down to a thin ring
+   so only the border glows. drop-shadow gives the light its green bloom. */
+@property --cal-today-beam {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+.calendar-group .cal-header-today::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;                 /* ring thickness */
+    background: conic-gradient(from var(--cal-today-beam),
+        transparent 0deg,
+        transparent 250deg,
+        rgba(46, 204, 64, 0.18) 300deg,
+        rgba(90, 255, 100, 0.55) 336deg,
+        #9dff7a 352deg,
+        #f0fff0 360deg);
+    /* Show only the border ring: full box minus the padded interior. */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 2px rgba(125, 255, 90, 0.85));
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .calendar-group .cal-header-today::before {
+        animation: cal-today-beam-spin 2.4s linear infinite;
+    }
+}
+
+/* Reduced motion: no travelling light — a static, even green ring instead. */
+@media (prefers-reduced-motion: reduce) {
+    .calendar-group .cal-header-today::before {
+        background: rgba(125, 255, 90, 0.4);
+    }
+}
+
+@keyframes cal-today-beam-spin {
+    to { --cal-today-beam: 360deg; }
+}
+
+.calendar-group-toggle,
+.calendar-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: rgba(255, 255, 255, 0.7);
+    height: 22px;
+    padding: 0 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    /* .glass-control recipe (see 1-core.css). */
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.2s ease, box-shadow 0.2s ease, color 0.2s;
+}
+
+.calendar-group-toggle:hover,
+.calendar-view-toggle:hover {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    color: white;
+}
+
+.calendar-view-toggle:focus-visible,
+.calendar-group-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+.calendar-group-toggle-icon {
+    font-size: 0.8rem;
+    line-height: 1;
+}
+
+/* ---- View dropdown (3-Day / 5-Day / Week / List) ---- */
+.calendar-view-dd {
+    position: relative;
+    display: inline-flex;
+}
+
+.calendar-view-caret {
+    font-size: 0.6rem;
+    opacity: 0.7;
+    margin-left: 0.1rem;
+}
+
+.calendar-view-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 60;
+    min-width: 7rem;
+    flex-direction: column;
+    padding: 0.25rem;
+    background: rgba(25, 27, 32, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.calendar-view-dd.open .calendar-view-menu {
+    display: flex;
+}
+
+.calendar-view-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.calendar-view-menu-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.calendar-view-menu-item:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: -1px;
+}
+
+/* Checkmark on the active view. */
+.calendar-view-menu-item[aria-checked="true"] {
+    color: #fff;
+}
+
+.calendar-view-menu-item[aria-checked="true"]::before {
+    content: '✓';
+    font-size: 0.7rem;
+    width: 0.8rem;
+}
+
+.calendar-view-menu-item[aria-checked="false"]::before {
+    content: '';
+    width: 0.8rem;
+}
+
+.calendar-view-menu-sep {
+    height: 1px;
+    margin: 0.25rem 0.2rem;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.cal-menu-switch {
+    justify-content: space-between;
+    text-transform: none;
+}
+
+.cal-menu-switch .cal-menu-switch-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.cal-menu-switch[aria-checked="true"]::before,
+.cal-menu-switch[aria-checked="false"]::before {
+    content: none;
+    width: 0;
+}
+
+.cal-switch-track {
+    flex-shrink: 0;
+    position: relative;
+    width: 26px;
+    height: 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    transition: background 0.15s;
+}
+
+.cal-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+}
+
+.cal-menu-switch[aria-checked="true"] .cal-switch-track {
+    background: #64B5F6;
+}
+
+.cal-menu-switch[aria-checked="true"] .cal-switch-knob {
+    transform: translateX(11px);
+}
+
+.cal-menu-switch[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.cal-menu-switch[aria-disabled="true"]:hover {
+    background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cal-switch-track,
+    .cal-switch-knob {
+        transition: none;
+    }
+}
+
+/* Setup / empty / error states */
+.calendar-setup-prompt {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.calendar-setup-prompt p {
+    margin: 0 0 0.75rem;
+}
+
+.calendar-setup-prompt ol {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.calendar-setup-prompt li {
+    margin-bottom: 0.4rem;
+}
+
+.calendar-empty-state,
+.calendar-error-state {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.calendar-error-state {
+    color: rgba(244, 67, 54, 0.8);
+}
+
+/* Calendar settings - source entries */
+.calendar-source-entry {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.cal-src-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+/* Override .form-group input { width: 100% } for calendar source entries */
+.calendar-source-entry input,
+.calendar-source-entry select {
+    width: auto;
+}
+
+.cal-src-name {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.cal-src-color-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.cal-src-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.cal-src-color {
+    width: 80px;
+    padding: 0.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.cal-src-url {
+    width: 100% !important;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.cal-src-embed-warning {
+    font-size: 0.75rem;
+    color: #FF9800;
+    margin-top: 0.3rem;
+    line-height: 1.3;
+}
+
+.cal-src-remove {
+    background: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.cal-src-remove:hover {
+    background: rgba(244, 67, 54, 0.4);
+}
+
+/* rgb(91,157,255) is --accent's own value — no translucent-tint token exists
+   for it, so its channels are hardcoded here rather than adding one. */
+.calendar-add-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: rgba(91, 157, 255, 0.15);
+    color: var(--accent);
+    border: 1px dashed rgba(91, 157, 255, 0.4);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.calendar-add-btn:hover {
+    background: rgba(91, 157, 255, 0.25);
+}
+
+/* ---- (i) legend popover ---- */
+.cal-legend-wrap {
+    position: relative;
+    display: inline-block;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+
+.cal-legend-btn {
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.75);
+    font: italic 700 0.65rem/1 serif;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cal-legend-btn:hover,
+.cal-legend-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.cal-legend-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 60;
+    min-width: 180px;
+    max-width: 260px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: rgba(25, 27, 32, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    font-family: var(--cal-font-family, inherit);
+}
+
+/* Hover is a mouse-only visual convenience. Keyboard/touch users open the popover
+   via the button (Enter/Space/tap), which pins it AND sets aria-expanded="true" —
+   so we deliberately do NOT reveal on :focus-within, which would show the popover
+   while aria-expanded still read "false" (a state desync for screen readers). */
+.cal-legend-wrap:hover .cal-legend-popover,
+.cal-legend-wrap.pinned .cal-legend-popover {
+    display: block;
+}
+
+.cal-legend-pop-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.cal-legend-pop-item {
+    display: flex;
+    align-items: center;
+    font-size: var(--cal-fs-details, 0.75rem);
+    zoom: var(--cal-z-details, 1);
+    white-space: nowrap;
+}
+
+/* Each legend row is a switch that hides/shows that calendar's events. */
+.cal-legend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.15rem 0.25rem;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.85);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.cal-legend-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.cal-legend-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+/* Hidden calendar: dimmed + struck through, dot hollowed out. */
+.cal-legend-toggle.is-hidden {
+    opacity: 0.5;
+}
+
+.cal-legend-toggle.is-hidden .cal-legend-name {
+    text-decoration: line-through;
+}
+
+.cal-legend-toggle.is-hidden .calendar-legend-dot {
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
+.cal-legend-name {
+    flex: 1;
+}
+
+/* ---- Day-view nav bar (sticky inside the scrolling events container) ---- */
+.calendar-dayview-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-shrink: 0;   /* stay full height above the (internally scrolling) timeline */
+    display: flex;
+    align-items: center;
+    justify-content: center;   /* ‹ range Today › sit together as one centered cluster */
+    gap: 0.5rem;
+    padding: 0.15rem 0 0.35rem;
+    /* Solid-ish dark backdrop (matches the card's own light-mode glass base) so
+       chips scrolled underneath the sticky bar don't show through it. */
+    background: rgba(20, 20, 24, 0.92);
+    backdrop-filter: blur(6px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(6px) saturate(var(--glass-sat));
+}
+
+/* .glass-control recipe (see 1-core.css). */
+.cal-nav-btn,
+.cal-nav-today {
+    color: rgba(255, 255, 255, 0.85);
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255,255,255,0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    line-height: 1.4;
+    transition: background-image 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* Double the flex gap (0.5rem) on each side of Today & Now so it stands clear of
+   the date range on its left and the paging arrow on its right:
+   0.5rem gap + 0.5rem margin = 1rem on each side. */
+.cal-nav-today {
+    margin: 0 0.5rem;
+}
+
+.cal-nav-btn:hover:not(:disabled),
+.cal-nav-today:hover:not(:disabled) {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.10) 55%, rgba(255,255,255,0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+}
+
+.cal-nav-btn:disabled,
+.cal-nav-today:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.cal-nav-btn:focus-visible,
+.cal-nav-today:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
+.cal-nav-range {
+    /* Natural width (no flex:1) so it doesn't stretch and push Today to the far
+       right — it now sits directly beside the range text in the centered cluster. */
+    text-align: center;
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Upcoming-event bar (above the day-view nav) ---- */
+/* rgb(91,157,255) is --accent's own value — no translucent-tint token exists
+   for it, so its channels are hardcoded here rather than adding one. */
+.cal-upcoming-bar {
+    flex-shrink: 0;
+    margin-bottom: 0.35rem;
+    border-radius: 8px;
+    background: rgba(91, 157, 255, 0.10);
+    border: 1px solid rgba(91, 157, 255, 0.22);
+}
+
+.cal-upcoming-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cal-upcoming-name {
+    font-size: var(--cal-fs-event, 0.82rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.cal-upcoming-time {
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--ok-neutral);
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* Ticker (scrolling) variant */
+.cal-upcoming-ticker {
+    overflow: hidden;
+    position: relative;
+}
+
+.cal-upcoming-track {
+    display: flex;
+    width: max-content;
+    animation: cal-upcoming-scroll var(--cal-ticker-dur, 33s) linear infinite;
+}
+
+.cal-upcoming-ticker:hover .cal-upcoming-track,
+.cal-upcoming-ticker:focus-within .cal-upcoming-track {
+    animation-play-state: paused;
+}
+
+.cal-upcoming-seq {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.cal-upcoming-tick {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    /* Horizontal padding doubled in v4.27 so adjacent events read as clearly
+       separate entries as they scroll past. */
+    padding: 0.3rem 1.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cal-upcoming-tick:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+@keyframes cal-upcoming-scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+/* Reduced motion: don't auto-scroll. Clip on the ticker (the actual overflow
+   owner) and let the user scroll it horizontally; hide the duplicate sequence
+   so items aren't shown twice. */
+@media (prefers-reduced-motion: reduce) {
+    .cal-upcoming-ticker {
+        overflow-x: auto;
+    }
+    .cal-upcoming-track {
+        animation: none;
+    }
+    .cal-upcoming-ticker .cal-upcoming-seq[aria-hidden="true"] {
+        display: none;
+    }
+}
+
+/* Slot that owns the header's leftover width; the ticker inside is narrower and
+   right-aligned within it. Keeping the flex sizing on the slot (not the ticker)
+   lets the ticker be a plain 80%-width block hugging the right edge. */
+.cal-upcoming-header-slot {
+    flex: 1 1 8rem;
+    min-width: 0;
+    align-self: center;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+/* Column-width cards render the ticker as its own row between the header and
+   the events area (UIRenderer._calendarHeaderTicker's 'row' placement) — the
+   header has no width to spare there. A plain full-width block, not a flex
+   slot: it's a sibling of .group-header, not a header child. The card's own
+   padding sets its horizontal bounds, so it lines up with the events below.
+   The height it adds is picked up automatically by the card-height math
+   (_cardOverhead measures card minus scroll region). */
+.cal-upcoming-row-slot {
+    display: block;
+    flex: none;
+    margin-bottom: 0.5rem;
+}
+
+.cal-upcoming-row-slot .cal-upcoming-header {
+    width: 100%;
+}
+
+/* Compact variant for the card header (hover/focus pause and reduced-motion
+   rules above key on .cal-upcoming-ticker, which this still carries, so they
+   apply automatically here too). 57.8% wide → 42.2% narrower than the slot
+   (15% shorter than the former 68%), still hugging the slot's right edge. */
+.cal-upcoming-header {
+    width: 57.8%;
+    min-width: 0;
+    margin-bottom: 0;
+    height: 22px;
+    display: flex;
+    align-items: center;
+}
+
+.cal-upcoming-header .cal-upcoming-tick {
+    padding: 0 1.2rem;
+}
+
+.cal-upcoming-header .cal-upcoming-dot {
+    width: 6px;
+    height: 6px;
+}
+
+.cal-upcoming-header .cal-upcoming-name {
+    display: inline-block;
+    /* ~40 characters before the ellipsis (was 11rem ≈ 25). ch tracks this
+       element's own font, so the cap stays "40 characters" at any size. */
+    max-width: 40ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    zoom: 1;
+}
+
+.cal-upcoming-header .cal-upcoming-time {
+    font-size: 0.62rem;
+    zoom: 1;
+}
+
+/* List variant */
+.cal-upcoming-list {
+    display: flex;
+    flex-direction: column;
+    padding: 0.25rem;
+    gap: 0.2rem;
+}
+
+.cal-upcoming-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.cal-upcoming-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.cal-upcoming-row:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: -1px;
+}
+
+.cal-upcoming-row .cal-upcoming-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-upcoming-row .cal-upcoming-when {
+    font-size: var(--cal-fs-tz, 0.72rem);
+    zoom: var(--cal-z-tz, 1);
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Day columns ---- */
+.calendar-day-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cal-days, 3), minmax(110px, 1fr));
+    gap: 0.4rem;
+    overflow-x: auto;
+    align-items: stretch;
+}
+
+.calendar-day-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    padding: 0.3rem;
+}
+
+.calendar-day-col.is-today {
+    background: var(--structural-soft);
+    outline: 1px solid var(--structural);
+}
+
+.calendar-day-col-header {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+    padding-bottom: 0.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.calendar-day-col.is-today .calendar-day-col-header {
+    color: var(--accent);
+}
+
+.calendar-day-col-events {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.calendar-day-chip {
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 3px solid var(--structural);
+    border-radius: 6px;
+    padding: 0.3rem 0.4rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    /* Time and title flow as one wrapping paragraph — "19–19:45 | Event name" —
+       the title wrapping onto extra lines and growing the chip instead of being
+       cut off. Block box with inline children; the column stacks chips by flex. */
+    display: block;
+}
+
+.calendar-day-chip:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.calendar-day-chip:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: 1px;
+}
+
+.calendar-day-chip.all-day {
+    border-left-color: var(--structural-soft);
+}
+
+.calendar-chip-time {
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    white-space: nowrap;   /* keep the time range together; the title wraps after it */
+    display: inline;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-chip-title {
+    font-size: var(--cal-fs-event, 0.85rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    display: inline;
+    overflow-wrap: anywhere;
+}
+
+/* " | " separator between the time and title on the shared line (chip grid and
+   timeline events). Sits at the start of the title box so it truncates last. */
+.calendar-chip-title::before,
+.cal-tl-event-title::before {
+    content: "|";
+    margin: 0 0.4em;
+    font-weight: 400;
+    opacity: 0.5;
+}
+
+.calendar-day-empty {
+    font-size: var(--cal-fs-details, 0.7rem);
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 0.75rem 0;
+}
+
+/* ---- Hour-by-hour timeline (3/5-day/week views) ---- */
+/* One grid, three row-groups (day headers, all-day band, hour grid) sharing the
+   same column template and a single horizontal scroll so everything stays aligned:
+   column 1 is the hour-axis gutter, columns 2..N+1 are the days. */
+.calendar-timeline {
+    display: grid;
+    grid-template-columns: 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
+    column-gap: 0.3rem;
+    row-gap: 0.35rem;
+    /* align-items:start keeps each cell at its own height; align-content:start
+       keeps the rows packed at the top so the hour row is never stretched taller
+       than --tl-gridh — all growth must come from _sizeTimelineHours() retuning
+       that variable, never from grid-row stretching, which would change rendered
+       heights without moving the calc()-fraction positions painted off it. */
+    align-items: start;
+    align-content: start;
+    /* Scroll internally (both axes) so the per-day header row can stick to the top
+       while the hours scroll under it. min-height:0 lets this flex child shrink
+       below its content height inside the capped events container. */
+    min-height: 0;
+    overflow: auto;
+    /* Grow to fill whatever room the card has: this is what hands that room
+       to the timeline to measure. _sizeTimelineHours() (ui-renderer.js) then
+       stretches the hour scale — clamp(available/spanHours, 30, 78) px/hour,
+       written to --tl-gridh, which every position in here is a calc()
+       fraction of — into it: fits between the clamps and the grid exactly
+       fills the card; denser than 30px/h scrolls as today; sparser than
+       78px/h caps the rows and leaves calm dead air below instead of
+       stretching them further. No effect when sized by content alone. */
+    flex: 1 1 auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
+}
+
+/* Secondary time-zone gutter active (right-click a header clock → "Show in
+   calendar"): one extra 2.6rem track ahead of the hour axis. The renderer
+   shifts every explicitly-placed hour-row cell and emits the extra corner /
+   all-day-spacer cells the auto-placed rows need. */
+.calendar-timeline.is-two-tz {
+    grid-template-columns: 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
+}
+
+/* Row 1: per-day headers, mirroring the chip day view's column headers. They
+   stick to the top of the timeline's scroll viewport so the dates stay visible
+   when scrolling down to later hours. */
+.cal-tl-corner,
+.cal-tl-dayhead {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: rgba(20, 20, 24, 0.92);
+    backdrop-filter: blur(6px) saturate(var(--glass-sat));
+    -webkit-backdrop-filter: blur(6px) saturate(var(--glass-sat));
+}
+
+.cal-tl-dayhead {
+    font-size: var(--cal-fs-groupdate, 0.7rem);
+    zoom: var(--cal-z-groupdate, 1);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    text-align: center;
+    padding: 0.25rem 0 0.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    min-width: 0;
+}
+
+.cal-tl-dayhead.is-today {
+    color: var(--accent);
+}
+
+/* The secondary gutter's corner names its zone (the gutter itself shows bare
+   times). Shares .cal-tl-corner for the sticky/opaque header treatment. No
+   `zoom` (sticky box) and no text-transform (custom clock labels keep their
+   case). Bottom-aligned so the label sits on the header's baseline rule. */
+.cal-tl-corner2 {
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);
+    color: rgba(255, 255, 255, 0.35);
+    text-align: center;
+    align-content: end;
+    padding-bottom: 0.15rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Row 2: all-day band (label in the gutter column, chips per day). */
+.cal-tl-allday-label {
+    font-size: var(--cal-fs-tz, 0.6rem);
+    zoom: var(--cal-z-tz, 1);
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    align-self: center;
+    text-align: right;
+    padding-right: 0.25rem;
+}
+
+.cal-tl-allday-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+    border-radius: 6px;
+    padding: 0.15rem;
+}
+
+.cal-tl-allday-cell.is-today {
+    background: var(--structural-soft);
+}
+
+/* Row 3, column 1: left hour axis. Labels are absolutely positioned at their
+   hour offset. .cal-tl-gutter2 is the optional secondary-zone axis to its
+   left — a distinct class on purpose: _sizeTimelineHours measures
+   querySelector('.cal-tl-gutter') and must keep finding the primary. */
+.cal-tl-gutter,
+.cal-tl-gutter2 {
+    position: relative;
+    min-width: 2.6rem;
+}
+
+.cal-tl-hour {
+    position: absolute;
+    right: 0.25rem;
+    transform: translateY(-50%);
+    /* 2px below the Time-zone-row size — the hour axis is a quiet reference
+       scale, so it reads smaller than the rest of the row's text. */
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);
+    /* NO `zoom` here. This label is absolutely positioned by `top` (a calc()
+       fraction of --tl-gridh, matching the event blocks and hour gridlines).
+       `zoom` scales an element's `top` too — calc() fraction or not — so a
+       sub-1 --cal-z-tz (set when the Time-zone-row font is below the browser's
+       minimum size) would compress the whole hour axis upward and pull the
+       labels off the events/gridlines. Font-size alone is safe. */
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Secondary-zone hour labels: same positioning/typography (and the same
+   no-`zoom` rule) as .cal-tl-hour, one step dimmer — a reference of a
+   reference. */
+.cal-tl-hour--alt {
+    color: rgba(255, 255, 255, 0.30);
+}
+
+/* Each day column: a positioned canvas for the event blocks. Hour gridlines are
+   inline background-image layers set by the renderer — merged free stretches
+   collapse to sub-hour rows, so line positions follow the compressed hour
+   mapping and a fixed repeating gradient would drift below the first gap.
+   background-color (not the background shorthand) so those inline image layers
+   stack on top of it. */
+.cal-tl-col {
+    position: relative;
+    min-width: 0;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.cal-tl-col.is-today {
+    background-color: var(--structural-soft);
+    outline: 1px solid var(--structural);
+}
+
+/* "Jump to today" flash (UIRenderer._flashTodayColumn, fired by the Today
+   button). A green wash blinked 3× via an inset box-shadow, which paints above
+   the column's own background/gridlines but below the event blocks, so events
+   stay readable. Applied to today's timeline column + its header/all-day cell,
+   or the chip grid's day column. */
+@keyframes cal-today-flash {
+    0%, 100% { box-shadow: inset 0 0 0 9999px rgba(120, 160, 220, 0); }
+    50%      { box-shadow: inset 0 0 0 9999px var(--structural); }
+}
+
+.cal-today-flash {
+    animation: cal-today-flash 0.45s ease-in-out 3;
+}
+
+/* Reduced motion: one gentle flash instead of three blinks. */
+@media (prefers-reduced-motion: reduce) {
+    .cal-today-flash {
+        animation-iteration-count: 1;
+        animation-duration: 0.7s;
+    }
+}
+
+.cal-tl-event {
+    position: absolute;
+    overflow: hidden;
+    box-sizing: border-box;
+    min-height: 14px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    color: #fff;
+    /* Calendar colors are user/feed data and may be light; a shadow keeps the
+       white label legible on pale backgrounds. */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    line-height: 1.15;
+    /* Time and title flow as one wrapping paragraph so a tall block fills its
+       height instead of showing one truncated line. .cal-tl-event-text clamps to
+       the number of lines that fit — set inline per block by _fitTimelineEventText
+       from the block's pixel height — for a clean ellipsis on the last line. NO
+       zoom on this positioned box: it would corrupt the pixel top/height, the same
+       trap documented on .cal-tl-hour. */
+    display: block;
+}
+
+/* Wrapping + line-clamp box for the event text. The default 1-line clamp matches
+   the old single-line look and is the graceful fallback before the JS fit pass
+   runs; _fitTimelineEventText raises the clamp to fit each block's height. */
+.cal-tl-event-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
+    /* Lane-split events get narrow, so let long words break rather than overflow. */
+    overflow-wrap: anywhere;
+}
+
+.cal-tl-event:hover {
+    filter: brightness(1.12);
+}
+
+.cal-tl-event:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 1px;
+    z-index: 3;
+}
+
+.cal-tl-event-time {
+    font-size: var(--cal-fs-tz, 0.6rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    opacity: 0.9;
+    white-space: nowrap;   /* keep the time range together; the title wraps after it */
+    font-variant-numeric: tabular-nums;
+}
+
+.cal-tl-event-title {
+    font-size: var(--cal-fs-event, 0.72rem);
+    zoom: var(--cal-z-event, 1);
+    font-weight: 500;
+}
+
+/* Current-time indicator on the today column: a two-stripe black/white bar under
+   a --signal glow. The stripes swap twice a second, so it reads as a blinking
+   marker rather than just another coloured rule among the event blocks. This is
+   one of the two sanctioned homes for --signal app-wide (the other is the Today
+   & Now beam) — its glow used to be red specifically to stay legible against the
+   calendar's old green event blocks, which is no longer a concern now that green
+   isn't a UI colour here. */
+.cal-tl-now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
+    z-index: 2;
+    animation: cal-now-blink 1s steps(1, end) infinite;
+    pointer-events: none;
+}
+
+.cal-tl-now::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #000;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
+    animation: cal-now-dot-blink 1s steps(1, end) infinite;
+}
+
+/* Hard swap (steps(1)) rather than a cross-fade — the alternation is what makes
+   it read as blinking. The red glow stays lit throughout. */
+@keyframes cal-now-blink {
+    0% { background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%); }
+    50% { background: linear-gradient(to bottom, #fff 0 50%, #000 50% 100%); }
+}
+
+@keyframes cal-now-dot-blink {
+    0% { background: #000; border-color: #fff; }
+    50% { background: #fff; border-color: #000; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cal-tl-now,
+    .cal-tl-now::before {
+        animation: none;
+    }
+}
+
+/* Merged free-time bands: when 2+ consecutive hour slots are event-free across
+   every visible day, one greyed band spans all day columns. Placed after the
+   day columns in the DOM so it paints over their backgrounds; events never
+   overlap it (gaps are event-free by construction) and .cal-tl-now (z-index:2)
+   stays visible through it. pointer-events:none keeps the grid inert. */
+.cal-tl-gaps {
+    grid-column: 2 / -1;
+    position: relative;
+    align-self: start;
+    pointer-events: none;
+}
+
+/* With the secondary gutter active the day columns start one track later. */
+.calendar-timeline.is-two-tz .cal-tl-gaps {
+    grid-column: 3 / -1;
+}
+
+.cal-tl-gap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+}
+
+.cal-tl-gap > span {
+    font-style: italic;
+    font-size: var(--cal-fs-tz, 0.65rem);
+    zoom: var(--cal-z-tz, 1);
+    color: #000;
+    letter-spacing: 0.3px;
+}
+
+/* ========================================
+   13. CALENDAR EVENT DETAIL MODAL
+   ======================================== */
+
+.cal-event-detail-content {
+    max-width: 500px;
+    width: 90vw;
+}
+
+.cal-detail-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.cal-detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.cal-detail-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.cal-detail-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.cal-detail-tz {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.cal-detail-tz-label {
+    flex-shrink: 0;
+    width: 3.2em;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 0.1rem 0.2rem;
+}
+
+.cal-detail-tz-when {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.cal-detail-loc,
+.cal-detail-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.cal-detail-gcal {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.cal-detail-gcal-link {
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: color 0.2s;
+}
+
+.cal-detail-gcal-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+}
+
+/* Links inside the description (Meet link and any other URLs). */
+.cal-detail-link {
+    color: #90CAF9;
+    word-break: break-all;
+}
+.cal-detail-link:hover { color: #BBDEFB; }
+
+/* Prominent "Join video call" button at the top of the detail popup. */
+.cal-detail-join {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+.cal-detail-join-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(91, 157, 255, 0.55);
+    border: 1px solid var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.cal-detail-join-link:hover { background: rgba(91, 157, 255, 0.8); }
+
+/* Compact "🎥 Join" link shown on an event row when it has a video-call link. */
+.calendar-event-join {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+    width: fit-content;
+    padding: 0.05rem 0.4rem 0.05rem 0;
+    border-radius: 6px;
+}
+.calendar-event-join:hover { color: var(--ink); text-decoration: underline; }
+
+.calendar-event-join:focus-visible,
+.cal-detail-join-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Focus-visible ring on clickable event rows */
+.calendar-event-item:focus-visible {
+    outline: 2px solid rgba(100, 181, 246, 0.7);
+    outline-offset: 1px;
+}
+
+/* ========================================
+   14. CALENDAR STALE / ERROR BADGE (item 10)
+   ======================================== */
+
+.calendar-stale-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 167, 38, 0.6);
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 0.65rem;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+    vertical-align: middle;
+    line-height: 1;
+}
+
