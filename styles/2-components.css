@@ -437,8 +437,7 @@
 .usage-row {
     display: grid;
     /* Gauge track was 120px through v4.26; narrowed 20% on request. The
-       space-ladder budget below was measured against the wider bar, so its
-       breakpoints are now ~24px conservative — safe, just not tight. */
+       space-ladder budget below was re-measured against this bar (v4.38). */
     grid-template-columns: 80px 96px auto;
     align-items: center;
     gap: 6px;
@@ -634,9 +633,9 @@
 /* As the window narrows the header gives up width in a fixed order, cheapest
    thing first, rather than everything collapsing at one breakpoint:
 
-     1. the usage widget sheds its cosmetic 80px right margin
+     1. the usage widget sheds its cosmetic right margin
      2. the clocks step down 2pt, then 4pt
-     3. the usage widget drops its brand block (logo + "Claude Usage"),
+     3. the usage widget drops its brand block (logo + "Usage"),
         then its "Resets in …" countdowns
 
    Where the numbers come from — this is a symmetric grid, so the usual
@@ -646,94 +645,147 @@
 
        viewport >= 96px (padding + gaps) + centre + 2 x max(left, right)
 
-   Measured in the browser (pre-v4.27): pomodoro 66px, centre 445 / 405 / 365px
-   at 0 / 2 / 4pt (651 / 593 / 535 with three clocks), widget 383px of content —
-   336 without the brand block, 212 without the countdowns either — plus its
-   right margin. (The breakpoints predate the search bar's removal in
-   v4.17, so they are conservative: the left zone lost the search box's
-   200-320px, and the right zone was already the binding side. v4.27 shrank the
-   secondary clocks ~20%, which narrows the centre by ~35px per secondary and
-   makes every rung a little more conservative still; the 20px margin widening
-   is paid for by moving only the two margin-shed rungs 20px later.)
+   Re-measured headlessly in v4.38 — the old numbers dated from before the
+   search bar's removal (v4.17), the ~20% secondary-clock shrink (v4.27) and
+   the 120→96px gauge track, which had left some rungs ~280px conservative
+   (the visible symptom: "Usage" brand block gone while the widget sat beside
+   200px of empty space). Measured: pomodoro 66px; two-clock centre
+   337 / 306 / 281px at trim 0 / 2 / 4pt, ~190px more per extra centre clock;
+   primary-clock centre 362 / 339 / 315px; side clocks 195 / 383 / 557px for
+   one / two / three; widget 356px of content — 312 without the brand block,
+   188 without the countdowns either — plus its right margin. Each breakpoint
+   is the fit-sum of the *previous* stage plus ~20px of safety.
 
-   The widget is WIDER than the whole left zone in the two-clock resting
-   state, so it is the side that decides the fit — its cosmetic 80px margin is
-   shed first because it is the one free 80px on the binding side, and it is
-   invisible. With a primary clock selected the left zone also carries the
-   1-3 non-primary clocks, which roughly mirrors the old search-box width.
+   WHICH side binds depends on where the clocks are, not only how many —
+   that is what .has-primary-clock (set by AppInit._layoutClocks, the same
+   idiom as has-three-clocks) feeds in. With no primary selected every clock
+   sits in the centre, the left zone is just the 66px pomodoro button, and the
+   widget is the widest side — so the widget rungs are what buy room. With a
+   primary selected the centre holds ONE bigger clock and the others crowd the
+   LEFT zone; at three or four clocks that zone (~465 / ~639px) is wider than
+   the whole widget, and because the side columns are the same 1fr, hiding
+   widget pieces frees width the left zone can never receive. Those two
+   ladders therefore keep the full widget at every width and spend their rungs
+   on --clock-trim, which shrinks the side that actually binds; below their
+   last rung the side clocks clip a few px, and nothing above 768px can shed
+   them.
 
    Everything is bounded below at 769px because the ≤768px block in
    4-interactions.css stacks the header into a column, where every zone gets
    the full width back and none of this applies.
 
-   Each extra clock widens the centre by ~170px (secondary size), so the whole
-   ladder has a twin per clock count that fires that much earlier. The ladders
-   are written as mutually exclusive selectors (:not() chains vs the state
-   classes — has-three-clocks and has-four-clocks are themselves mutually
-   exclusive, set by AppInit.updateClock) rather than as a base plus
-   overrides — with equal specificity and no overlap, each stage is decided by
-   its own breakpoint alone, and a *milder* stage from another ladder can
-   never out-specify a stronger one that should have won. */
+   The six ladders are written as mutually exclusive selectors (:not() chains
+   vs the state classes — has-three-clocks / has-four-clocks are mutually
+   exclusive by construction, and each ladder pairs with .has-primary-clock or
+   its :not()) rather than as a base plus overrides — with no overlap, each
+   stage is decided by its own breakpoint alone, and a *milder* stage from
+   another ladder can never out-specify a stronger one that should have won. */
 
-/* ---- Two clocks ---- */
-@media (min-width: 769px) and (max-width: 1440px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { margin-right: 8px; }
-}
+/* ---- Two clocks, both in the centre ---- */
 @media (min-width: 769px) and (max-width: 1325px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 2pt; }
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) .usage-widget { margin-right: 8px; }
 }
-@media (min-width: 769px) and (max-width: 1290px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 4pt; }
+@media (min-width: 769px) and (max-width: 1180px) {
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 2pt; }
 }
-@media (min-width: 769px) and (max-width: 1250px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-title { display: none; }
+@media (min-width: 769px) and (max-width: 1150px) {
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 4pt; }
 }
-@media (min-width: 769px) and (max-width: 1155px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-resets { display: none; }
+@media (min-width: 769px) and (max-width: 1125px) {
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1035px) {
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) .usage-resets { display: none; }
 }
 
-/* ---- Three clocks (same ladder, ~170px earlier) ---- */
-@media (min-width: 769px) and (max-width: 1620px) {
-    .header.has-three-clocks .usage-widget { margin-right: 8px; }
+/* ---- Three clocks, all in the centre ---- */
+@media (min-width: 769px) and (max-width: 1440px) {
+    .header:not(.has-primary-clock).has-three-clocks .usage-widget { margin-right: 8px; }
 }
-@media (min-width: 769px) and (max-width: 1535px) {
-    .header.has-three-clocks { --clock-trim: 2pt; }
+@media (min-width: 769px) and (max-width: 1370px) {
+    .header:not(.has-primary-clock).has-three-clocks { --clock-trim: 2pt; }
 }
-@media (min-width: 769px) and (max-width: 1475px) {
-    .header.has-three-clocks { --clock-trim: 4pt; }
+@media (min-width: 769px) and (max-width: 1320px) {
+    .header:not(.has-primary-clock).has-three-clocks { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1275px) {
+    .header:not(.has-primary-clock).has-three-clocks .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1190px) {
+    .header:not(.has-primary-clock).has-three-clocks .usage-resets { display: none; }
+}
+
+/* ---- Four clocks, all in the centre ---- */
+@media (min-width: 769px) and (max-width: 1545px) {
+    .header:not(.has-primary-clock).has-four-clocks { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1480px) {
+    .header:not(.has-primary-clock).has-four-clocks { --clock-trim: 4pt; }
 }
 @media (min-width: 769px) and (max-width: 1420px) {
-    .header.has-three-clocks .usage-title { display: none; }
+    .header:not(.has-primary-clock).has-four-clocks .usage-title { display: none; }
 }
-@media (min-width: 769px) and (max-width: 1325px) {
-    .header.has-three-clocks .usage-resets { display: none; }
-}
-
-/* ---- Four clocks (same ladder, another ~170px earlier) ---- */
-@media (min-width: 769px) and (max-width: 1705px) {
-    .header.has-four-clocks { --clock-trim: 2pt; }
-}
-@media (min-width: 769px) and (max-width: 1645px) {
-    .header.has-four-clocks { --clock-trim: 4pt; }
-}
-@media (min-width: 769px) and (max-width: 1590px) {
-    .header.has-four-clocks .usage-title { display: none; }
-}
-@media (min-width: 769px) and (max-width: 1495px) {
-    .header.has-four-clocks .usage-resets { display: none; }
+@media (min-width: 769px) and (max-width: 1330px) {
+    .header:not(.has-primary-clock).has-four-clocks .usage-resets { display: none; }
 }
 
-/* Below the ladder's last rung the gauges alone (212px + 8px) still can't clear
-   the clocks, and there is nothing left in the list to shed — so the widget
-   goes. Two clocks reach this at 905px, three at 1075px, four at ~1245px. */
-@media (min-width: 769px) and (max-width: 1245px) {
-    .header.has-four-clocks .usage-widget { display: none; }
+/* ---- Primary + one side clock (right side still binds: 277px of left
+        content vs the 436px widget, so the rungs mirror the two-clock
+        ladder against the wider primary centre) ---- */
+@media (min-width: 769px) and (max-width: 1350px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { margin-right: 8px; }
 }
-@media (min-width: 769px) and (max-width: 1075px) {
-    .header.has-three-clocks .usage-widget { display: none; }
+@media (min-width: 769px) and (max-width: 1205px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 2pt; }
 }
-@media (min-width: 769px) and (max-width: 905px) {
-    .header:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { display: none; }
+@media (min-width: 769px) and (max-width: 1180px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1155px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) .usage-title { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1070px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) .usage-resets { display: none; }
+}
+
+/* ---- Primary + two side clocks (left zone binds — trim, plus one late
+        margin shed: with the 44px cosmetic margin the right side re-takes
+        the lead by ~5px around 1210px, and shedding it hands that back) ---- */
+@media (min-width: 769px) and (max-width: 1410px) {
+    .header.has-primary-clock.has-three-clocks { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1310px) {
+    .header.has-primary-clock.has-three-clocks { --clock-trim: 4pt; }
+}
+@media (min-width: 769px) and (max-width: 1230px) {
+    .header.has-primary-clock.has-three-clocks .usage-widget { margin-right: 8px; }
+}
+
+/* ---- Primary + three side clocks (left zone binds — trim only) ---- */
+@media (min-width: 769px) and (max-width: 1755px) {
+    .header.has-primary-clock.has-four-clocks { --clock-trim: 2pt; }
+}
+@media (min-width: 769px) and (max-width: 1630px) {
+    .header.has-primary-clock.has-four-clocks { --clock-trim: 4pt; }
+}
+
+/* Below the last rung of the centre-clock ladders the gauges alone
+   (188px + 8px) still can't clear the clocks, and there is nothing left in
+   the list to shed — so the widget goes. (The primary-selected ladders have
+   no equivalent: there the LEFT zone binds, so removing the widget frees
+   nothing — except at two clocks, where the right side binds down to the
+   point the trimmed side clock overtakes the bare gauges.) */
+@media (min-width: 769px) and (max-width: 1085px) {
+    .header:not(.has-primary-clock).has-four-clocks .usage-widget { display: none; }
+}
+@media (min-width: 769px) and (max-width: 940px) {
+    .header:not(.has-primary-clock).has-three-clocks .usage-widget { display: none; }
+}
+@media (min-width: 769px) and (max-width: 800px) {
+    .header:not(.has-primary-clock):not(.has-three-clocks):not(.has-four-clocks) .usage-widget { display: none; }
+}
+@media (min-width: 769px) and (max-width: 910px) {
+    .header.has-primary-clock:not(.has-three-clocks):not(.has-four-clocks) .usage-widget { display: none; }
 }
 
 /* ========================================

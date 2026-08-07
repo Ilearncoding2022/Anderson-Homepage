@@ -58,7 +58,6 @@ Object.assign(ProjectsWidget, {
             const hadState = this._approvals.length || hadArmed;
             this._approvals = [];
             this._autoAllow?.clear();
-            this._autoGranted?.clear();
             this._persistAutoAllow();
             if (hadArmed) {
                 this._alertQueue.push({ sentence: 'Auto-allow stopped.' });

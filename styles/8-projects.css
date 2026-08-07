@@ -1263,76 +1263,105 @@
 }
 
 /* ----------------------------------------
-   4c. Auto-grant flash (a request was just auto-answered while armed)
+   4c. Armed running lights (auto-allow is on for this project)
    ---------------------------------------- */
 
-/* Same ring recipe as 4b, recoloured --accent blue and quadrupled from two
-   heads to four (90deg apart instead of 180deg apart) — a busier light for a
-   busier fact. This is a brief post-grant flash, not a "waiting" indicator:
-   there's no state where an armed project's held request sits attached to
-   its bar at the same time as this class, since attaching a request to a
-   bar (_applyApprovalOverlay) is exactly what makes it needs-you/orange
-   instead. See _syncAutoGrant in scripts/9.4-projects-render.js for the full
-   state rule (armed + not-yet-expired flash, timed from a landed
-   auto-decide) and its ticker-driven expiry.
+/* Four --accent-blue comet streaks travelling the bar's border while
+   auto-allow is armed. Until v4.38 this was a brief post-grant flash (a
+   timed .is-auto-granted class + conic ring, see AUTO_GRANT_FLASH_MS in git
+   history); now it rides .is-armed, which _syncArm already reconciles onto
+   the bar, so the lights run for the WHOLE armed window — the user's
+   request was that an armed project reads as armed at a glance even when
+   nothing in it is running. The per-grant cue that remains is the pill's
+   tally swell (_ackAutoAllow). Disarm paths all converge on a render that
+   drops .is-armed, and _tickArm's expiry defers a _processData for exactly
+   this.
 
-   Reuses the registered --pb-beam property and the pb-beam-spin keyframe
-   verbatim; both are head-count agnostic.
+   Why real elements on an offset-path and NOT the 4b conic-ring recipe: the
+   user asked for the four lights to be spaced evenly, and a spinning conic
+   gradient cannot do that on a bar — conic angles are true angles from the
+   centre, and on a box ~40x wider than tall the angle→edge-position mapping
+   is a tangent: heads crawl bunched within ~±(bar-height) of the horizontal
+   middle for most of every cycle, then teleport around the ends. No easing
+   can fix all four heads at once (one head's needed correction is another's
+   distortion — they sit at different phases of the same variable). Equal
+   spacing that HOLDS therefore has to be measured in path length, which is
+   what offset-distance animates: each streak runs the same border track
+   (inset() mirroring the bar's radius) at constant speed, staggered a
+   quarter-cycle apart, so they are 25% of the perimeter apart at every
+   moment at any bar size — collapsed or expanded. offset-rotate:auto keeps
+   each streak lying along its edge with the bright tip leading (the 90deg
+   gradient points at the direction of travel).
 
-   :not(.is-needs-you) is belt-and-braces, not the mechanism that keeps these
-   two apart in practice (that's the state rule above) — but a bar that is
-   genuinely both must still paint orange, and writing that into the selector
-   means it holds regardless of how these two blocks get reordered later. */
-.project-bar.is-auto-granted:not(.is-needs-you)::after {
-    content: "";
+   Each comet is a CHAIN of 9 short links, not one long streak — a rigid
+   64px bar swung wide outside the border at the 8px corners and snapped
+   through the 90° turn (user report). Small links bend around the corner
+   one at a time (a 7px link's own overhang on the corner arc is <1px), so
+   the comet visibly follows the border. The spans carry their stagger
+   (--d), tail fade (--o) and head size/color (--w/--bg) inline — emitted by
+   _armedLightsHTML in 9.4-projects-render.js; the quarter-lap comet spacing
+   and the per-link trailing step are both just animation-delay on the same
+   lap, so the equal spacing and the chain shape come from one mechanism.
+   The spans cost nothing when hidden: display:none unless armed, and the
+   only animated case is an armed bar, of which the cap allows 6.
+
+   :not(.is-needs-you): a bar can genuinely be both (armed while a request
+   that fell through to the button path sits on it — unknown session, or the
+   _autoFailed fallback after two dead /decide POSTs), and the request must
+   win: that bar paints the 4b orange ring, not blue. */
+.pb-armed-lights {
+    display: none;
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: conic-gradient(from var(--pb-beam),
-        transparent 0deg,
-        transparent 35deg,
-        rgba(91, 157, 255, 0.18) 60deg,
-        rgba(91, 157, 255, 0.55) 78deg,
-        #9CC4FF 86deg,
-        #EAF3FF 90deg,
-        transparent 90deg,
-        transparent 125deg,
-        rgba(91, 157, 255, 0.18) 150deg,
-        rgba(91, 157, 255, 0.55) 168deg,
-        #9CC4FF 176deg,
-        #EAF3FF 180deg,
-        transparent 180deg,
-        transparent 215deg,
-        rgba(91, 157, 255, 0.18) 240deg,
-        rgba(91, 157, 255, 0.55) 258deg,
-        #9CC4FF 266deg,
-        #EAF3FF 270deg,
-        transparent 270deg,
-        transparent 305deg,
-        rgba(91, 157, 255, 0.18) 330deg,
-        rgba(91, 157, 255, 0.55) 348deg,
-        #9CC4FF 356deg,
-        #EAF3FF 360deg);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    filter: drop-shadow(0 0 2px rgba(91, 157, 255, 0.85));
     pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    .project-bar.is-auto-granted:not(.is-needs-you)::after {
-        animation: pb-beam-spin 4.8s linear infinite;
-    }
+    .project-bar.is-armed:not(.is-needs-you) .pb-armed-lights { display: block; }
 }
 
-/* Reduced motion: static, even blue ring — structure mirrors the orange
-   fallback above exactly. */
+.pb-armed-lights span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--w, 7px);
+    height: 3px;
+    border-radius: 2px;
+    background: var(--bg, #9CC4FF);
+    opacity: var(--o, 1);
+    filter: drop-shadow(0 0 2px rgba(91, 157, 255, 0.85));
+    /* The track: the centreline of the 4b ring's 1.5px border band, with the
+       corner radius reduced to match so the links hug the corners. */
+    offset-path: inset(1.5px round calc(var(--radius-control) - 1.5px));
+    offset-rotate: auto;
+    animation: pb-armed-run 4.8s linear infinite;
+    /* Set per-span inline by _armedLightsHTML: comet phase + link trailing. */
+    animation-delay: var(--d, 0s);
+}
+
+@keyframes pb-armed-run {
+    from { offset-distance: 0%; }
+    to   { offset-distance: 100%; }
+}
+
+/* Reduced motion: no travelling lights — the same static, even blue ring
+   the conic version fell back to (recipe matches the 4b orange fallback).
+   The spans stay display:none (their gate is the no-preference query), so
+   the killed animation can never leave four static streaks piled at the
+   track's start. */
 @media (prefers-reduced-motion: reduce) {
-    .project-bar.is-auto-granted:not(.is-needs-you)::after {
+    .project-bar.is-armed:not(.is-needs-you)::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1.5px;
         background: rgba(91, 157, 255, 0.4);
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+                mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+                mask-composite: exclude;
+        pointer-events: none;
     }
 }
 

@@ -568,8 +568,9 @@ const App = {
             this._applyClockGroupingHighlight();
         });
 
-        // Right-click on a SECONDARY clock offers "Show in calendar" — the
-        // timeline's secondary time-zone gutter (UIRenderer.showClockTzMenu).
+        // Right-click on a SECONDARY clock offers "Set as secondary time zone
+        // column" — the timeline's secondary time-zone gutter
+        // (UIRenderer.showClockTzMenu).
         // The primary (rainbow) clock keeps the browser's native menu: its zone
         // is the axis itself, so a second copy could never render. preventDefault
         // only on handled hits — the rest of the header keeps its native menu.
@@ -751,6 +752,13 @@ const App = {
         const side = document.getElementById('headerSideClocks');
         if (!center || !side) return;
         this._primaryClockId = activeId;
+
+        // Mirror the layout onto the header for the space ladder: with a
+        // primary selected the centre holds ONE clock and the rest crowd the
+        // LEFT zone, which flips which side of the symmetric grid binds — see
+        // the header space ladder in 2-components.css. CSS can't see which
+        // container the clocks live in, same reason has-three-clocks exists.
+        document.querySelector('.header')?.classList.toggle('has-primary-clock', !!activeId);
 
         clocks.forEach(el => {
             const target = (activeId && el.id !== activeId) ? side : center;
