@@ -5,6 +5,20 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.33] — 2026-08-06
+
+### The Pomodoro card becomes a four-file family
+
+- **`4-pomodoro.js` slims from ~1,680 lines to 413**, keeping the timer's
+  state machine and the timer itself. Its six internal objects were already
+  cleanly separated, so the split is whole objects moving intact:
+  `4.1-pomodoro-audio.js` (the sound engine), `4.2-pomodoro-ui.js`
+  (history and rendering), and `4.3-pomodoro-app.js` (the orchestrator and
+  the startup block, loaded last so it sees the whole family).
+- **Verified, not assumed:** reconstructing the original file from the four
+  new ones reproduces it byte for byte, and every object appears exactly
+  once, in its expected file.
+
 ## [v4.32] — 2026-08-06
 
 ### The projects widget becomes a six-file family
