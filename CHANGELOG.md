@@ -5,6 +5,24 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.31] — 2026-08-06
+
+### The UI renderer becomes a three-file family
+
+- **`ui-renderer.js` retires** after growing to ~3,500 lines. It moves into
+  the scripts folder as a family of three: `10-renderer.js` (core group and
+  card rendering, event delegation, and the startup hook),
+  `10.1-renderer-calendar.js` (the calendar card and its event detail
+  modal), and `10.2-renderer-todo.js` (the To-Do card). The page loads them
+  in that order; the calendar and to-do files extend the same `UIRenderer`
+  object, so nothing about how the app behaves changes.
+- **Verified, not assumed:** all 95 methods and properties of the renderer
+  were accounted for after the split — none missing, none duplicated — and
+  reconstructing the original file from the three new ones reproduces it
+  byte for byte.
+- Stale comments elsewhere that pointed at `ui-renderer.js` by name now
+  point at the file that actually holds the code they reference.
+
 ## [v4.30] — 2026-08-06
 
 ### The calendar card's styles get their own stylesheet
