@@ -1142,8 +1142,17 @@
 
     <!-- Project status bar (v4.14, multi-agent since v4.15). Reads the
          generated claude-projects.js via the same <script> injection pattern —
-         see scripts/9-projects.js. -->
+         see scripts/9-projects.js. Split into a 9.x family of plain scripts
+         (no ES modules on file://): base (load/poll + derivation), then
+         Object.assign continuations for approve, auto-allow, alerts,
+         rendering and settings, in that order — 9.5 must load last because
+         it calls ProjectsWidget.start(). -->
     <script src="scripts/9-projects.js"></script>
+    <script src="scripts/9.1-projects-approve.js"></script>
+    <script src="scripts/9.2-projects-autoallow.js"></script>
+    <script src="scripts/9.3-projects-alerts.js"></script>
+    <script src="scripts/9.4-projects-render.js"></script>
+    <script src="scripts/9.5-projects-settings.js"></script>
 
     <!-- SQLite Database Persistence (sql-wasm-binary.js is ~850 KB). These are
          lazy-loaded by App.loadDbModule() after first paint so they don't block
