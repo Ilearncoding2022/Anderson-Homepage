@@ -138,20 +138,6 @@ Object.assign(ProjectsWidget, {
                 this._ackAutoAllow(barKey);
             }
             this._autoFailed?.delete(a.id);
-            // Post-grant flash (blue ring, styles/8-projects.css §4c) — kept
-            // below every other bookkeeping above, and after the outcome
-            // check, so a hypothetical throw here can never fall into
-            // .catch() and un-decide an id that's already approved. Also
-            // conditional on the project STILL being armed: this .then() can
-            // land up to ~4s after the sweep queued it, and a disarm
-            // (_disarm, cap-eviction, _closeRow, approve-off) in that window
-            // must not have this late write resurrect a flash nothing will
-            // ever reap — see _syncAutoGrant's matching `!armed` cleanup for
-            // the other half of this.
-            if (outcome && outcome.ok === true) {
-                const k = barKey.toLowerCase();
-                if (this._autoAllow?.has(k)) this._autoGranted?.set(k, Date.now() + this.AUTO_GRANT_FLASH_MS);
-            }
         }).catch(() => {
             // Didn't land: forget we answered so the next poll re-lists it —
             // back through the sweep if still armed, or as buttons once the
@@ -187,12 +173,6 @@ Object.assign(ProjectsWidget, {
      */
     _disarm(key, reason, name) {
         if (!this._autoAllow || !this._autoAllow.delete(key)) return false;
-        // Bounds the map immediately rather than waiting for the next tick
-        // or render to reap it via _syncAutoGrant's own `!armed` cleanup —
-        // belt-and-braces, not the only thing preventing a stale flash from
-        // outliving its disarmed project (see _autoDecide's armed guard for
-        // the write-side half of that).
-        this._autoGranted?.delete(key);
         this._persistAutoAllow();
         this._alertQueue.push({ sentence: reason === 'expired'
             ? `Auto-allow expired on ${name}.`

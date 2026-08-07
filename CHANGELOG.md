@@ -5,6 +5,46 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.38] — 2026-08-07
+
+### Armed lights run the whole window, and the header learns where its clocks are
+
+- **Usage cluster no longer hides at 100% zoom:** the header's give-up-width
+  ladder was still built on measurements from three versions ago (before the
+  search bar left, the secondary clocks shrank, and the gauge narrowed), so
+  its rungs fired up to ~280px early — hiding the Claude logo and "Usage"
+  label next to a couple hundred pixels of empty space. Every breakpoint was
+  re-measured in a real browser and tightened.
+- **The ladder now knows where the clocks are, not just how many:** with a
+  primary clock selected, the centre holds one clock and the rest crowd the
+  left zone — so the left side is what runs out of room, and hiding widget
+  pieces on the right frees nothing (the grid's side columns are always
+  equal). Those layouts get their own ladders that keep the full usage
+  widget at every width and spend their rungs shrinking the clocks instead.
+- **Auto-allow lights run for the whole armed window:** the blue border
+  lights used to flash once per auto-approved request; now they run from
+  the moment a project is armed until the window ends, so an armed project
+  reads as armed at a glance even when nothing in it is working. The
+  per-grant cue is still there — the pill swells and its tally climbs.
+- **The lights are evenly spaced and hug the corners:** a spinning gradient
+  can never keep four heads equally spaced on a wide bar (they bunch near
+  the middle, then teleport around the ends), so each light is now a chain
+  of small links travelling the bar's border at constant speed, a quarter
+  lap apart at every moment — and the chain bends through the rounded
+  corners instead of swinging wide and snapping through the turn.
+- **Calendar current-time dial, doubled and paired:** the dial is twice as
+  tall and hard-swaps solid white/black once a second, while the countdown
+  chip's digits flip in the opposite phase — wherever the text sits on the
+  bar it reads black-on-white or white-on-black, never lost. The chip also
+  moved to the centre of the dial and dropped 2pt; the green glow stays.
+- **The next-event dotted trace is white now** — the green whitelist entry
+  narrows to the dial and the chip's glow.
+- **The primary time column names its zone:** the label above the hour
+  gutter (e.g. "VN") matches what the secondary column already did, and it
+  follows the calendar's primary clock selection.
+- **Clock menu, clearer words:** right-clicking a header clock now offers
+  "Set as secondary time zone column" instead of "Show in calendar".
+
 ## [v4.37] — 2026-08-07
 
 ### The timeline points at what's next, and auto-allow shows its work

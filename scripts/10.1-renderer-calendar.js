@@ -354,7 +354,7 @@ Object.assign(UIRenderer, {
         item.className = 'card-context-item';
         item.setAttribute('role', 'menuitemcheckbox');
         item.setAttribute('aria-checked', String(checked));
-        item.textContent = `${checked ? '✓ ' : ''}Show in calendar`;
+        item.textContent = `${checked ? '✓ ' : ''}Set as secondary time zone column`;
         menu.appendChild(item);
 
         let x = ev?.pageX || 0;
@@ -747,7 +747,7 @@ Object.assign(UIRenderer, {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
         // Optional secondary time-zone gutter (right-click a header clock →
-        // "Show in calendar"). Null while the choice is unset, orphaned (no
+        // "Set as secondary time zone column"). Null while the choice is unset, orphaned (no
         // enabled clock has the zone) or equal to the axis's own zone — the
         // whole grid then renders exactly as before, one gutter column.
         const tz2 = cm.getSecondaryTimelineZone();
@@ -773,12 +773,15 @@ Object.assign(UIRenderer, {
         // extra leading cell when the extra column exists, or auto-placement
         // shoves the day headers/cells a column right of the hour grid.
         // Row 1 — per-day headers (matches the chip day view's column headers).
-        // The secondary corner carries the zone's short label — it is the one
-        // place the column identifies itself (the gutter shows bare times).
+        // Each gutter's corner carries its zone's short label — it is the one
+        // place a time column identifies itself (the gutters show bare times).
+        // The primary corner sat empty until v4.38 (user request: the primary
+        // axis should name its zone the same way the secondary column does).
+        const anchorTz = cm.getAnchorTimezone();
         const corner2 = tz2
             ? `<div class="cal-tl-corner cal-tl-corner2" aria-hidden="true" title="${Utils.sanitizeHTML(tz2)}">${Utils.sanitizeHTML(cm._tzLabel(tz2))}</div>`
             : '';
-        const headers = corner2 + `<div class="cal-tl-corner" aria-hidden="true"></div>`
+        const headers = corner2 + `<div class="cal-tl-corner cal-tl-corner1" aria-hidden="true" title="${Utils.sanitizeHTML(anchorTz)}">${Utils.sanitizeHTML(cm._tzLabel(anchorTz))}</div>`
             + model.days.map(d =>
                 `<div class="cal-tl-dayhead${d.day.isToday ? ' is-today' : ''}">${Utils.sanitizeHTML(d.day.isToday ? 'Today · ' + d.day.label : d.day.label)}</div>`
             ).join('');

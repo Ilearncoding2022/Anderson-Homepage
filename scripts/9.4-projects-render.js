@@ -258,9 +258,42 @@ Object.assign(ProjectsWidget, {
             <div class="pb-approvals" hidden></div>
             <div class="pb-detail" id="${detailId}" hidden>
                 <ul class="pb-chats" role="list"></ul>
-            </div>`;
+            </div>
+            ${this._armedLightsHTML()}`;
         li.addEventListener('animationend', () => li.classList.remove('is-new'), { once: true });
         return li;
+    },
+
+    /**
+     * The armed running lights (styles/8-projects.css §4c): four comets, each
+     * a CHAIN of small links rather than one long streak — a rigid 64px bar
+     * swung wide outside the border at the 8px corners and snapped through
+     * the 90° turn (user report, v4.38). Every link runs the same offset-path
+     * lap; the inline --d stagger is what forms the shapes: comets sit a
+     * quarter-lap apart (equal perimeter spacing at every moment — the reason
+     * this is offset-path and not a conic gradient, see the CSS), and within
+     * a comet each link trails the head by LINK_STEP seconds, so the chain
+     * bends around corners link by link while a 7px link's own corner
+     * overhang is under 1px. --o fades the tail; the head link is wider and
+     * near-white, matching the old comet gradient's hot tip.
+     */
+    _armedLightsHTML() {
+        // LINK_STEP × path speed (~640px/s on a collapsed full-width bar)
+        // ≈ 7px between link centres — links are 7px long, so they touch and
+        // the chain reads as one solid comet, not a dotted line.
+        const COMETS = 4, LINKS = 11, LAP = 4.8, LINK_STEP = 0.011;
+        const fade = [1, 0.87, 0.75, 0.64, 0.54, 0.45, 0.36, 0.28, 0.21, 0.15, 0.1];
+        const spans = [];
+        for (let c = 0; c < COMETS; c++) {
+            for (let k = 0; k < LINKS; k++) {
+                // More negative = further along the lap, so the head (k=0)
+                // takes the largest offset and the tail trails it.
+                const d = (c * (LAP / COMETS) + (LINKS - 1 - k) * LINK_STEP).toFixed(3);
+                const head = k === 0 ? '--w:10px;--bg:#EAF3FF;' : '';
+                spans.push(`<span style="--d:-${d}s;--o:${fade[k]};${head}"></span>`);
+            }
+        }
+        return `<div class="pb-armed-lights" aria-hidden="true">${spans.join('')}</div>`;
     },
 
     _countChip(bar) {
@@ -334,7 +367,6 @@ Object.assign(ProjectsWidget, {
 
         this._renderApprovalStrip(li, bar);
         this._syncArm(li, bar);
-        this._syncAutoGrant(li, bar);
         this._syncExpansion(li, bar);
 
         // Recency lives in the ticking .pb-time number + its aria-label, not
@@ -356,45 +388,12 @@ Object.assign(ProjectsWidget, {
         this._tickNode(li);
     },
 
-    /**
-     * Blue 4-head running-light ring (.is-auto-granted, styles/8-projects.css
-     * §4c): a brief post-grant flash, not a "waiting" indicator. There is no
-     * state where an armed project's held request sits attached to its bar
-     * IN PARALLEL with a class we could paint blue — every path that puts a
-     * request on a bar (_applyApprovalOverlay) sets needs-you, which
-     * _deriveState propagates, which is exactly what makes that bar orange.
-     * That covers the sweep's own leftovers too (a request left un-answered
-     * because `_approveBusy` was already holding it, or because it tripped
-     * the `_autoFailed` fallback after two dead /decide POSTs): those still
-     * flow through the same overlay and render as needs-you, not blue. So
-     * this is what the feature observably is — a brief "that just got
-     * auto-approved" flash, timed by AUTO_GRANT_FLASH_MS from the moment
-     * _autoDecide's fetch actually lands (scripts/9.2-projects-autoallow.js).
-     *
-     * Pure class toggle on the existing bar node — reconciled in place on
-     * every render pass exactly like is-needs-you/is-armed, and never read
-     * by _deriveState, alerts, sorting or expansion.
-     *
-     * The `!armed` branch below (not just "expired") matters because
-     * _autoDecide's fetch can land up to ~4s after the sweep queued it: a
-     * disarm (_disarm, cap-eviction, _closeRow, approve-off) firing in that
-     * window is guarded on the write side (_autoDecide only sets the flash
-     * if the project is still armed at landing time), but a project can also
-     * be disarmed AFTER a flash was already set — this is the read side of
-     * that same guarantee, so a stale flash can never survive its project
-     * losing its armed window.
-     */
-    _syncAutoGrant(li, bar) {
-        const key = bar.cwdKey.toLowerCase();
-        // _syncArm (called just above) has already disarmed any entry whose
-        // deadline lapsed this pass, so .has() here already means "armed
-        // right now".
-        const armed = !!this._autoAllow?.has(key);
-        const until = this._autoGranted?.get(key) || 0;
-        const flashing = armed && until > Date.now();
-        if (!flashing) this._autoGranted?.delete(key); // expired, or its project isn't armed — stop carrying it
-        li.classList.toggle('is-auto-granted', flashing);
-    },
+    // The blue 4-head running-light ring (styles/8-projects.css §4c) rides
+    // the .is-armed class _syncArm reconciles above — it ran here as a timed
+    // post-grant flash (.is-auto-granted + an _autoGranted map) until v4.38,
+    // when it became a whole-window "auto-allow is on" indicator by request.
+    // A bar that is armed AND carrying a fallen-through request still paints
+    // orange — the §4c selector excludes .is-needs-you.
 
     // ----------------------------------------
     // Expand / collapse: conversations and their agents
@@ -989,27 +988,6 @@ Object.assign(ProjectsWidget, {
         if (this._autoAllow?.size) {
             ul.querySelectorAll('.pb-arm[data-until]').forEach(el => this._tickArm(el));
         }
-        // The post-grant flash (.is-auto-granted) is timed to disappear at a
-        // specific moment — one rotation of the blue ring — not on whatever
-        // render happens to come along next. Left to the render passes alone
-        // it would only be re-evaluated by the 2s approval poll (which sees
-        // no change right after a grant, so doesn't fire) or the 6s data
-        // poll, stretching the flash to 4.8-10.8s and cutting it off at an
-        // arbitrary rotation angle instead of a full sweep. Gated so the
-        // common case (nothing ever granted) adds no per-second work.
-        if (this._autoGranted?.size) {
-            const now = Date.now();
-            for (const [key, until] of this._autoGranted) {
-                if (until > now && this._autoAllow?.has(key)) continue; // still flashing on an armed project
-                this._autoGranted.delete(key);
-                for (const li of ul.querySelectorAll('.project-bar')) {
-                    if ((li.dataset.cwdKey || '').toLowerCase() === key) {
-                        li.classList.remove('is-auto-granted');
-                        break;
-                    }
-                }
-            }
-        }
     },
 
     /** Update every elapsed readout inside one node (self included). */
@@ -1087,7 +1065,6 @@ Object.assign(ProjectsWidget, {
         // visible stop button, so every armed window ends with the row.
         if (this._autoAllow?.size) {
             this._autoAllow.clear();
-            this._autoGranted?.clear();
             this._persistAutoAllow();
             this._alertQueue.push({ sentence: 'Auto-allow stopped — its project left the row.' });
             this._flushAlerts();

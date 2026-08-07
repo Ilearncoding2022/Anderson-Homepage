@@ -99,10 +99,11 @@
     /* ---- Reserved signal ----
        --signal may appear in exactly FOUR places app-wide:
          1. the Today & Now running-light beam (3-groups-cards.css)
-         2. the calendar's current-time "now" bar (.cal-tl-now), plus its
-            timeline "next event" dotted trace + eta chip (.cal-tl-trace /
-            .cal-tl-eta, 3.1-groups-calendar.css) — a deliberate extension of
-            the same now-marker, not a new green surface
+         2. the calendar's current-time "now" bar (.cal-tl-now) and the glow
+            on its eta chip (.cal-tl-eta, 3.1-groups-calendar.css) — one
+            now-marker, not a new green surface. (The "next event" dotted
+            trace was green too until v4.38; the user asked for white dots,
+            so only the glows carry --signal there now.)
          3. the armed auto-allow pill's approval tick (.pb-arm-tick)
          4. the To-Do card's done check + archive-countdown ring (.todo-done-btn)
        Its whole job is to be the only green on the page, so that the eye goes

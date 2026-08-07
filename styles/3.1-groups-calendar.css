@@ -1383,10 +1383,10 @@
     scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
 }
 
-/* Secondary time-zone gutter active (right-click a header clock → "Show in
-   calendar"): one extra 2.6rem track ahead of the hour axis. The renderer
-   shifts every explicitly-placed hour-row cell and emits the extra corner /
-   all-day-spacer cells the auto-placed rows need. */
+/* Secondary time-zone gutter active (right-click a header clock → "Set as
+   secondary time zone column"): one extra 2.6rem track ahead of the hour
+   axis. The renderer shifts every explicitly-placed hour-row cell and emits
+   the extra corner / all-day-spacer cells the auto-placed rows need. */
 .calendar-timeline.is-two-tz {
     grid-template-columns: 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
 }
@@ -1421,10 +1421,13 @@
     color: var(--accent);
 }
 
-/* The secondary gutter's corner names its zone (the gutter itself shows bare
-   times). Shares .cal-tl-corner for the sticky/opaque header treatment. No
-   `zoom` (sticky box) and no text-transform (custom clock labels keep their
-   case). Bottom-aligned so the label sits on the header's baseline rule. */
+/* Each gutter's corner names its zone (the gutters themselves show bare
+   times) — the primary corner joined in v4.38 (user request: the primary
+   axis should identify itself like the secondary column does). Both share
+   .cal-tl-corner for the sticky/opaque header treatment. No `zoom` (sticky
+   box) and no text-transform (custom clock labels keep their case).
+   Bottom-aligned so the label sits on the header's baseline rule. */
+.cal-tl-corner1,
 .cal-tl-corner2 {
     font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);
     color: rgba(255, 255, 255, 0.35);
@@ -1607,20 +1610,29 @@
     font-weight: 500;
 }
 
-/* Current-time indicator on the today column: a two-stripe black/white bar under
-   a --signal glow. The stripes swap twice a second, so it reads as a blinking
-   marker rather than just another coloured rule among the event blocks. This is
-   one of --signal's four sanctioned homes app-wide (see 1-core.css) — along
-   with the "next event" dotted trace + eta chip below, which extend this same
-   now-marker rather than opening a new green surface — its glow used to be red
-   specifically to stay legible against the calendar's old green event blocks,
-   which is no longer a concern now that green isn't a UI colour here. */
+/* Current-time indicator on the today column: a solid bar under a --signal
+   glow, hard-swapping white↔black once a second so it reads as a blinking
+   marker rather than just another coloured rule among the event blocks. (It
+   was a half-height two-stripe bar until v4.38 — the user asked for double
+   height and a whole-bar swap, paired against the eta chip's text: the chip
+   flips black↔white in ANTIPHASE below, so wherever the text sits on the bar
+   the pair is always black-on-white or white-on-black. Change one phase and
+   you must flip the other, and both declared (static) colors with them.)
+   This is one of --signal's four sanctioned homes app-wide (see 1-core.css) —
+   along with the eta chip's glow below, the same now-marker rather than a
+   new green surface (the dotted trace left the entry in v4.38: its dots are
+   white now by user request) — its glow used to be red specifically to stay
+   legible against the calendar's old green event blocks, which is no longer
+   a concern now that green isn't a UI colour here. */
 .cal-tl-now {
     position: absolute;
     left: 0;
     right: 0;
-    height: 4px;
-    background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%);
+    height: 8px;
+    /* Declared = the 0% keyframe = the reduced-motion static frame: WHITE bar
+       (visible on the dark pane), which is why the chip's static color below
+       is black. */
+    background: #fff;
     box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
     /* Bumped from 2 to 3 alongside the "next event" trace: event blocks now
        carry an explicit z-index:2 too (so they can sit above the trace, which
@@ -1635,7 +1647,7 @@
     content: '';
     position: absolute;
     left: -5px;
-    top: -3px;
+    top: -1px;   /* centre of the 10px ring = centre of the 8px bar */
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -1647,10 +1659,11 @@
 }
 
 /* Hard swap (steps(1)) rather than a cross-fade — the alternation is what makes
-   it read as blinking. The red glow stays lit throughout. */
+   it read as blinking. The --signal glow stays lit throughout. Phase-locked
+   AGAINST cal-eta-flip below: bar white while text black, then both swap. */
 @keyframes cal-now-blink {
-    0% { background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%); }
-    50% { background: linear-gradient(to bottom, #fff 0 50%, #000 50% 100%); }
+    0% { background: #fff; }
+    50% { background: #000; }
 }
 
 @keyframes cal-now-dot-blink {
@@ -1713,8 +1726,8 @@
    one dot at a time" loop (UIRenderer._wireCalendarTrace, Web Animations,
    NOT a CSS keyframe — see that method for why) animates them into view via
    clip-path, and a single painted background is one thing to clip.
-   --signal is explicitly sanctioned here, alongside the dial, as one more
-   deliberate extension of the now-marker rather than a new green surface.
+   The dots were --signal green (sanctioned) until v4.38, when the user asked
+   for white — the dial's and chip's green GLOW remain the whitelist entry.
 
    The full z-index ladder for this grid (documented once, here, rather than
    repeated at each rule): 1 trace, 2 event blocks, 3 the now-dial, 4 the eta
@@ -1732,49 +1745,57 @@
     margin-left: -2px;
     z-index: 1;
     pointer-events: none;
-    background-image: radial-gradient(circle, var(--signal) 1.4px, transparent 1.6px);
+    background-image: radial-gradient(circle, #fff 1.4px, transparent 1.6px);
     background-size: 4px 7px;
     background-position: top center;
     background-repeat: repeat-y;
 }
 
-/* Countdown chip: lives at the RIGHT end of the dial only — the left half
-   covers the running event's time text. translateY(-50%) centers it on the
-   dial's own `top`, the same way .cal-tl-hour centers on its gridline.
-   Monospace + tabular numerals so the digits don't reflow width as
-   UIRenderer._tickCalendarEta rewrites them every 30s. aria-hidden (except
-   when it's the sole accessible source — see UIRenderer._calendarEtaChipHTML,
-   which sets role="note" + aria-label instead in that case).
-   The text flips #fff/#000 on the dial's own cadence (same 1s steps(1) as
-   cal-now-blink, so chip and stripes swap together) while the --signal glow
-   stays lit throughout — the identical construction to the dial itself
-   ("black/white under a --signal glow"), and the glow is what keeps the
-   black phase legible on the dark pane. The global reduced-motion animation
-   killer (5-pomodoro.css) stops the flip; the declared color is the white
-   phase, so the static fallback is simply a lit white chip.
+/* Countdown chip: horizontally CENTERED on the dial (v4.38, user request —
+   it was right-anchored to spare the running event's time text; the user
+   chose centre anyway, accepting that a running event's first line can sit
+   under the chip). Monospace + tabular numerals so the digits don't reflow
+   width as UIRenderer._tickCalendarEta rewrites them every 30s. aria-hidden
+   (except when it's the sole accessible source — see
+   UIRenderer._calendarEtaChipHTML, which sets role="note" + aria-label
+   instead in that case).
+   The text flips #000/#fff on the dial's own cadence (same 1s steps(1) as
+   cal-now-blink) but in ANTIPHASE with the bar — bar white while text black,
+   then both swap (v4.38, user-requested pairing) — so wherever the text
+   overlaps the bar it always reads black-on-white or white-on-black; the
+   --signal glow stays lit throughout and keeps whatever strays off the bar
+   legible against the dark pane. The translateY offset re-centres the text
+   on the 8px bar's own middle (its inline `top` is the bar's top edge, the
+   now instant) so the text actually sits ON the bar the pairing is built
+   against — the +4px is height/2 and must track any bar-height change.
+   The global reduced-motion animation killer (5-pomodoro.css) stops the
+   flip; the declared color is the black phase to match the dial's static
+   white bar, so the static fallback is black-on-white.
    NO `zoom` here, same trap as .cal-tl-hour / .cal-tl-event: this box is
    positioned by `top` — a calc() fraction of --tl-gridh — and `zoom` scales
    that fraction too, pulling the chip off the dial it's meant to sit on. */
 .cal-tl-eta {
     position: absolute;
     top: 0;
-    right: 2px;
-    transform: translateY(-50%);
+    left: 50%;
+    transform: translate(-50%, calc(-50% + 4px));
     z-index: 4;
     pointer-events: none;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: calc(var(--cal-fs-tz, 0.65rem) - 4px);
-    color: #fff;
+    /* -4px was the original size; the extra 2pt is a v4.38 user request. */
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 4px - 2pt);
+    color: #000;
     text-shadow: 0 0 4px color-mix(in srgb, var(--signal) 60%, transparent);
     white-space: nowrap;
     animation: cal-eta-flip 1s steps(1, end) infinite;
 }
 
-/* Hard swap, not a cross-fade — same reasoning as cal-now-blink above. */
+/* Hard swap, not a cross-fade — same reasoning as cal-now-blink above, whose
+   phases these deliberately OPPOSE (see the pairing note above). */
 @keyframes cal-eta-flip {
-    0% { color: #fff; }
-    50% { color: #000; }
+    0% { color: #000; }
+    50% { color: #fff; }
 }
 
 /* ========================================
