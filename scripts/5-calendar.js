@@ -1169,6 +1169,83 @@ const CalendarManager = {
         return { rangeStartMin, rangeEndMin, displaySpanMin, hours, days: days2, gaps, tz };
     },
 
+    // Target for the timeline's dotted "next event" trace + countdown chip:
+    // the earliest POSITIONED in-window event when one exists ('today'/'later'
+    // — a real endpoint the line can be drawn to); otherwise the earliest
+    // upcoming timed event anywhere in `state.events` ('beyond' — the
+    // countdown still tracks it, but the line has no endpoint to aim at, so it
+    // just runs to the bottom of every remaining column). Returns null when
+    // today isn't in the visible window (no dial to draw from) or there is no
+    // upcoming timed event at all.
+    //
+    // The in-window search is always tried FIRST and wins outright — it's the
+    // common case, it's cheap (no localStorage reads), and it must never be
+    // vetoed by the fallback scan. The `state.events` fallback (not
+    // `getUpcomingEvents()`, whose own `daysAhead` cutoff could hide an event
+    // this still needs to point at) only runs, and only pays for hidden-
+    // calendar lookups, when the in-window search comes up empty.
+    getTimelineTraceTarget(model) {
+        const now = Date.now();
+        const todayIdx = model.days.findIndex(d => d.day.isToday && d.nowTopPct != null);
+        if (todayIdx === -1) return null;
+
+        let inWindow = null;
+        for (let i = todayIdx; i < model.days.length; i++) {
+            for (const p of model.days[i].timed) {
+                const startMs = new Date(p.ev.start).getTime();
+                if (!Number.isFinite(startMs) || startMs <= now) continue;
+                if (!inWindow || startMs < inWindow.startMs) {
+                    inWindow = { dayIdx: i, topPct: p.topPct, startMs };
+                }
+            }
+        }
+        if (inWindow) {
+            return {
+                kind: inWindow.dayIdx === todayIdx ? 'today' : 'later',
+                todayIdx, dayIdx: inWindow.dayIdx, topPct: inWindow.topPct, startMs: inWindow.startMs,
+            };
+        }
+
+        // No in-window candidate — only now is the full state.events scan (and
+        // the hidden-calendar lookups it needs) worth paying for. Hoisted out
+        // of the loop rather than calling the shared _eventHidden(ev) per
+        // event, which re-reads localStorage every time.
+        const tz = model.tz;
+        const hidden = this.getHiddenCalendars();
+        const hiddenNames = hidden.length
+            ? this.getCalendars().filter(c => hidden.includes(c.url)).map(c => c.name)
+            : [];
+        const isHidden = (ev) => {
+            if (!hidden.length) return false;
+            if (ev._calUrl) return hidden.includes(ev._calUrl);
+            if (ev._calName) return hiddenNames.includes(ev._calName);
+            return false;
+        };
+
+        let overallMs = Infinity;
+        for (const ev of this.state.events) {
+            if (!ev || !ev.start || ev.allDay) continue;
+            const startMs = new Date(ev.start).getTime();
+            if (!Number.isFinite(startMs) || startMs <= now || startMs >= overallMs) continue;
+            // A multi-day span has no single meaningful point on the hour
+            // axis — buildTimelineModel excludes it from `d.timed` on every
+            // day but its first/last (the 'spanning' marker is set only on
+            // bucketed middle-day copies, never on the raw event this loop
+            // sees), so replicate that exclusion here at event granularity:
+            // if the event's calendar start-day and end-day differ, it's
+            // ineligible regardless of which day it would eventually land on.
+            const endMs = ev.end ? new Date(ev.end).getTime() : startMs;
+            const effectiveEndMs = endMs > startMs ? endMs : startMs;
+            if (this._dateOnly(new Date(startMs), tz) !== this._dateOnly(new Date(effectiveEndMs), tz)) continue;
+            if (isHidden(ev)) continue;
+            overallMs = startMs;
+        }
+        if (overallMs === Infinity) return null;
+        // The trace has no endpoint to aim at (the target lies beyond the
+        // last visible day), but the countdown still targets it.
+        return { kind: 'beyond', todayIdx, dayIdx: null, topPct: null, startMs: overallMs };
+    },
+
     // Resolve a stored clock setting ('local'/'UTC'/IANA id) to a concrete IANA zone.
     // Returns undefined for disabled ('none'). Defaults match the clock settings:
     // Clock #1 → local, Clock #2 → UTC, Clocks #3/#4 → none (disabled).

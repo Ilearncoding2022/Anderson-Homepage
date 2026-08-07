@@ -97,9 +97,14 @@
     --structural-soft: rgba(120,160,220,0.18);
 
     /* ---- Reserved signal ----
-       --signal may appear in EXACTLY TWO places app-wide:
+       --signal may appear in exactly FOUR places app-wide:
          1. the Today & Now running-light beam (3-groups-cards.css)
-         2. the calendar's current-time "now" bar (.cal-tl-now)
+         2. the calendar's current-time "now" bar (.cal-tl-now), plus its
+            timeline "next event" dotted trace + eta chip (.cal-tl-trace /
+            .cal-tl-eta, 3.1-groups-calendar.css) — a deliberate extension of
+            the same now-marker, not a new green surface
+         3. the armed auto-allow pill's approval tick (.pb-arm-tick)
+         4. the To-Do card's done check + archive-countdown ring (.todo-done-btn)
        Its whole job is to be the only green on the page, so that the eye goes
        to it and nothing else. Do not reach for it for success states, healthy
        meters, badges, or hovers — use --ok-neutral or --ink-dim instead. */

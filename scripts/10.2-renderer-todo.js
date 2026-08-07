@@ -1065,25 +1065,40 @@ Object.assign(UIRenderer, {
             && (this._calTlAnchoredTop == null || Math.abs(prev - this._calTlAnchoredTop) > 1);
 
         requestAnimationFrame(() => {
-            const tl = document.querySelector('.calendar-group .calendar-timeline');
-            if (!tl) return;
-            // Fit each event block's text to its height (runs on every render path
-            // through this hook). Before the scroll math below — it never changes a
-            // block's own height, so the now-line geometry stays valid.
-            this._fitTimelineEventText(tl);
-            if (userMoved) { tl.scrollTop = prev; return; }
+            // The trace re-wire runs LAST, in `finally`, and swallows its own
+            // errors — it's pure decoration on top of the scroll-anchoring
+            // this rAF exists for, so a WAAPI quirk or a rejected easing
+            // string in there must never take out _fitTimelineEventText or
+            // the now-line anchoring below it (it used to run first,
+            // unguarded, which meant exactly that on any throw).
+            try {
+                const tl = document.querySelector('.calendar-group .calendar-timeline');
+                if (!tl) return;
+                // Fit each event block's text to its height (runs on every render path
+                // through this hook). Before the scroll math below — it never changes a
+                // block's own height, so the now-line geometry stays valid.
+                this._fitTimelineEventText(tl);
+                if (userMoved) { tl.scrollTop = prev; return; }
 
-            const now = tl.querySelector('.cal-tl-now');
-            if (!now) return;   // "now" isn't inside the rendered window — leave it at the top
+                const now = tl.querySelector('.cal-tl-now');
+                if (!now) return;   // "now" isn't inside the rendered window — leave it at the top
 
-            // Distance from the scroll box's top edge to the now-line, in its
-            // current scroll state. Landing it ~35% down the viewport keeps the
-            // preceding hour visible and clears the sticky day headers.
-            const delta = now.getBoundingClientRect().top - tl.getBoundingClientRect().top;
-            tl.scrollTop += delta - tl.clientHeight * 0.35;
-            // Record where it actually landed (the browser clamps to the scroll
-            // range) so the next render can tell our scroll from the user's.
-            this._calTlAnchoredTop = tl.scrollTop;
+                // Distance from the scroll box's top edge to the now-line, in its
+                // current scroll state. Landing it ~35% down the viewport keeps the
+                // preceding hour visible and clears the sticky day headers.
+                const delta = now.getBoundingClientRect().top - tl.getBoundingClientRect().top;
+                tl.scrollTop += delta - tl.clientHeight * 0.35;
+                // Record where it actually landed (the browser clamps to the scroll
+                // range) so the next render can tell our scroll from the user's.
+                this._calTlAnchoredTop = tl.scrollTop;
+            } finally {
+                // Re-wire the trace's loop animation regardless of whether a
+                // timeline rendered this time — it re-queries the DOM itself and
+                // must still cancel a previous timeline's animations (and drop the
+                // ResizeObserver) when a render switches the card out of timeline
+                // mode entirely.
+                try { this._wireCalendarTrace(); } catch { /* decoration only — never let this break the anchoring above */ }
+            }
         });
     },
 

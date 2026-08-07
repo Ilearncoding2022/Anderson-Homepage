@@ -5,6 +5,31 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.37] — 2026-08-07
+
+### The timeline points at what's next, and auto-allow shows its work
+
+- **Next-event trace (calendar timeline):** an animated dotted line runs
+  from the current-time dial to the next timed event — down today's
+  column, through the days between, into the target day's column — growing
+  one dot at a time in a continuous loop. Every dot is positioned off the
+  timeline's one shared height basis, so the line lands exactly on the
+  event block it points at, gap bands and all.
+- **Countdown chip:** at the right end of the dial, a small monospace
+  countdown (`42 min`, `1:05`, `11:30`) ticks every 30 seconds and
+  re-targets the following event the moment one starts. Its digits flip
+  white/black on the dial's own blink cadence, under the same green glow —
+  it reads as part of the dial, not a label stuck to it.
+- Both honour reduced motion (a static fully-drawn line, no flip), and
+  when the upcoming-events bar is set to Off the chip becomes the
+  screen-reader source for "next event in X" instead of staying decorative.
+- **Auto-allow grant lights (project bars):** each time an armed project's
+  permission request is auto-approved, the bar's border runs one full
+  revolution of a blue four-headed light beam — the needs-you ring's
+  recipe in the accent blue, with twice the heads. Orange still wins
+  whenever a real human decision is needed, and the flash never triggers
+  the needs-you sound, tab alert, or auto-expand.
+
 ## [v4.36] — 2026-08-06
 
 ### Hotfix: the app failed to start after the v4.34 split

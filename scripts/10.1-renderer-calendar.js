@@ -836,7 +836,21 @@ Object.assign(UIRenderer, {
               + `background-size:100% 1px;background-repeat:no-repeat;`
             : '';
 
+        // "Next event" trace: a dotted line from the now-dial down to the next
+        // upcoming TIMED event (never all-day — those have no point on the hour
+        // axis), plus the countdown chip anchored to the dial's right end. Both
+        // are computed off the SAME model this whole grid already shares, so
+        // their positions can't drift from the dial or the event block they
+        // aim at. Null trace (today not in the window, or no upcoming timed
+        // event at all) renders neither. See CalendarManager.getTimelineTraceTarget.
+        const trace = cm.getTimelineTraceTarget(model);
+        const traceSegs = this._calendarTraceSegments(model, trace);
+        const etaChip = this._calendarEtaChipHTML(model, trace, frac);
+
         const cols = model.days.map((d, di) => {
+            const traceHere = traceSegs.filter(s => s.dayIdx === di).map(s =>
+                `<div class="cal-tl-trace" aria-hidden="true" style="top:calc(var(--tl-gridh)*${frac(s.topPct)}); height:calc(var(--tl-gridh)*${frac(s.heightPct)})"></div>`
+            ).join('');
             const blocks = d.timed.map(p => {
                 const ev = p.ev;
                 const rawColor = ev._calColor || DEFAULT_CAL_COLOR;
@@ -863,9 +877,13 @@ Object.assign(UIRenderer, {
             }).join('');
             const nowLine = d.nowTopPct != null
                 ? `<div class="cal-tl-now" style="top:calc(var(--tl-gridh)*${frac(d.nowTopPct)})" aria-hidden="true"></div>` : '';
+            // The chip only ever lands in today's column (it's anchored to the
+            // dial), so it's cheap to gate here rather than threading di through
+            // a second helper.
+            const eta = (di === trace?.todayIdx) ? etaChip : '';
             return `
                 <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + (tz2 ? 3 : 2)}; height:var(--tl-gridh); ${lineBg}">
-                    ${nowLine}${blocks || ''}
+                    ${nowLine}${traceHere}${blocks || ''}${eta}
                 </div>`;
         }).join('');
 
@@ -889,6 +907,248 @@ Object.assign(UIRenderer, {
                 ${cols}
                 ${gapsHtml}
             </div>`;
+    },
+
+    // ---- Timeline "next event" trace + countdown ----------------------------
+    // Turns a CalendarManager.getTimelineTraceTarget() result into the list of
+    // per-column segments _calendarTimeline paints. Every value here is a
+    // percentage in the SAME 0–100 space as nowTopPct/topPct/gaps — the model's
+    // compressed (gap-collapsed) minute mapping — so 0% is always "top of any
+    // day's column" and 100% "bottom of any day's column", regardless of which
+    // day it is. That's what makes "full-height intermediate day" just
+    // {topPct:0, heightPct:100} with no re-derivation.
+    // Segments are pushed in temporal order (dial-outward: today, then
+    // increasing day index) and _calendarTimeline renders columns in ascending
+    // day-index order too, so the resulting DOM order already matches temporal
+    // order — _wireCalendarTrace relies on that (via querySelectorAll order,
+    // no separate index needed) to grow the line dial-first.
+    _calendarTraceSegments(model, trace) {
+        if (!trace) return [];
+        const nowTopPct = model.days[trace.todayIdx].nowTopPct;
+        const segs = [];
+        if (trace.kind === 'today') {
+            segs.push({ dayIdx: trace.todayIdx, topPct: nowTopPct, heightPct: trace.topPct - nowTopPct });
+        } else if (trace.kind === 'later') {
+            segs.push({ dayIdx: trace.todayIdx, topPct: nowTopPct, heightPct: 100 - nowTopPct });
+            for (let i = trace.todayIdx + 1; i < trace.dayIdx; i++) {
+                segs.push({ dayIdx: i, topPct: 0, heightPct: 100 });
+            }
+            segs.push({ dayIdx: trace.dayIdx, topPct: 0, heightPct: trace.topPct });
+        } else if (trace.kind === 'beyond') {
+            segs.push({ dayIdx: trace.todayIdx, topPct: nowTopPct, heightPct: 100 - nowTopPct });
+            for (let i = trace.todayIdx + 1; i < model.days.length; i++) {
+                segs.push({ dayIdx: i, topPct: 0, heightPct: 100 });
+            }
+        }
+        // Degenerate (≤0-height) segments — the target starting exactly on the
+        // dial, or a single-day window with nothing after today — would give
+        // the WAAPI wiring a zero-length clip-path range to divide by.
+        return segs.filter(s => s.heightPct > 0.01);
+    },
+
+    // Countdown chip HTML: anchored at the dial's own top (right end only —
+    // the left covers the running event's time text, documented). `data-eta-
+    // target` carries the target's epoch ms for the live 30s tick in
+    // _tickCalendarEta to read back with Number() (events data is untrusted,
+    // so the value is coerced, never templated as a trusted number, and the
+    // formatted text is still run through sanitizeHTML below even though
+    // today's formatter only ever emits digits/':'/'min' — it's the one text
+    // sink in this feature, so it stays defensive on principle).
+    //
+    // Normally aria-hidden: the upcoming-events ticker/bar already announces
+    // this same "next event in…" information. But when that bar is off
+    // (CalendarManager.getUpcomingBarCount() === 0) this chip is the ONLY
+    // place the information exists at all, so in that case only it becomes a
+    // real accessible note instead — _tickCalendarEta keeps the aria-label in
+    // sync on every tick alongside the visible text.
+    _calendarEtaChipHTML(model, trace, frac) {
+        if (!trace) return '';
+        const nowTopPct = model.days[trace.todayIdx].nowTopPct;
+        const text = this._calEtaText(trace.startMs);
+        if (!text) return '';
+        const safeText = Utils.sanitizeHTML(text);
+        const onlySource = (window.CalendarManager?.getUpcomingBarCount?.() ?? 0) === 0;
+        const a11y = onlySource ? `role="note" aria-label="Next event in ${safeText}"` : `aria-hidden="true"`;
+        return `<div class="cal-tl-eta" style="top:calc(var(--tl-gridh)*${frac(nowTopPct)})" data-eta-target="${trace.startMs}" ${a11y}>${safeText}</div>`;
+    },
+
+    // "42 min" under an hour, "H:MM" (naturally HH:MM past 10h) at/above it —
+    // this exact format is user-specified, deliberately NOT formatBarCountdown
+    // ("in 2h 51m"): different control, different audience, don't "unify" them.
+    // Returns '' once the target has passed, AND on any non-finite input —
+    // both callers rely on '' meaning "hide the chip", not a literal
+    // "NaN:NaN" string.
+    _calEtaText(targetMs) {
+        const mins = Math.ceil((targetMs - Date.now()) / 60000);
+        if (!Number.isFinite(mins) || mins <= 0) return '';
+        if (mins < 60) return `${mins} min`;
+        const h = Math.floor(mins / 60), m = mins % 60;
+        return `${h}:${String(m).padStart(2, '0')}`;
+    },
+
+    // Grow-one-dot-at-a-time loop for the trace, via the Web Animations API.
+    // CSS keyframes can't do this: the dot-by-dot look needs a `steps()` count
+    // derived from each segment's MEASURED pixel length, and a global CSS
+    // animation would be neutered by the `!important` reduced-motion killer in
+    // styles/5-pomodoro.css long before that per-segment math could even run —
+    // WAAPI bypasses that killer, so this checks prefers-reduced-motion itself
+    // and renders a static, fully-drawn line instead of animating.
+    //
+    // Called after every render (from _applyTimelineScroll's rAF `finally`,
+    // after _fitTimelineEventText and the scroll anchoring — this is
+    // decoration and must never be able to break either of those), by a
+    // ResizeObserver on .calendar-timeline for retunes that skip re-render
+    // entirely (drag ticks / keyboard steps), and by a one-time
+    // prefers-reduced-motion change listener (see _attachDelegatedHandlers).
+    //
+    // A signature (timeline element identity + segment count + rounded total
+    // px + reduced-motion flag) short-circuits redundant re-wires: observe()
+    // fires immediately on a freshly-observed element, so every render would
+    // otherwise wire twice — once here, once a frame later from the RO's own
+    // first callback — and during a card-height drag the RO fires every
+    // frame, which without this restarts the "grow" phase every frame and
+    // the line never finishes drawing for the length of the drag.
+    _wireCalendarTrace() {
+        const tl = document.querySelector('.calendar-group .calendar-timeline');
+        if (!tl) {
+            this._calTraceAnims?.forEach(a => { try { a.cancel(); } catch { /* already done */ } });
+            this._calTraceAnims = null;
+            this._calTraceSignature = null;
+            // Card left timeline mode (or the DOM) entirely — nothing left to
+            // observe for retunes until a render brings a timeline back.
+            this._calTraceObserver?.disconnect();
+            this._calTraceObserverEl = null;
+            return;
+        }
+
+        this._ensureCalendarTraceObserver(tl);
+
+        const segs = [...tl.querySelectorAll('.cal-tl-trace')];
+        if (!segs.length) {
+            this._calTraceAnims?.forEach(a => { try { a.cancel(); } catch { /* already done */ } });
+            this._calTraceAnims = null;
+            this._calTraceSignature = null;
+            return;
+        }
+
+        const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        // Segment order matches DOM order (see _calendarTraceSegments), which
+        // is what lets a single running total double as each segment's slice
+        // of the shared cycle. Measured either way (even under reduced
+        // motion) so a layout change while reduced still busts the signature.
+        const lens = segs.map(el => el.getBoundingClientRect().height);
+        const total = lens.reduce((a, b) => a + b, 0);
+
+        const sig = { tl, count: segs.length, total: Math.round(total), reduced };
+        const prev = this._calTraceSignature;
+        const unchanged = prev && prev.tl === sig.tl && prev.count === sig.count
+            && prev.total === sig.total && prev.reduced === sig.reduced;
+        if (unchanged) return;
+        this._calTraceSignature = sig;
+
+        this._calTraceAnims?.forEach(a => { try { a.cancel(); } catch { /* already done */ } });
+        this._calTraceAnims = null;
+
+        if (reduced) return;   // cancel() above already reverts to no clip (fully drawn) — nothing left to set
+        if (!(total > 0)) return;   // hidden / zero-height card mid-teardown
+
+        const DOT_PITCH = 7;    // px — matches the background-position pitch in CSS
+        const RATE = 90;        // px/sec of growth → ~1.5-2.5s for a typical trace
+        const HOLD_MS = 1200;   // fully-drawn pause before the line clears and regrows
+        const growMs = Math.max(400, (total / RATE) * 1000);
+        const cycleMs = growMs + HOLD_MS;
+        const holdFrac = HOLD_MS / cycleMs;
+
+        let acc = 0;
+        const start = document.timeline.currentTime;
+        this._calTraceAnims = segs.map((el, i) => {
+            const segStart = acc / total;
+            acc += lens[i];
+            const segEnd = acc / total;
+            // This segment's slice of the cycle, squeezed into the growth
+            // phase (everything before the shared hold) so every segment
+            // finishes drawing in sequence, dial outward, before the hold.
+            const growStart = segStart * (1 - holdFrac);
+            const growEnd = segEnd * (1 - holdFrac);
+            const steps = Math.max(1, Math.round(lens[i] / DOT_PITCH));
+            const anim = el.animate([
+                { clipPath: 'inset(0 0 100% 0)', offset: 0 },
+                { clipPath: 'inset(0 0 100% 0)', offset: growStart, easing: `steps(${steps}, end)` },
+                { clipPath: 'inset(0 0 0% 0)', offset: growEnd },
+                { clipPath: 'inset(0 0 0% 0)', offset: 1 },
+            ], { duration: cycleMs, iterations: Infinity });
+            // Shared absolute origin — without this each segment's `animate()`
+            // call starts its own clock the instant it's created, which is
+            // close enough to look synced on a fast machine and visibly isn't
+            // on a slow one.
+            anim.startTime = start;
+            return anim;
+        });
+    },
+
+    // One ResizeObserver per (re-rendered) timeline element — a render replaces
+    // the node wholesale, so this only needs to notice the element changed and
+    // re-subscribe; it does not need to survive across renders itself.
+    //
+    // This does NOT observe --tl-gridh rewrites directly (a CSS custom
+    // property change fires no ResizeObserver callback on its own) — it works
+    // because _sizeTimelineHours only ever CHANGES that variable when
+    // tl.clientHeight has already changed (drag ticks, keyboard steps, window
+    // resize), which is exactly the box-size change this observes.
+    _ensureCalendarTraceObserver(tl) {
+        if (this._calTraceObserverEl === tl) return;
+        this._calTraceObserver?.disconnect();
+        this._calTraceObserverEl = tl;
+        this._calTraceObserver = new ResizeObserver(() => {
+            // Trailing debounce (~150ms), not per-frame: a card-height drag
+            // fires this every frame, and the clip-path keyframes are
+            // %-based so they stay correct throughout the drag regardless —
+            // one re-wire once the drag settles is enough, and cheaper than
+            // fighting the signature check every frame for no visible gain.
+            clearTimeout(this._calTraceRoTimer);
+            this._calTraceRoTimer = setTimeout(() => this._wireCalendarTrace(), 150);
+        });
+        this._calTraceObserver.observe(tl);
+    },
+
+    // Live-updates the countdown chip between renders — the card only
+    // re-renders on the ~5-min fetch cycle or explicit navigation, and a
+    // static chip reading stale minutes is exactly what an earlier version of
+    // this control was removed for. Piggybacks a single interval created once
+    // in _attachDelegatedHandlers. Absolute-time math (data-eta-target is the
+    // target's epoch ms) means a throttled hidden tab self-corrects the moment
+    // it's checked again rather than drifting.
+    _tickCalendarEta() {
+        const chip = document.querySelector('.calendar-group .cal-tl-eta');
+        if (!chip) return;
+        const target = Number(chip.dataset.etaTarget);
+        if (!Number.isFinite(target)) { chip.remove(); return; }   // malformed — nothing to keep showing
+        if (target - Date.now() > 0) {
+            const text = this._calEtaText(target);
+            chip.textContent = text;
+            // Only present when this chip is the sole accessible source (see
+            // _calendarEtaChipHTML) — keep it in sync with the visible text.
+            if (chip.hasAttribute('aria-label')) chip.setAttribute('aria-label', `Next event in ${text}`);
+            return;
+        }
+
+        // Expired: one lightweight re-render so the line + chip retarget the
+        // event that follows, without a refetch. A drag replaces the exact
+        // DOM the pointer is captured on — defer like every other scoped
+        // calendar re-render does (renderCalendarCard/renderTodoCard) rather
+        // than racing it; this timer is the one caller of a scoped re-render
+        // that isn't itself gesture-driven, so it's the one that needs to ask.
+        if (this._cardDragActive()) { this._deferCardRender('__calendar__'); return; }
+
+        // Guard against looping if the model still resolves to this same (or
+        // another already-past) target — hide the chip and wait for the next
+        // real render instead of re-rendering every tick.
+        this.refreshCalendarDayView();
+        const after = document.querySelector('.calendar-group .cal-tl-eta');
+        if (after) {
+            const afterTarget = Number(after.dataset.etaTarget);
+            if (!Number.isFinite(afterTarget) || afterTarget <= target || afterTarget - Date.now() <= 0) after.remove();
+        }
     },
 
     _calendarLegendButton(calendars) {

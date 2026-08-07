@@ -1558,6 +1558,13 @@
        zoom on this positioned box: it would corrupt the pixel top/height, the same
        trap documented on .cal-tl-hour. */
     display: block;
+    /* Explicit (not auto) so an event block always paints above the "next
+       event" trace (.cal-tl-trace, z-index:1) it may pass behind on its way
+       to a later day, and above the gap-band overlay (z-index:auto) the same
+       way .cal-tl-now already did before this existed — kept below the dial
+       itself (bumped to z-index:3 alongside this) so the blinking marker
+       still wins where the two would ever coincide. */
+    z-index: 2;
 }
 
 /* Wrapping + line-clamp box for the event text. The default 1-line clamp matches
@@ -1580,7 +1587,9 @@
 .cal-tl-event:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.85);
     outline-offset: 1px;
-    z-index: 3;
+    /* 5, not 3 — .cal-tl-now was bumped to 3 alongside the trace, which would
+       otherwise tie a focused event with the dial and only win by DOM order. */
+    z-index: 5;
 }
 
 .cal-tl-event-time {
@@ -1601,10 +1610,11 @@
 /* Current-time indicator on the today column: a two-stripe black/white bar under
    a --signal glow. The stripes swap twice a second, so it reads as a blinking
    marker rather than just another coloured rule among the event blocks. This is
-   one of the two sanctioned homes for --signal app-wide (the other is the Today
-   & Now beam) — its glow used to be red specifically to stay legible against the
-   calendar's old green event blocks, which is no longer a concern now that green
-   isn't a UI colour here. */
+   one of --signal's four sanctioned homes app-wide (see 1-core.css) — along
+   with the "next event" dotted trace + eta chip below, which extend this same
+   now-marker rather than opening a new green surface — its glow used to be red
+   specifically to stay legible against the calendar's old green event blocks,
+   which is no longer a concern now that green isn't a UI colour here. */
 .cal-tl-now {
     position: absolute;
     left: 0;
@@ -1612,7 +1622,11 @@
     height: 4px;
     background: linear-gradient(to bottom, #000 0 50%, #fff 50% 100%);
     box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
-    z-index: 2;
+    /* Bumped from 2 to 3 alongside the "next event" trace: event blocks now
+       carry an explicit z-index:2 too (so they can sit above the trace, which
+       needs to clear the gap-band overlay below), and the dial must still win
+       wherever it and a block would ever coincide. */
+    z-index: 3;
     animation: cal-now-blink 1s steps(1, end) infinite;
     pointer-events: none;
 }
@@ -1653,9 +1667,11 @@
 
 /* Merged free-time bands: when 2+ consecutive hour slots are event-free across
    every visible day, one greyed band spans all day columns. Placed after the
-   day columns in the DOM so it paints over their backgrounds; events never
-   overlap it (gaps are event-free by construction) and .cal-tl-now (z-index:2)
-   stays visible through it. pointer-events:none keeps the grid inert. */
+   day columns in the DOM so it paints over their backgrounds; events
+   (z-index:2), the "next event" trace (z-index:1) and .cal-tl-now (z-index:3)
+   all stay visible through it regardless — the trace, unlike events, legitimately
+   crosses a collapsed band on its way to a later event. pointer-events:none
+   keeps the grid inert. */
 .cal-tl-gaps {
     grid-column: 2 / -1;
     position: relative;
@@ -1685,6 +1701,80 @@
     zoom: var(--cal-z-tz, 1);
     color: #000;
     letter-spacing: 0.3px;
+}
+
+/* "Next event" trace: a dotted line from the now-dial down to the next
+   upcoming TIMED event, one <div> per day column it passes through
+   (UIRenderer._calendarTraceSegments / ._calendarTimeline). Same positioning
+   idiom as .cal-tl-now — absolutely placed, top/height a calc() fraction of
+   --tl-gridh — but centered and thin (4px) rather than full-width, so it
+   reads as a path rather than another gridline. The dots are a fixed-pitch
+   radial-gradient repeat rather than a border/outline, because the "grows
+   one dot at a time" loop (UIRenderer._wireCalendarTrace, Web Animations,
+   NOT a CSS keyframe — see that method for why) animates them into view via
+   clip-path, and a single painted background is one thing to clip.
+   --signal is explicitly sanctioned here, alongside the dial, as one more
+   deliberate extension of the now-marker rather than a new green surface.
+
+   The full z-index ladder for this grid (documented once, here, rather than
+   repeated at each rule): 1 trace, 2 event blocks, 3 the now-dial, 4 the eta
+   chip, 5 a focused event's outline. The gap-band overlay (.cal-tl-gaps) is
+   effectively z-index:auto — below all five — because the trace legitimately
+   runs THROUGH a collapsed "no events" band on its way to a later day, and
+   event blocks and the dial need to clear it exactly like the trace does.
+   Trace stays below event blocks and the dial so it never visually sits on
+   top of an appointment it merely passes on the way to the one it's pointing
+   at; a focused event's own outline (5) still has to win over everything. */
+.cal-tl-trace {
+    position: absolute;
+    left: 50%;
+    width: 4px;
+    margin-left: -2px;
+    z-index: 1;
+    pointer-events: none;
+    background-image: radial-gradient(circle, var(--signal) 1.4px, transparent 1.6px);
+    background-size: 4px 7px;
+    background-position: top center;
+    background-repeat: repeat-y;
+}
+
+/* Countdown chip: lives at the RIGHT end of the dial only — the left half
+   covers the running event's time text. translateY(-50%) centers it on the
+   dial's own `top`, the same way .cal-tl-hour centers on its gridline.
+   Monospace + tabular numerals so the digits don't reflow width as
+   UIRenderer._tickCalendarEta rewrites them every 30s. aria-hidden (except
+   when it's the sole accessible source — see UIRenderer._calendarEtaChipHTML,
+   which sets role="note" + aria-label instead in that case).
+   The text flips #fff/#000 on the dial's own cadence (same 1s steps(1) as
+   cal-now-blink, so chip and stripes swap together) while the --signal glow
+   stays lit throughout — the identical construction to the dial itself
+   ("black/white under a --signal glow"), and the glow is what keeps the
+   black phase legible on the dark pane. The global reduced-motion animation
+   killer (5-pomodoro.css) stops the flip; the declared color is the white
+   phase, so the static fallback is simply a lit white chip.
+   NO `zoom` here, same trap as .cal-tl-hour / .cal-tl-event: this box is
+   positioned by `top` — a calc() fraction of --tl-gridh — and `zoom` scales
+   that fraction too, pulling the chip off the dial it's meant to sit on. */
+.cal-tl-eta {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    transform: translateY(-50%);
+    z-index: 4;
+    pointer-events: none;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 4px);
+    color: #fff;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--signal) 60%, transparent);
+    white-space: nowrap;
+    animation: cal-eta-flip 1s steps(1, end) infinite;
+}
+
+/* Hard swap, not a cross-fade — same reasoning as cal-now-blink above. */
+@keyframes cal-eta-flip {
+    0% { color: #fff; }
+    50% { color: #000; }
 }
 
 /* ========================================

@@ -1263,6 +1263,80 @@
 }
 
 /* ----------------------------------------
+   4c. Auto-grant flash (a request was just auto-answered while armed)
+   ---------------------------------------- */
+
+/* Same ring recipe as 4b, recoloured --accent blue and quadrupled from two
+   heads to four (90deg apart instead of 180deg apart) — a busier light for a
+   busier fact. This is a brief post-grant flash, not a "waiting" indicator:
+   there's no state where an armed project's held request sits attached to
+   its bar at the same time as this class, since attaching a request to a
+   bar (_applyApprovalOverlay) is exactly what makes it needs-you/orange
+   instead. See _syncAutoGrant in scripts/9.4-projects-render.js for the full
+   state rule (armed + not-yet-expired flash, timed from a landed
+   auto-decide) and its ticker-driven expiry.
+
+   Reuses the registered --pb-beam property and the pb-beam-spin keyframe
+   verbatim; both are head-count agnostic.
+
+   :not(.is-needs-you) is belt-and-braces, not the mechanism that keeps these
+   two apart in practice (that's the state rule above) — but a bar that is
+   genuinely both must still paint orange, and writing that into the selector
+   means it holds regardless of how these two blocks get reordered later. */
+.project-bar.is-auto-granted:not(.is-needs-you)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--pb-beam),
+        transparent 0deg,
+        transparent 35deg,
+        rgba(91, 157, 255, 0.18) 60deg,
+        rgba(91, 157, 255, 0.55) 78deg,
+        #9CC4FF 86deg,
+        #EAF3FF 90deg,
+        transparent 90deg,
+        transparent 125deg,
+        rgba(91, 157, 255, 0.18) 150deg,
+        rgba(91, 157, 255, 0.55) 168deg,
+        #9CC4FF 176deg,
+        #EAF3FF 180deg,
+        transparent 180deg,
+        transparent 215deg,
+        rgba(91, 157, 255, 0.18) 240deg,
+        rgba(91, 157, 255, 0.55) 258deg,
+        #9CC4FF 266deg,
+        #EAF3FF 270deg,
+        transparent 270deg,
+        transparent 305deg,
+        rgba(91, 157, 255, 0.18) 330deg,
+        rgba(91, 157, 255, 0.55) 348deg,
+        #9CC4FF 356deg,
+        #EAF3FF 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 2px rgba(91, 157, 255, 0.85));
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .project-bar.is-auto-granted:not(.is-needs-you)::after {
+        animation: pb-beam-spin 4.8s linear infinite;
+    }
+}
+
+/* Reduced motion: static, even blue ring — structure mirrors the orange
+   fallback above exactly. */
+@media (prefers-reduced-motion: reduce) {
+    .project-bar.is-auto-granted:not(.is-needs-you)::after {
+        background: rgba(91, 157, 255, 0.4);
+    }
+}
+
+/* ----------------------------------------
    5. New-bar enter animation
    ---------------------------------------- */
 
