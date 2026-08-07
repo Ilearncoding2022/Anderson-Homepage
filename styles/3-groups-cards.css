@@ -2054,7 +2054,7 @@ body.card-resizing .app-group {
     min-height: 0;
     overflow: auto;
     /* Grow to fill whatever room the card has: this is what hands that room
-       to the timeline to measure. _sizeTimelineHours() (ui-renderer.js) then
+       to the timeline to measure. _sizeTimelineHours() (scripts/10.1-renderer-calendar.js) then
        stretches the hour scale — clamp(available/spanHours, 30, 78) px/hour,
        written to --tl-gridh, which every position in here is a calc()
        fraction of — into it: fits between the clamps and the grid exactly

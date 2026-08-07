@@ -908,7 +908,7 @@ const App = {
         }
 
         // Note: the To-Do archive modal's close/backdrop/Escape handling lives in
-        // ui-renderer.js (UIRenderer._attachTodoHandlers), alongside the code that
+        // scripts/10.2-renderer-todo.js (UIRenderer._attachTodoHandlers), alongside the code that
         // opens it, so it shares the same lifecycle and never depends on this file.
 
         // Settings tab switching (Appearance / Calendar / To-Do / Pomodoro / Projects / Data)
