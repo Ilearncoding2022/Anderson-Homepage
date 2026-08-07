@@ -5,6 +5,23 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.36] — 2026-08-06
+
+### Hotfix: the app failed to start after the v4.34 split
+
+- **What broke:** `3-app-init.js` exports its objects onto `window` at the
+  end of the file, and after the storage meter moved to its own
+  later-loading file, the line `window.StorageMeter = StorageMeter` threw
+  at load time — which also killed everything after it, including the
+  listener that starts the whole app. The page half-rendered (the cards
+  have their own startup hook) but the version stamp, theme wiring, and
+  storage meter were all dead.
+- **The fix:** the export now lives at the end of the storage meter's own
+  file, where the object it exports actually exists.
+- Caught by the post-split browser smoke test (a page error plus a missing
+  version stamp in the title); re-run after the fix: zero errors, full
+  boot confirmed.
+
 ## [v4.35] — 2026-08-06
 
 ### The persistence layer gets its own file

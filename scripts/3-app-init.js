@@ -1332,7 +1332,9 @@ window.ViewManager = ViewManager;
 window.UI = UI;
 window.Utils = Utils;
 window.App = App;
-window.StorageMeter = StorageMeter;
+// StorageMeter's export lives in scripts/3.1-storage-meter.js with the object:
+// it loads after this file, so exporting it here would throw at parse time
+// and abort everything below — including the DOMContentLoaded registration.
 window.COLOR_PALETTE = COLOR_PALETTE;
 
 // ========================================
