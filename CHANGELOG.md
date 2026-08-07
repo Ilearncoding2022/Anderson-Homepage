@@ -5,6 +5,23 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.29] — 2026-08-06
+
+### The calendar file sheds 440 lines of server-side documentation
+
+- **Proxy docs moved out of `5-calendar.js`:** the planned "data layer" split
+  turned up a surprise — the first 439 lines of the calendar script were
+  entirely comments: the Google Apps Script proxy template and its setup
+  instructions, never executed by the browser. Instead of shipping a
+  script file with no code, that block now lives in
+  `tools/calendar-proxy-reference.js`, alongside the other non-app tooling.
+  The Android widget app talks to the same proxy, so the template stays
+  in the repo as copy-paste reference.
+- **`5-calendar.js` is now pure code** (about 1,490 lines), starting with a
+  short header that points at the relocated setup docs.
+- No behavior change: the moved lines were comments; the page loads the
+  same scripts it did before.
+
 ## [v4.28] — 2026-08-06
 
 ### Spring cleaning: six thousand lines of dead code removed

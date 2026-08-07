@@ -1,12 +1,13 @@
 // ==========================================
-// 5.1-CALENDAR-DATA.JS - Calendar Data Layer
+// CALENDAR-PROXY-REFERENCE.JS - Server-side reference
 // Anderson Homepage
 //
-// Google Apps Script fetch mechanism, ICS
-// parsing reference, and old-URL-format
-// migration notes. Loads before 5-calendar.js
-// (CalendarManager), which consumes this data
-// layer's config and helpers.
+// Google Apps Script CORS-proxy template and setup
+// instructions for the calendar feature, moved out of
+// the top of scripts/5-calendar.js (v4.29). This file
+// is NOT loaded by the app — it is copy-paste reference
+// for deploying the proxy. The Anderson Calendar Widget
+// Android app talks to the same proxy deployment.
 // ==========================================
 
 // ==========================================

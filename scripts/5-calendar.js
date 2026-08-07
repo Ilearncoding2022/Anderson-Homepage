@@ -1,3 +1,13 @@
+// ==========================================
+// 5-CALENDAR.JS - Google Calendar Integration
+// Anderson Homepage v3.0
+//
+// Fetches calendar events via a Google Apps Script
+// CORS proxy that reads an ICS feed URL. The proxy
+// setup instructions and Apps Script template live in
+// tools/calendar-proxy-reference.js (not loaded by the app).
+// ==========================================
+
 const CalendarManager = {
     config: {
         defaultRefreshInterval: 5 * 60 * 1000, // 5 minutes
