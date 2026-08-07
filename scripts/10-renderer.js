@@ -934,6 +934,23 @@ const UIRenderer = {
     },
 
     _attachDelegatedHandlers(container) {
+        // Live-ticks the timeline's "next event" countdown chip between
+        // renders (the card only re-renders on the ~5-min fetch cycle or
+        // explicit navigation). Created once — called from here because this
+        // whole method only runs once, guarded by _delegationAttached above;
+        // every tick just leaves the chip in place for _tickCalendarEta to
+        // find, or finds nothing, which is a silent no-op.
+        setInterval(() => this._tickCalendarEta(), 30000);
+
+        // An OS-level prefers-reduced-motion flip mid-session must stop (or
+        // start) the trace's infinite WAAPI loop immediately — without this
+        // it only picks up the change on the next incidental re-render, which
+        // for a quiet calendar can be most of the ~5-minute fetch cycle away.
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-reduced-motion: reduce)')
+                .addEventListener('change', () => this._wireCalendarTrace());
+        }
+
         // Click delegation for cards, new-tab buttons
         container.addEventListener('click', (e) => {
             // The corner button is the exception to the card's own default:

@@ -89,6 +89,12 @@ const ProjectsWidget = {
     ARM_DEFAULT: 30,
     ARM_EXPIRING_MS: 60 * 1000,   // last-minute visual state on the pill
 
+    // How long the post-grant flash (.is-auto-granted, blue 4-head ring)
+    // stays on a bar after a landed auto-decide — see _syncAutoGrant in
+    // scripts/9.4-projects-render.js for the state rule and
+    // styles/8-projects.css §4c for the paint recipe.
+    AUTO_GRANT_FLASH_MS: 4800,
+
     // Alert sound for a new permission request. Spaces in the filename are
     // encoded because this is a URL, not a path.
     SOUND_SRC: 'Claude%20permission%20request%202.mp3',
@@ -186,6 +192,7 @@ const ProjectsWidget = {
     _allowAllBusy: false,
     _autoAllow: null,       // cwdKey (lowercased) -> { until: ms, count: n }
     _autoFailed: null,      // approval id -> consecutive failed auto /decide POSTs
+    _autoGranted: null,     // cwdKey (lowercased) -> flash-until ms; see _syncAutoGrant
     _armLastMins: 0,        // last committed duration, session-memory only
     _armPopSeq: 0,
     _armPopCloser: null,    // document-level pointerdown handler while a popover is open
@@ -223,6 +230,7 @@ const ProjectsWidget = {
         this._unattached = new Map();
         this._autoAllow = this._loadAutoAllow();
         this._autoFailed = new Map();
+        this._autoGranted = new Map();
         clearInterval(this._pollTimer);
         clearInterval(this._tickTimer);
         this._load();

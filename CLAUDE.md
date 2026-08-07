@@ -16,7 +16,10 @@ or font stacks, and don't add new `:root` variables without a reason.
 
 **Green is reserved.** `--signal` (`#7DFF5A`) may appear in exactly four
 places app-wide: the Today & Now running-light beam, the calendar's
-current-time bar (`.cal-tl-now`), the armed auto-allow pill's approval tick
+current-time bar with its next-event dotted trace and countdown chip
+(`.cal-tl-now`, `.cal-tl-trace`, `.cal-tl-eta` — one "this is now, and this is
+how far to the next thing" projection, one whitelist entry; user-requested,
+2026-08), the armed auto-allow pill's approval tick
 (`.pb-arm-tick`), and the To-Do card's done check with its archive-countdown
 ring (`.todo-done-btn` — one control, one whitelist entry; v4.27,
 user-requested). Green used to do fourteen different jobs, which left the beam

@@ -334,6 +334,7 @@ Object.assign(ProjectsWidget, {
 
         this._renderApprovalStrip(li, bar);
         this._syncArm(li, bar);
+        this._syncAutoGrant(li, bar);
         this._syncExpansion(li, bar);
 
         // Recency lives in the ticking .pb-time number + its aria-label, not
@@ -353,6 +354,46 @@ Object.assign(ProjectsWidget, {
         this._setTip(li, newTitle);
 
         this._tickNode(li);
+    },
+
+    /**
+     * Blue 4-head running-light ring (.is-auto-granted, styles/8-projects.css
+     * §4c): a brief post-grant flash, not a "waiting" indicator. There is no
+     * state where an armed project's held request sits attached to its bar
+     * IN PARALLEL with a class we could paint blue — every path that puts a
+     * request on a bar (_applyApprovalOverlay) sets needs-you, which
+     * _deriveState propagates, which is exactly what makes that bar orange.
+     * That covers the sweep's own leftovers too (a request left un-answered
+     * because `_approveBusy` was already holding it, or because it tripped
+     * the `_autoFailed` fallback after two dead /decide POSTs): those still
+     * flow through the same overlay and render as needs-you, not blue. So
+     * this is what the feature observably is — a brief "that just got
+     * auto-approved" flash, timed by AUTO_GRANT_FLASH_MS from the moment
+     * _autoDecide's fetch actually lands (scripts/9.2-projects-autoallow.js).
+     *
+     * Pure class toggle on the existing bar node — reconciled in place on
+     * every render pass exactly like is-needs-you/is-armed, and never read
+     * by _deriveState, alerts, sorting or expansion.
+     *
+     * The `!armed` branch below (not just "expired") matters because
+     * _autoDecide's fetch can land up to ~4s after the sweep queued it: a
+     * disarm (_disarm, cap-eviction, _closeRow, approve-off) firing in that
+     * window is guarded on the write side (_autoDecide only sets the flash
+     * if the project is still armed at landing time), but a project can also
+     * be disarmed AFTER a flash was already set — this is the read side of
+     * that same guarantee, so a stale flash can never survive its project
+     * losing its armed window.
+     */
+    _syncAutoGrant(li, bar) {
+        const key = bar.cwdKey.toLowerCase();
+        // _syncArm (called just above) has already disarmed any entry whose
+        // deadline lapsed this pass, so .has() here already means "armed
+        // right now".
+        const armed = !!this._autoAllow?.has(key);
+        const until = this._autoGranted?.get(key) || 0;
+        const flashing = armed && until > Date.now();
+        if (!flashing) this._autoGranted?.delete(key); // expired, or its project isn't armed — stop carrying it
+        li.classList.toggle('is-auto-granted', flashing);
     },
 
     // ----------------------------------------
@@ -948,6 +989,27 @@ Object.assign(ProjectsWidget, {
         if (this._autoAllow?.size) {
             ul.querySelectorAll('.pb-arm[data-until]').forEach(el => this._tickArm(el));
         }
+        // The post-grant flash (.is-auto-granted) is timed to disappear at a
+        // specific moment — one rotation of the blue ring — not on whatever
+        // render happens to come along next. Left to the render passes alone
+        // it would only be re-evaluated by the 2s approval poll (which sees
+        // no change right after a grant, so doesn't fire) or the 6s data
+        // poll, stretching the flash to 4.8-10.8s and cutting it off at an
+        // arbitrary rotation angle instead of a full sweep. Gated so the
+        // common case (nothing ever granted) adds no per-second work.
+        if (this._autoGranted?.size) {
+            const now = Date.now();
+            for (const [key, until] of this._autoGranted) {
+                if (until > now && this._autoAllow?.has(key)) continue; // still flashing on an armed project
+                this._autoGranted.delete(key);
+                for (const li of ul.querySelectorAll('.project-bar')) {
+                    if ((li.dataset.cwdKey || '').toLowerCase() === key) {
+                        li.classList.remove('is-auto-granted');
+                        break;
+                    }
+                }
+            }
+        }
     },
 
     /** Update every elapsed readout inside one node (self included). */
@@ -1025,6 +1087,7 @@ Object.assign(ProjectsWidget, {
         // visible stop button, so every armed window ends with the row.
         if (this._autoAllow?.size) {
             this._autoAllow.clear();
+            this._autoGranted?.clear();
             this._persistAutoAllow();
             this._alertQueue.push({ sentence: 'Auto-allow stopped — its project left the row.' });
             this._flushAlerts();
