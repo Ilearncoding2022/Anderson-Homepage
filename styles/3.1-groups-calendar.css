@@ -1628,7 +1628,14 @@
     position: absolute;
     left: 0;
     right: 0;
-    height: 8px;
+    /* Two heights since 2026-08-07 (user request), switched by .is-in-event
+       below off the model's nowInEvent: 8.25px while free — i.e. >1 minute
+       before the next event (the v4.38 8px bar +3, then −25% the same day,
+       both user-requested) — and 4px (8px halved) while an event is running
+       or starting within the minute, where the tall bar would only obscure
+       the block it sits inside. The countdown chip renders only in the tall
+       state, so its centring offset tracks 8.25px, not 4px. */
+    height: 8.25px;
     /* Declared = the 0% keyframe = the reduced-motion static frame: WHITE bar
        (visible on the dark pane), which is why the chip's static color below
        is black. */
@@ -1643,11 +1650,15 @@
     pointer-events: none;
 }
 
+.cal-tl-now.is-in-event {
+    height: 4px;
+}
+
 .cal-tl-now::before {
     content: '';
     position: absolute;
     left: -5px;
-    top: -1px;   /* centre of the 10px ring = centre of the 8px bar */
+    top: -0.875px;   /* centre of the 10px ring = centre of the 8.25px bar */
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -1656,6 +1667,10 @@
     box-sizing: border-box;
     box-shadow: 0 0 6px 1px color-mix(in srgb, var(--signal) 85%, transparent);
     animation: cal-now-dot-blink 1s steps(1, end) infinite;
+}
+
+.cal-tl-now.is-in-event::before {
+    top: -3px;   /* centre of the 10px ring = centre of the 4px bar */
 }
 
 /* Hard swap (steps(1)) rather than a cross-fade — the alternation is what makes
@@ -1765,26 +1780,55 @@
    overlaps the bar it always reads black-on-white or white-on-black; the
    --signal glow stays lit throughout and keeps whatever strays off the bar
    legible against the dark pane. The translateY offset re-centres the text
-   on the 8px bar's own middle (its inline `top` is the bar's top edge, the
+   on the bar's own middle (its inline `top` is the bar's top edge, the
    now instant) so the text actually sits ON the bar the pairing is built
-   against — the +4px is height/2 and must track any bar-height change.
+   against — the +4.125px is height/2 of the 8.25px NOT-in-event bar (the
+   only state that renders a chip; see .cal-tl-now) and must track any
+   bar-height change.
    The global reduced-motion animation killer (5-pomodoro.css) stops the
    flip; the declared color is the black phase to match the dial's static
    white bar, so the static fallback is black-on-white.
    NO `zoom` here, same trap as .cal-tl-hour / .cal-tl-event: this box is
    positioned by `top` — a calc() fraction of --tl-gridh — and `zoom` scales
-   that fraction too, pulling the chip off the dial it's meant to sit on. */
+   that fraction too, pulling the chip off the dial it's meant to sit on.
+
+   SIZE IS A TRANSFORM, NOT A SMALLER font-size, and that is the whole point
+   (2026-08-08). The browser's minimum-font-size floor (Chrome ships one;
+   FontManager._detectMinFont measures it and every other small label in this
+   card dodges it with a companion `zoom` var) silently pins any font-size
+   below it. This chip is the one element that cannot use that `zoom` escape
+   — see the paragraph above — so three successive shrink requests in a row
+   rendered IDENTICALLY: at --cal-fs-tz:16px the calc went 12px → 9.33 → 6.67
+   → 5 → 4, and everything past 6.67 painted at the 6px floor. `transform` is
+   the escape that is safe here: it is applied after layout, so unlike `zoom`
+   it cannot touch the calc()'d `top`, and unlike font-size the floor does not
+   apply to it. So font-size stays at the clamp-safe base and --cal-eta-scale
+   carries the reduction; scaling about the default centre origin leaves the
+   chip centred on the dial (the translate percentages resolve against the
+   UNSCALED box, so the visual centre lands exactly where it did before).
+   The next "make it smaller" is --cal-eta-scale, NOT the font-size. */
 .cal-tl-eta {
     position: absolute;
     top: 0;
     left: 50%;
-    transform: translate(-50%, calc(-50% + 4px));
+    /* 8/12: the user reads this at --cal-fs-tz:16px, where the base below is
+       12px, so the scale IS "rendered px / 12". 0.333 (=4px) was the
+       cumulative effect of the earlier −2pt/−25%/×0.6 chain and came out too
+       small once it could finally render at all; 0.583 (=7px) then 0.667
+       (=8px) walked it back up on 2026-08-08. Proportional rather than a
+       chain of fixed pt subtractions on purpose — subtracting ~5px from a
+       base that is only 6.4px at the default setting is what drove the old
+       calc to sub-pixel sizes nobody could see. */
+    --cal-eta-scale: 0.667;
+    transform: translate(-50%, calc(-50% + 4.125px)) scale(var(--cal-eta-scale));
     z-index: 4;
     pointer-events: none;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    /* -4px was the original size; the extra 2pt is a v4.38 user request. */
-    font-size: calc(var(--cal-fs-tz, 0.65rem) - 4px - 2pt);
+    /* The clamp-safe base (>= the 6px floor for every --cal-fs-tz >= 10px).
+       Do NOT subtract it down towards the floor again — that is the bug this
+       block documents; reduce --cal-eta-scale above instead. */
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 4px);
     color: #000;
     text-shadow: 0 0 4px color-mix(in srgb, var(--signal) 60%, transparent);
     white-space: nowrap;
