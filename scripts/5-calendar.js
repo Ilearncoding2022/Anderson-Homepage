@@ -358,6 +358,13 @@ const CalendarManager = {
     // Two-unit "in Xd Yh"/"in Xh Ym"/"in Xm" remaining-time text for the upcoming
     // bar. No seconds, so the ticker's item widths don't jitter every tick.
     // Returns null once the event has started (the caller drops it from the bar).
+    //
+    // The two-unit forms are CLOSED UP — "in 2h51m", not "in 2h 51m" (2026-08-08
+    // user request, worded for the hours/minutes form; the days/hours form
+    // follows it so one ticker doesn't mix both spacings). The visible ticker
+    // strips the "in " prefix, so this is what scrolls past: "2h51m ·".
+    // _tickUpcomingBar rewrites those spans from this same function every
+    // minute, so the format only has to change here.
     formatBarCountdown(startMs) {
         const diff = startMs - Date.now();
         if (diff <= 0) return null;
@@ -365,8 +372,8 @@ const CalendarManager = {
         const days = Math.floor(totalMin / 1440);
         const hours = Math.floor((totalMin % 1440) / 60);
         const mins = totalMin % 60;
-        if (days > 0) return `in ${days}d ${hours}h`;
-        if (hours > 0) return `in ${hours}h ${mins}m`;
+        if (days > 0) return `in ${days}d${hours}h`;
+        if (hours > 0) return `in ${hours}h${mins}m`;
         if (mins > 0) return `in ${mins}m`;
         return 'in <1m';
     },
@@ -1149,11 +1156,28 @@ const CalendarManager = {
             }
             flush();
             // Current-time indicator on the day the wall-clock now falls in.
-            let nowTopPct = null;
+            // nowInEvent drives the dial's two visual states (tall bar +
+            // countdown chip vs half bar, no chip): true while now sits inside
+            // any timed event's boundary, with a 1-minute LEAD — the user's
+            // spec words the tall state as ">1 minute before the event", so
+            // the final minute before a start already counts as in-event.
+            // Checked against pd.timed (raw minutes, pre-lane-packing) because
+            // `positioned` has already traded startMin/endMin for topPct.
+            // nowUntilMs is the earliest instant this state can flip back off
+            // (min end among covering events) — the renderer stamps it on the
+            // dial so the 30s eta tick can re-render when an event ends; the
+            // opposite transition (an event starting) is already covered by
+            // the chip's own passing target.
+            let nowTopPct = null, nowInEvent = false, nowUntilMs = null;
             if (pd === nowDay && nowMin >= rangeStartMin && nowMin <= rangeEndMin) {
                 nowTopPct = pct(nowMin);
+                const covering = pd.timed.filter(t => t.startMin - 1 <= nowMin && nowMin < t.endMin);
+                if (covering.length) {
+                    nowInEvent = true;
+                    nowUntilMs = pd.dayStart + Math.min(...covering.map(t => t.endMin)) * 60000;
+                }
             }
-            return { day: pd.day, allDay: pd.allDay, timed: positioned, nowTopPct };
+            return { day: pd.day, allDay: pd.allDay, timed: positioned, nowTopPct, nowInEvent, nowUntilMs };
         });
 
         // Display geometry for the collapsed gap bands, labeled with the real

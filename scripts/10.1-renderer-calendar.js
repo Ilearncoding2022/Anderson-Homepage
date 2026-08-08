@@ -878,8 +878,14 @@ Object.assign(UIRenderer, {
                         <span class="cal-tl-event-text"><span class="cal-tl-event-time">${Utils.sanitizeHTML(timeText)}</span><span class="cal-tl-event-title">${safeTitle}</span></span>
                     </div>`;
             }).join('');
+            // is-in-event halves the bar (an event is running — the dial sits
+            // inside its block, so the tall marker would just obscure it);
+            // data-now-until carries the covering event's end so the 30s tick
+            // can restore the tall state when it passes (model recomputes it,
+            // so the value is always a computed finite number, but the reader
+            // still coerces — same discipline as data-eta-target).
             const nowLine = d.nowTopPct != null
-                ? `<div class="cal-tl-now" style="top:calc(var(--tl-gridh)*${frac(d.nowTopPct)})" aria-hidden="true"></div>` : '';
+                ? `<div class="cal-tl-now${d.nowInEvent ? ' is-in-event' : ''}" style="top:calc(var(--tl-gridh)*${frac(d.nowTopPct)})"${d.nowInEvent && Number.isFinite(d.nowUntilMs) ? ` data-now-until="${d.nowUntilMs}"` : ''} aria-hidden="true"></div>` : '';
             // The chip only ever lands in today's column (it's anchored to the
             // dial), so it's cheap to gate here rather than threading di through
             // a second helper.
@@ -927,6 +933,14 @@ Object.assign(UIRenderer, {
     // no separate index needed) to grow the line dial-first.
     _calendarTraceSegments(model, trace) {
         if (!trace) return [];
+        // No trace while an event is running (or starting within the minute) —
+        // same gate as the countdown chip in _calendarEtaChipHTML: the
+        // half-height in-event dial state drops the whole "path to the next
+        // event" projection, not just its label. The eta tick's re-renders
+        // (start via the chip's 60s threshold, end via _tickCalendarNowState)
+        // are what bring it back. _wireCalendarTrace already handles zero
+        // segments (a null trace renders none either).
+        if (model.days[trace.todayIdx].nowInEvent) return [];
         const nowTopPct = model.days[trace.todayIdx].nowTopPct;
         const segs = [];
         if (trace.kind === 'today') {
@@ -966,6 +980,12 @@ Object.assign(UIRenderer, {
     // sync on every tick alongside the visible text.
     _calendarEtaChipHTML(model, trace, frac) {
         if (!trace) return '';
+        // No chip while an event is running (or starting within the minute) —
+        // the half-height dial state deliberately drops the countdown; the
+        // ticker/bar still carries "next event in…" for screen readers, and
+        // the onlySource case below is moot because there is nothing to say
+        // mid-event that the running block isn't already saying.
+        if (model.days[trace.todayIdx].nowInEvent) return '';
         const nowTopPct = model.days[trace.todayIdx].nowTopPct;
         const text = this._calEtaText(trace.startMs);
         if (!text) return '';
@@ -975,18 +995,23 @@ Object.assign(UIRenderer, {
         return `<div class="cal-tl-eta" style="top:calc(var(--tl-gridh)*${frac(nowTopPct)})" data-eta-target="${trace.startMs}" ${a11y}>${safeText}</div>`;
     },
 
-    // "42 min" under an hour, "H:MM" (naturally HH:MM past 10h) at/above it —
-    // this exact format is user-specified, deliberately NOT formatBarCountdown
-    // ("in 2h 51m"): different control, different audience, don't "unify" them.
+    // "42 min" under an hour, "4h25m" at/above it (2026-08-08 user request —
+    // was "H:MM", which read as a clock time rather than a duration; minutes
+    // are UNPADDED, matching the "#h#m" the change was specified as, and the
+    // beyond-24h case just keeps counting hours: "117h0m").
+    // Still deliberately NOT formatBarCountdown, even though the two now
+    // agree on #h#m: that one prefixes "in ", rolls over to days ("in 3d4h")
+    // and says "42m" under the hour where this says "42 min". Different
+    // control, different audience — don't "unify" them.
     // Returns '' once the target has passed, AND on any non-finite input —
     // both callers rely on '' meaning "hide the chip", not a literal
-    // "NaN:NaN" string.
+    // "NaNhNaNm" string.
     _calEtaText(targetMs) {
         const mins = Math.ceil((targetMs - Date.now()) / 60000);
         if (!Number.isFinite(mins) || mins <= 0) return '';
         if (mins < 60) return `${mins} min`;
         const h = Math.floor(mins / 60), m = mins % 60;
-        return `${h}:${String(m).padStart(2, '0')}`;
+        return `${h}h${m}m`;
     },
 
     // Grow-one-dot-at-a-time loop for the trace, via the Web Animations API.
@@ -1123,10 +1148,15 @@ Object.assign(UIRenderer, {
     // it's checked again rather than drifting.
     _tickCalendarEta() {
         const chip = document.querySelector('.calendar-group .cal-tl-eta');
-        if (!chip) return;
+        if (!chip) { this._tickCalendarNowState(); return; }
         const target = Number(chip.dataset.etaTarget);
         if (!Number.isFinite(target)) { chip.remove(); return; }   // malformed — nothing to keep showing
-        if (target - Date.now() > 0) {
+        // 60s, not 0: the in-event dial state (half bar, no chip) begins one
+        // minute BEFORE the target starts — ">1 minute before the event" is
+        // the tall state's spec — so the re-render below has to fire at that
+        // boundary, not at the start itself. buildTimelineModel applies the
+        // same 1-minute lead, so the re-render lands already in-event.
+        if (target - Date.now() > 60000) {
             const text = this._calEtaText(target);
             chip.textContent = text;
             // Only present when this chip is the sole accessible source (see
@@ -1135,7 +1165,8 @@ Object.assign(UIRenderer, {
             return;
         }
 
-        // Expired: one lightweight re-render so the line + chip retarget the
+        // Expired (or inside the final minute): one lightweight re-render so
+        // the dial takes its in-event state and the line + chip retarget the
         // event that follows, without a refetch. A drag replaces the exact
         // DOM the pointer is captured on — defer like every other scoped
         // calendar re-render does (renderCalendarCard/renderTodoCard) rather
@@ -1144,14 +1175,34 @@ Object.assign(UIRenderer, {
         if (this._cardDragActive()) { this._deferCardRender('__calendar__'); return; }
 
         // Guard against looping if the model still resolves to this same (or
-        // another already-past) target — hide the chip and wait for the next
-        // real render instead of re-rendering every tick.
+        // another already-imminent) target — hide the chip and wait for the
+        // next real render instead of re-rendering every tick. The <= 60000
+        // mirrors the lead above: a same-day imminent target never re-renders
+        // a chip (nowInEvent suppresses it), but a target on a LATER day
+        // within the minute — now straddling midnight — can, and would
+        // otherwise re-render every 30s until it passed.
         this.refreshCalendarDayView();
         const after = document.querySelector('.calendar-group .cal-tl-eta');
         if (after) {
             const afterTarget = Number(after.dataset.etaTarget);
-            if (!Number.isFinite(afterTarget) || afterTarget <= target || afterTarget - Date.now() <= 0) after.remove();
+            if (!Number.isFinite(afterTarget) || afterTarget <= target || afterTarget - Date.now() <= 60000) after.remove();
         }
+    },
+
+    // The mirror transition: an event ENDS. No chip exists mid-event (the
+    // in-event dial state suppresses it), so the eta tick above has nothing
+    // to watch — instead the dial carries data-now-until (the covering
+    // event's end, stamped by _calendarTimeline) and this re-renders once it
+    // passes, restoring the tall dial + countdown chip. No loop guard needed:
+    // containment is strict (nowMin < endMin in buildTimelineModel), so a
+    // passed `until` can never re-produce the same in-event record.
+    _tickCalendarNowState() {
+        const dial = document.querySelector('.calendar-group .cal-tl-now.is-in-event');
+        if (!dial) return;
+        const until = Number(dial.dataset.nowUntil);
+        if (!Number.isFinite(until) || until - Date.now() > 0) return;
+        if (this._cardDragActive()) { this._deferCardRender('__calendar__'); return; }
+        this.refreshCalendarDayView();
     },
 
     _calendarLegendButton(calendars) {

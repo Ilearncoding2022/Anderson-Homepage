@@ -5,6 +5,32 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.39] — 2026-08-08
+
+### The current-time dial says whether you are in something or waiting for it
+
+- **The dial now has two looks:** while nothing is running it stands tall and
+  carries the countdown to your next event. The moment an event starts it
+  drops to half height, and both the countdown and the dotted trace pointing
+  at the next event disappear — the marker sits inside the event's own block
+  at that point, so the tall bar and its label were covering the thing they
+  were pointing at.
+- **The switch happens a minute early:** an event counts as running from one
+  minute before its start, so the countdown never lingers on "1m" while the
+  meeting is effectively already beginning. The dial flips back on its own
+  when the event ends, without waiting for the next calendar refresh.
+- **The countdown label can finally be resized:** three attempts in a row to
+  shrink it rendered identically. Browsers refuse to paint text below a
+  minimum font size, and every other small label in this card sidesteps that
+  by scaling itself down instead — the one thing that label cannot do,
+  because scaling would drag it off the dial it is pinned to. It is now sized
+  by a transform, which the minimum does not apply to, so it renders at a
+  true 8px and stays adjustable from here on.
+- **Durations read as durations:** the dial's countdown showed "4:25", which
+  looks like a clock time rather than time remaining. It now reads "4h25m",
+  and the scrolling ticker closed its gap to match, showing "2h51m" where it
+  used to show "2h 51m".
+
 ## [v4.38] — 2026-08-07
 
 ### Armed lights run the whole window, and the header learns where its clocks are
