@@ -994,9 +994,7 @@ const CalendarManager = {
         const buckets = this.bucketEventsForDayView(win);
         const DAY_MS = 86400000;
 
-        // First pass: compute each timed event's day-clamped [startMin, endMin]
-        // and track the global min/max to size the shared hour axis.
-        let minStart = Infinity, maxEnd = -Infinity;
+        // First pass: compute each timed event's day-clamped [startMin, endMin].
         const perDay = days.map(d => {
             const dayStart = this._zonedDayStartMs(d.dateStr, tz);
             const dayEnd = dayStart + DAY_MS;
@@ -1015,17 +1013,14 @@ const CalendarManager = {
                 if (segEnd <= segStart) continue;
                 const startMin = (segStart - dayStart) / 60000;
                 const endMin = (segEnd - dayStart) / 60000;
-                minStart = Math.min(minStart, startMin);
-                maxEnd = Math.max(maxEnd, endMin);
                 timed.push({ ev, startMin, endMin });
             }
             return { day: d, dayStart, allDay, timed };
         });
 
-        // One "now" reading shared by the range extension, the gap exclusion,
-        // and the now-line position further down — two Date.now() calls could
-        // straddle a minute boundary and disagree about which hour slot to keep
-        // uncollapsed. Read before the range so the range can be sized to cover it.
+        // One "now" reading shared by the gap exclusion and the now-line
+        // position further down — two Date.now() calls could straddle a minute
+        // boundary and disagree about which hour slot to keep uncollapsed.
         const nowMs = Date.now();
         // Today comes from the window's own isToday flag rather than a 24h span
         // off dayStart: a spring-forward day is 23h long, so [dayStart, +24h)
@@ -1035,26 +1030,21 @@ const CalendarManager = {
         const nowDay = perDay.find(pd => pd.day.isToday);
         const nowMin = nowDay ? (nowMs - nowDay.dayStart) / 60000 : null;
 
-        // Shared hour range: fit to events (hour-aligned), fall back to 8–18.
-        let rangeStartMin, rangeEndMin;
-        if (minStart === Infinity) { rangeStartMin = 8 * 60; rangeEndMin = 18 * 60; }
-        else {
-            rangeStartMin = Math.max(0, Math.floor(minStart / 60) * 60);
-            rangeEndMin = Math.min(1440, Math.ceil(maxEnd / 60) * 60);
-            if (rangeEndMin - rangeStartMin < 60) rangeEndMin = Math.min(1440, rangeStartMin + 60);
-        }
-        // When today is in view, widen the range to cover "now" so the dial is
-        // always rendered. Without this, a 01:23 now with a first event at 09:00
-        // leaves nowMin outside [rangeStartMin, rangeEndMin] and the dial — plus
-        // its nowSlot / nowTopPct guards — silently drops it. The empty stretch
-        // between now and the events is ≥2h free on every day, so it collapses
-        // into one "no events" band below; the hour holding now is force-excluded
-        // from that collapse (nowSlot) and stays full height at the dial's true
-        // position. The mirror case (now after the last event) is covered too.
-        if (nowMin != null && nowMin >= 0 && nowMin < 1440) {
-            rangeStartMin = Math.min(rangeStartMin, Math.floor(nowMin / 60) * 60);
-            rangeEndMin = Math.max(rangeEndMin, Math.min(1440, Math.floor(nowMin / 60) * 60 + 60));
-        }
+        // Shared hour range: ALWAYS the full day, 00:00–24:00 (user request,
+        // 2026-08-09). The range used to be fitted to the events, then widened
+        // to cover "now"; pinning it to the day boundaries guarantees the
+        // 0h–1h and 23h–24h rows exist on every day, with all empty stretches
+        // handed to the same gap-collapse rules below — a first event at 09:00
+        // renders as one "00h – 09h · no events" band, not nine blank rows,
+        // and a window with no timed events at all is one "00h – 24h" band
+        // (plus the full-height now-hour when today is in view) rather than
+        // the old empty 8–18 fallback grid. "now" sits inside [0, 1440) by
+        // construction whenever today is visible, so the dial can no longer
+        // fall outside the range — the widening step went away with the
+        // fitting. displaySpanMin stays TIME-dependent through the now-slot
+        // exclusion below (the grid re-flows when the clock crosses an hour
+        // into/out of a gap), even though the range itself is constant now.
+        const rangeStartMin = 0, rangeEndMin = 1440;
 
         const nowSlot = (nowMin != null && nowMin >= rangeStartMin && nowMin <= rangeEndMin)
             ? Math.floor(nowMin / 60) * 60

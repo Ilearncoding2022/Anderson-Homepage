@@ -5,6 +5,28 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.40] — 2026-08-09
+
+### The timeline covers the whole day, and imports stop hoarding storage
+
+- **The hour grid now always runs from midnight to midnight:** the day views
+  used to trim the hour axis to just the hours your events touched, so the
+  early morning and late evening simply didn't exist on the grid. Every day
+  now shows the full 00h–24h range, with the familiar collapsed "no events"
+  bands soaking up the empty stretches — a first event at 09:00 costs one
+  slim band, not nine blank rows. A day with nothing scheduled at all is two
+  bands around the current hour instead of the old arbitrary 8–18 grid.
+- **Importing a backup no longer eats the storage quota:** the safety
+  snapshot taken before each import (so a bad backup file can be undone)
+  carried the wallpaper and every website icon into localStorage — importing
+  twice could leave a ~4 MB snapshot squatting on most of the ~5 MB the app
+  gets, breaking later saves. The snapshot now lives in the same database as
+  the images themselves, costs no quota, and any oversized snapshot left by
+  an older version is cleaned up on the next import.
+- **The time-zone badge in event details fits its text:** the little zone
+  label in the event detail dialog is a touch wider and no longer wraps
+  mid-name.
+
 ## [v4.39] — 2026-08-08
 
 ### The current-time dial says whether you are in something or waiting for it
