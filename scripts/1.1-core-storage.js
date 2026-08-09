@@ -335,14 +335,40 @@ const Storage = {
         // stash it under its own key so the previous state is recoverable if this
         // file turns out to be bad. Taken here, before AppState/localStorage are
         // touched, so it reflects the true pre-import state. Never blocks a
-        // legitimate import: any failure (including localStorage quota) is
-        // swallowed and the import proceeds regardless.
+        // legitimate import: any failure is swallowed and the import proceeds.
+        //
+        // Stored in IndexedDB (ImageStore), NOT localStorage: the envelope folds
+        // in the wallpaper and every website icon, and on a machine that imported
+        // twice this was observed leaving a 4.2 MB 'preImportBackup' entry
+        // squatting on most of the ~5 MB quota it exists to protect. The key
+        // survives the import below (only 'icon:'-prefixed keys and
+        // 'backgroundImage' are rewritten) and each import overwrites the last
+        // snapshot. Recovery stays manual either way: DevTools → Application →
+        // IndexedDB → andersonHomepageImages → images → 'preImportBackup'.
+        // If IndexedDB is unavailable, fall back to localStorage with the image
+        // blobs stripped — a degraded snapshot (data, no images) beats one that
+        // can starve every later write.
         try {
             const snapshot = await this._buildExportEnvelope();
-            Utils.safeLocalStorageSet('preImportBackup', JSON.stringify({
-                timestamp: new Date().toISOString(),
-                envelope: snapshot
-            }));
+            const record = { timestamp: new Date().toISOString(), envelope: snapshot };
+            try {
+                await window.ImageStore.set('preImportBackup', record);
+                // A multi-MB copy left by an older build (or a previous
+                // fallback write) stops holding quota now.
+                localStorage.removeItem('preImportBackup');
+            } catch {
+                const slimData = {
+                    ...snapshot.data,
+                    backgroundImage: null,
+                    websites: Array.isArray(snapshot.data.websites)
+                        ? snapshot.data.websites.map(({ icon, ...rest }) => rest)
+                        : snapshot.data.websites
+                };
+                Utils.safeLocalStorageSet('preImportBackup', JSON.stringify({
+                    ...record,
+                    envelope: { ...snapshot, data: slimData }
+                }));
+            }
         } catch { /* best-effort only — must never block the import */ }
 
         AppState.websites = websites;
