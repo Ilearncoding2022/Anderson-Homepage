@@ -5,6 +5,30 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.41] — 2026-08-14
+
+### Permission requests reach the homepage again
+
+- **Approving from the status bar works under the new "auto" mode:** Claude
+  Code 2.1.148 introduced an `auto` permission mode, which decides the safe
+  tool calls by itself and only asks you about the rest. The homepage hook
+  recognised the older mode names only, so on meeting `auto` it stepped
+  aside without a word — every request went to the VS Code dialog instead,
+  Allow/Deny buttons never appeared on a bar, and an armed auto-allow pill
+  could sit there counting down while nothing was ever routed to it. The
+  failure was completely silent: not one request reached the broker, so even
+  the approval log had nothing to show.
+- **The fix also removes the reason it could break this way:** approvals are
+  now intercepted at the moment Claude Code is about to raise the permission
+  prompt, rather than on every tool call that might turn into one. That is
+  the same question this feature was always asking, so it no longer has to
+  keep its own list of permission-mode names in step with the CLI, and a
+  future mode cannot quietly switch it off again.
+- **Fewer interruptions as a side effect:** tool calls already covered by
+  your allow rules were never going to raise a prompt, and they are no longer
+  held for a decision you had effectively already given. Requests from
+  subagents keep landing on their own row, and every fallback still favours
+  the VS Code dialog — a broken or closed homepage can never block a call.
 ## [v4.40] — 2026-08-09
 
 ### The timeline covers the whole day, and imports stop hoarding storage

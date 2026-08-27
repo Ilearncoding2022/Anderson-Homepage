@@ -198,9 +198,9 @@ resurrect an agent, same rule as the session tombstone.
   pane is `aria-hidden` for exactly that reason — the text is always announced
   by something else, and a `role="tooltip"` would double it.
 
-## Remote Approve (v4.17)
+## Remote Approve (v4.17, moved to PermissionRequest in v4.41)
 
-Sits on top of the status bar: a `PreToolUse` hook
+Sits on top of the status bar: a `PermissionRequest` hook
 (`tools/claude-approve-hook.js`, registered in `~/.claude/settings.json` with
 `timeout: 180` for `Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit|WebFetch`)
 long-polls a loopback broker (`tools/claude-approve-broker.js`, 127.0.0.1:8765,
@@ -208,6 +208,32 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
 2 s, paints held requests onto the bars as Allow/Deny rows, and answers via
 `/decide`. Rules that must survive any refactor:
 
+- **`PermissionRequest` is the mediation point; `PreToolUse` is the legacy
+  path, and both are registered (v4.41).** PermissionRequest fires only when
+  Claude Code is about to raise a prompt, which is the exact question this
+  feature asks — so there is no permission-mode gate on that path, and there
+  must not be one. The gate survives on the PreToolUse path only, and it is
+  what stops the two from fighting: PreToolUse acts under
+  `""`/`default`/`acceptEdits`, precisely the modes PermissionRequest is not
+  needed for, so one call is never held twice. Keeping both is deliberate —
+  v4.17 chose PreToolUse *because* PermissionRequest decisions were ignored
+  upstream then (anthropics/claude-code#19298); they are honoured in 2.1.148,
+  but the old path stays for the modes it already covered. As a `PreToolUse`
+  hook alone it fired on every
+  matched tool call and had to *infer* "would this have prompted?" from
+  `permission_mode`, a vocabulary the CLI owns and does change: 2.1.148 added
+  `auto` (a classifier that silently allows safe calls), the gate's
+  else-branch swallowed it, and the feature went dark for weeks. The failure
+  mode is the tell — the hook exits before opening a socket, so nothing
+  reaches the broker and **not even an `arrival-*` refusal is logged**. An
+  empty `approve-log.jsonl` while sessions are clearly being blocked means the
+  hook, not the broker. The two events also take different stdout shapes
+  (`decision:{behavior}` vs `permissionDecision:"…"`), and a shape emitted on
+  the wrong event doesn't error — it silently reads as passthrough. Two
+  freebies fall out: `tool_use_id` is absent here, so the id is left empty and
+  the broker mints one, and `updatedInput` is omitted on allow because Claude
+  Code then reuses the original input instead of re-running it through the
+  deny/ask rules.
 - **The only path to "allow" is a human click.** Every other outcome —
   timeout (broker 150 s < hook deadline 170 s < settings 180 s, innermost
   releases first), dead broker, malformed anything, oversized stdin, bad
