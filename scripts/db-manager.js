@@ -51,7 +51,7 @@ const DbManager = {
         'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarHeight',
         'calendarCountdownPlacement', 'calendarCountdownWindow',
         'calendarCountdownWarnMins', 'calendarCountdownUrgentMins',
-        'calendarUpcomingBarCount', 'calendarUpcomingBarFormat',
+        'calendarUpcomingBarCount', 'calendarUpcomingBarFormat', 'calendarTzTool',
         'calendarCachedEvents', 'calendarLastFetched',
         'columnLayout', 'timezone1', 'timezone2', 'timezone3', 'timezone4',
         'timezone1Label', 'timezone2Label', 'timezone3Label', 'timezone4Label',

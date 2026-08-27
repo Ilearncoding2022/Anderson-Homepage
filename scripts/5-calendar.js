@@ -50,7 +50,8 @@ const CalendarManager = {
             timelineMode: 'calendarTimelineMode',
             upcomingBarCount: 'calendarUpcomingBarCount',
             upcomingBarFormat: 'calendarUpcomingBarFormat',
-            secondaryTz: 'calendarSecondaryTz'
+            secondaryTz: 'calendarSecondaryTz',
+            tzTool: 'calendarTzTool'
         }
     },
 

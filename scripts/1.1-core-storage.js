@@ -34,7 +34,7 @@ const Storage = {
         'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarHeight',
         'calendarCountdownPlacement', 'calendarCountdownWindow',
         'calendarCountdownWarnMins', 'calendarCountdownUrgentMins',
-        'calendarUpcomingBarCount', 'calendarUpcomingBarFormat',
+        'calendarUpcomingBarCount', 'calendarUpcomingBarFormat', 'calendarTzTool',
         'calendarCachedEvents', 'calendarLastFetched', 'calendarBuckets',
         'columnLayout', 'timezone1', 'timezone2', 'timezone3', 'timezone4',
         'timezone1Label', 'timezone2Label', 'timezone3Label', 'timezone4Label',
@@ -499,6 +499,39 @@ const Storage = {
                     new Intl.DateTimeFormat('en-US', { timeZone: zone });
                     Utils.safeLocalStorageSet('calendarSecondaryTz', zone);
                 } catch { /* unknown zone — dropped */ }
+            }
+        }
+        // Multi-timezone tool config (v4.41): { zones: [...IANA ids], primary }.
+        // Same validation as the clock zones below, applied per-entry — an
+        // unformattable zone would throw inside buildTzModel's Intl calls on
+        // the very next render, not just fail silently like a bad string field.
+        if (data.calendarTzTool) {
+            const parsed = typeof data.calendarTzTool === 'string'
+                ? Utils.safeJSONParse(data.calendarTzTool, null)
+                : data.calendarTzTool;
+            if (parsed && typeof parsed === 'object' && Array.isArray(parsed.zones)) {
+                const seen = new Set();
+                const zones = [];
+                for (const z of parsed.zones) {
+                    if (typeof z !== 'string' || seen.has(z)) continue;
+                    try {
+                        new Intl.DateTimeFormat('en-US', { timeZone: z });
+                    } catch {
+                        continue;
+                    }
+                    seen.add(z);
+                    zones.push(z);
+                    if (zones.length >= 4) break;
+                }
+                // Nothing valid survived — drop the key rather than store an
+                // empty-zones config; getTzToolConfig()'s own fallback chain
+                // covers the "never configured" case just as well.
+                if (zones.length > 0) {
+                    let primary = parseInt(parsed.primary, 10);
+                    if (!Number.isFinite(primary)) primary = 0;
+                    primary = Math.min(Math.max(primary, 0), zones.length - 1);
+                    Utils.safeLocalStorageSet('calendarTzTool', JSON.stringify({ zones, primary }));
+                }
             }
         }
         const heightOpts = ['auto', ...Array.from({ length: 19 }, (_, i) => String(1 + i * 0.5))];

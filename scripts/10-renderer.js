@@ -451,6 +451,15 @@ const UIRenderer = {
         if (this._clockTzMenuKeydown) document.removeEventListener('keydown', this._clockTzMenuKeydown, true);
         this._clockTzMenuDismiss = this._clockTzMenuKeydown = this._closeClockTzMenu = null;
         document.querySelector('.clock-tz-menu')?.remove();
+        // Time zone comparison's zone/date popovers (scripts/10.3-renderer-tz.js)
+        // are body-appended, same reason as the clock menu above — a re-render
+        // here doesn't touch them by itself, so without this they'd orphan onto
+        // a detached invoker button the moment the card is replaced.
+        if (this._tzPickerDismiss) document.removeEventListener('click', this._tzPickerDismiss, true);
+        if (this._tzPickerKeydown) document.removeEventListener('keydown', this._tzPickerKeydown, true);
+        this._tzPickerDismiss = this._tzPickerKeydown = this._tzPickerClose = null;
+        this._tzPickerKind = this._tzPickerInvoker = null;
+        document.querySelector('.cal-tz-popover')?.remove();
     },
 
     renderCalendarCard() {
@@ -893,6 +902,11 @@ const UIRenderer = {
             // does the real work; this only covers capture lost mid-gesture.
             document.addEventListener('lostpointercapture', onCancel);
         });
+
+        // Time zone comparison dial/range drag (scripts/10.3-renderer-tz.js).
+        // Delegated the same way, on the same container, for the same reason:
+        // it must survive the calendar card's scoped re-renders.
+        this._attachTzDragHandler(container);
     },
 
     // Card re-renders deferred because a drag was in flight (see
@@ -923,6 +937,10 @@ const UIRenderer = {
     // path ever escapes all three, this caps the damage at a few seconds
     // instead of the rest of the session.
     _cardDragActive() {
+        // The tz-comparison dial/range drag (scripts/10.3-renderer-tz.js) shares
+        // this gate: it sets/clears this._tzDragActive around its own gesture,
+        // which has no card-resize state object to go stale-check.
+        if (this._tzDragActive) return true;
         const st = this._cardResize;
         if (!st) return false;
         if (Date.now() - st.startedAt > this.CARD_DRAG_STALE_MS) {

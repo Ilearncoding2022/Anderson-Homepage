@@ -5,6 +5,36 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.42] — 2026-08-27
+
+### Compare up to four time zones on the calendar
+
+- **A new globe button in the Calendar header opens a time-zone comparison
+  view:** it swaps the card's body for up to four stacked bars, one per zone,
+  laid out on a single shared timeline. The same spot on every bar is the same
+  moment, so you can read straight down a column to see what time it is
+  everywhere at once. Press the button again to return to your normal calendar
+  — the view is a tool you open, not a mode that sticks around after a reload.
+- **Drag the dial to scrub through four days:** one vertical line crosses all
+  the bars, and every zone's time and date update together as you move it, in
+  fifteen-minute steps. Each bar draws its own midnights, its own dates and its
+  own night-time shading, so a zone that has already rolled over to tomorrow
+  shows it plainly. You can also drive the dial from the keyboard once it has
+  focus: arrows move a quarter hour, shift-arrows an hour, page up and down a
+  whole day.
+- **Mark a span of time and share it:** drag across the primary bar to paint a
+  range, and the same band appears on every other bar at the matching local
+  hours. A copy button hands you one line per zone, ready to paste into a
+  message — including a note when the range lands on the next day for someone.
+- **Choose the days and the zones:** a date button opens a two-week grid to pick
+  which four days the bars cover, and each zone chip opens a searchable list of
+  every time zone your browser knows about. Star a bar to make it the anchor.
+  Your zones, their order and the anchor are remembered between visits, and they
+  travel with your backups and exports.
+- **Your calendar events show up too:** the events already on your calendar are
+  drawn faintly along the anchor bar, so a proposed meeting time can be checked
+  against what you have booked without leaving the view.
+
 ## [v4.41] — 2026-08-14
 
 ### Permission requests reach the homepage again

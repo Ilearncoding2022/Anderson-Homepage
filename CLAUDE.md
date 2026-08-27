@@ -385,6 +385,60 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   an already-running session in this environment — don't rely on either
   behavior.
 
+## Calendar Time-Zone Tool (v4.42)
+
+A globe button in the Calendar header swaps the card body for up to 4 stacked
+zone bars sharing **one absolute-time x-axis** over a 4-day window: the same x
+is the same instant on every bar, so there is exactly **one** dial line for the
+whole stack. Data/geometry in `scripts/5.1-calendar-tz.js`
+(`Object.assign(CalendarManager, …)`), rendering + interaction in
+`scripts/10.3-renderer-tz.js` (`Object.assign(UIRenderer, …)`), styles in
+section 15 of `styles/3.1-groups-calendar.css` (`.cal-tz-*`). It is a new branch
+in `_calendarContentHTML()`, so `refreshCalendarDayView()` swaps it in place and
+the header ticker keeps running.
+
+- **The window is not 4 × 86 400 000 ms.** It runs `_zonedDayStartMs(d0)` →
+  `_zonedDayStartMs(d4)` in the *primary* zone, which is legitimately 95 or 97
+  hours across a DST edge, and every percentage divides by that real span. Each
+  row's own midnights come from walking *that* zone's local date strings through
+  `_zonedDayStartMs` — never by offsetting the primary's boundaries. Build the
+  date sequence with date-only UTC arithmetic, the same discipline
+  `getDayViewWindow` documents. Night shading (local 22:00→06:00) goes through
+  `_zonedTimeMs`, so a DST jump inside the night still yields the true span.
+- **`buildTzModel()` must never run during a drag.** A drag frame writes 1–3 CSS
+  custom properties on `.cal-tz-bars` plus `textContent` on the ≤4 readout
+  chips, rAF-coalesced; the ms comes from pointer x over `data-start-ms` /
+  `data-span-ms`. This is the same single-basis idea as the timeline's
+  `--tl-gridh` — the dial, now line and range band read only those vars, so
+  nothing can drift out of agreement with the bars.
+- **`_tzDragActive` participates in `_cardDragActive()`**, and the drag end calls
+  `_flushDeferredRender()`. Without it a background fetch replaces the card
+  mid-gesture. Both popovers' document listeners are registered in
+  `_teardownCalendarMenus()`; a re-render otherwise orphans them onto detached
+  nodes.
+- **The dial is a fixed instant, not a clock.** `state.tzDialMs` materializes
+  once (now, snapped to 15 min) and then stays put; only the now line follows
+  the clock, nudged by the existing 30 s eta tick — no new interval. `tzToolActive`
+  is deliberately **not** persisted (like `dayViewOffset`); only
+  `calendarTzTool` (`{zones, primary}`) is, and that key had to be added to
+  `Storage.ALL_APP_KEYS`, `DbManager.APP_KEYS` **and** the `Storage.import()`
+  validation block or it silently misses export/import/backup.
+- **Keyboard dial commits are debounced (250 ms) on purpose.** `setTzDialMs`
+  triggers a scoped rebuild that replaces the focused `.cal-tz-dial` node, so
+  committing synchronously per keystroke kills keyboard navigation after the
+  first press. The slider still updates 1:1 through the cheap path; only the
+  state commit trails.
+- **Two formatters exist here for a reason.** `_tzClockStr` is zero-padded 24h
+  (`21:00`) because `_timeStr` drops the leading zero and omits `:00` — fine
+  beside an event's "7 – 8", ambiguous in a lone readout chip and it breaks the
+  tabular-nums alignment. `_tzZoneName` falls back to the city when `_tzLabel`
+  degrades to a bare offset, since each row already shows the offset in its own
+  badge and "GMT+9 (GMT+9)" tells the user nothing.
+- **No green.** This whole feature is outside the `--signal` whitelist: the now
+  line is `--ok-neutral` dashed, the dial is white/`--ink` with no glow. Do not
+  copy `.cal-tl-now`'s treatment — its green is a whitelisted exception, not a
+  pattern.
+
 ## Agent Delegation
 
 When working on tasks, delegate to the appropriate specialist agent using the Agent tool. Match the task to the best-fit agent:

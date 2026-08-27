@@ -2017,3 +2017,1050 @@
     line-height: 1;
 }
 
+/* ========================================
+   15. CALENDAR TIME-ZONE COMPARISON
+
+   Up to 4 stacked bars (one per IANA zone) sharing ONE absolute-time x-axis
+   across a 4-day window: the same horizontal position means the same instant
+   on every bar. A single vertical dial crosses the whole stack; a marked
+   range renders as a band; a neutral "now" line appears when now is in the
+   window; faint event blocks overlay the primary bar only. Structure below
+   follows scripts/10.3-renderer-tz.js exactly — that file is the source of
+   truth for every class name and nesting level here.
+
+   ---- The shared-axis alignment problem, and why .cal-tz-row uses subgrid ----
+   .cal-tz-dial is a SIBLING of the .cal-tz-row stack (it has to span all of
+   them at once), but the x-axis it must line up with — 0%..100% of the BAR
+   track — starts to the right of each row's fixed-width label column, not at
+   the row's own left edge. If .cal-tz-dial's `left: var(--tz-dial-pct)`
+   resolved against the full row width (label + bar), the dial would draw at
+   the wrong x for every zone whenever the label column isn't zero-width, and
+   CSS `calc()` cannot fix that: multiplying two <percentage> values (the
+   fixed-column offset expressed as a % and the dial's own % of the remainder)
+   is not defined. `.cal-tz-bars` is therefore the grid — the ONE place the
+   two-column template (`minmax(96px, 120px) 1fr`) is truly declared — and
+   each `.cal-tz-row` is a `subgrid` that inherits those exact two column
+   tracks rather than resolving its own. That makes every row's bar column
+   pixel-identical across the whole stack, and lets `.cal-tz-dial` sit as a
+   normal grid item in that same second column (`grid-row: 1 / -1` to span
+   every row) — so its own box IS the bar track, and `left: var(--tz-dial-pct)`
+   on its contents resolves against exactly the right width with a plain
+   percentage, no calc trickery required. `.cal-tz-band` / `.cal-tz-nowline`
+   (inside each `.cal-tz-bar`) share that same width for the same reason: a
+   `.cal-tz-bar` is a grid item in that identical second column.
+
+   ---- Z-index ladder (documented once, here) ----
+   Inside the shared coordinate space rooted at `.cal-tz-bars`: 1 day/night
+   shading, 2 hour ticks + labels, 3 event overlay (primary bar only), 4 the
+   marked-range band, 5 the now line, 6 the dial. Later entries need to win
+   over earlier ones exactly in that order — the dial must never be obscured
+   by its own now line or a band the user just painted, and the now line must
+   stay visible through a band it happens to fall inside. None of these
+   elements establish their own stacking context (no `position` element in
+   this chain sets a non-auto z-index above this list), so the six numbers
+   compare directly against each other the same way `.cal-tl-*`'s ladder does
+   elsewhere in this file.
+
+   ---- Why .cal-tz-dial is pointer-events:none ----
+   `.cal-tz-dial`'s box is the FULL bar-track column, stacked at z-index:6
+   above every `.cal-tz-bar` in every row. If it accepted pointer events itself
+   it would sit on top of the whole column and swallow every click meant for
+   `.cal-tz-bar` (click-to-move-dial, drag-to-paint-range on the primary bar,
+   scrub-to-move-dial on secondary bars) — none of that geometry belongs to
+   the dial widget. Only `.cal-tz-dial-grip`, the small round handle, opts
+   back into `pointer-events: auto`; the actual drag classification (grip vs.
+   bar) is done in JS by proximity, per the plan, off one delegated listener
+   on `.cal-tz-bars`, so this pointer-events split only has to get the visible
+   affordance right, not the hit-testing logic.
+
+   ---- Every button here re-resets the base `button` rule (2-components.css) ----
+   That base rule paints an opaque `var(--accent)` fill, 0.5rem/1rem padding,
+   6px radius and 0.9rem text, and `button:hover` adds `translateY(-2px)` +
+   `opacity:.9`. None of the classes below are on 1-core.css's reset
+   whitelist (out of scope for this file to extend), so every button-typed
+   selector here explicitly overrides background/padding/border-radius/
+   font-size AND sets `transform: none; opacity: 1;` in its own `:hover` rule
+   — omitting the hover override would still leave the base lift/fade active
+   even though every other property was reset, since the cascade resolves
+   `transform`/`opacity` per property, not per rule.
+
+   Green (`--signal`) is reserved elsewhere in this app (see 1-core.css) and
+   does not appear anywhere in this section: the now line uses `--ok-neutral`,
+   the dial is plain white/`--ink` with no glow.
+   ======================================== */
+
+/* ---- Toolbar: zone chips + add + date range button ---- */
+
+.cal-tz-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.25rem 0 0.5rem;
+}
+
+.cal-tz-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-bottom: 0.15rem;
+}
+
+.cal-tz-slots {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.cal-tz-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 26px;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    /* .glass-control recipe, condensed for a small pill (see 1-core.css). */
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255, 255, 255, 0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
+}
+
+/* Real modifier class emitted by the renderer (not inferred from aria-pressed
+   on the star) — a light accent ring on the whole pill, independent of hover. */
+.cal-tz-chip.is-primary {
+    box-shadow: var(--glass-inset), 0 0 0 1px var(--accent) inset;
+}
+
+/* Star (primary toggle), shared verbatim between .cal-tz-chip and
+   .cal-tz-rowhead — same button, same class, in both places. Filled accent
+   when pressed: --accent is this design system's token for "interactive/
+   active" states that used to be green (see 1-core.css) — never --signal. */
+.cal-tz-star {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-dim);
+    font-size: 0.65rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.cal-tz-star:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--ink);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-star[aria-pressed="true"] {
+    color: var(--accent);
+}
+
+.cal-tz-star:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* The chip's middle control is a <button> wrapping .cal-tz-chiplabel +
+   .cal-tz-gmt — reset to read as plain inline content, not a second nested
+   button face. */
+.cal-tz-chipbtn {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cal-tz-chipbtn:hover {
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-chipbtn:hover .cal-tz-chiplabel {
+    color: var(--ink);
+}
+
+.cal-tz-chipbtn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.cal-tz-chiplabel {
+    max-width: 9em;
+    font-family: var(--font-ui);
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ✕ remove — hints destructive on hover. color-mix keeps this a derived tint
+   of the --danger token rather than a hardcoded RGB duplicate of it. */
+.cal-tz-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 50%;
+    color: var(--ink-dim);
+    font-size: 0.6rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.cal-tz-chip-remove:hover {
+    color: var(--danger);
+    background-color: color-mix(in srgb, var(--danger) 14%, transparent);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-chip-remove:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* .cal-tz-zname (rowhead only) and .cal-tz-gmt (rowhead + chip) — see the
+   rowhead rules further down for .cal-tz-zname. */
+.cal-tz-gmt {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 2px);
+    zoom: var(--cal-z-tz, 1);
+    color: var(--ink-dim);
+    white-space: nowrap;
+    flex: none;
+}
+
+.cal-tz-add {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--ink-dim);
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255, 255, 255, 0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.cal-tz-add:hover:not(:disabled) {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.10) 55%, rgba(255, 255, 255, 0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    color: var(--ink);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-add:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.cal-tz-add:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Same trap as .pb-toggle[hidden] / .projects-row-wrap[hidden]: this element
+   carries an inline-flex display, which beats the UA [hidden] rule unless
+   overridden explicitly. */
+.cal-tz-add[hidden] {
+    display: none;
+}
+
+.cal-tz-datebtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 26px;
+    padding: 0 0.6rem;
+    margin-left: auto;
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 1px);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255, 255, 255, 0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.18s ease, box-shadow 0.18s ease;
+}
+
+.cal-tz-datebtn:hover {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.10) 55%, rgba(255, 255, 255, 0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-datebtn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.cal-tz-chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--ink-dim);
+}
+
+/* ---- Bars: shared grid, subgrid rows (see the note above the section) ---- */
+
+.cal-tz-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.2rem;
+}
+
+.cal-tz-bars {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(120px, 156px) 1fr;
+    column-gap: 0.75rem;
+    row-gap: 0.3rem;
+    min-width: 560px;
+    touch-action: none;
+}
+
+.cal-tz-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    column-gap: 0.75rem;
+    padding: 0.1rem 0;
+}
+
+.cal-tz-row + .cal-tz-row {
+    border-top: 1px solid var(--structural-soft);
+}
+
+/* Two lines, not one: star + zone name + offset badge, then the readout on its
+   own row. On a single line the readout (flex: none, nowrap) left .cal-tz-zname
+   as the only shrinkable item, so the zone name collapsed to 0px and the head
+   still overflowed its track and painted over the first day segment. */
+.cal-tz-rowhead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem 0.3rem;
+    min-width: 0;
+}
+
+/* Zone name — rowhead only (the chip's equivalent is .cal-tz-chiplabel). */
+.cal-tz-zname {
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-tz-readout {
+    flex: 1 0 100%;      /* own line — see the .cal-tz-rowhead comment */
+    margin-left: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Two independent spans so a drag frame can rewrite them with textContent
+   only (see _tzWriteReadouts) — time is the primary numeral, date is the
+   secondary, dimmer companion. */
+.cal-tz-readout-time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    color: var(--ink);
+}
+
+.cal-tz-readout-date {
+    margin-left: 0.35em;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 2px);
+    zoom: var(--cal-z-tz, 1);
+    color: var(--ink-dim);
+}
+
+.cal-tz-row.is-primary .cal-tz-bar {
+    box-shadow: inset 0 0 0 1px var(--structural-soft);
+}
+
+.cal-tz-row.is-primary .cal-tz-zname {
+    color: var(--ink);
+}
+
+.cal-tz-bar {
+    /* Height of the shaded/ticked band; the row is this plus a 14px strip
+       below it for hour labels. Day/night/tick/band/nowline all read this so
+       they stay in lockstep if the band height ever changes. */
+    --tz-track-h: 44px;
+    position: relative;
+    height: calc(var(--tz-track-h) + 14px);
+    min-width: 0;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+}
+
+/* ---- Day segments, night shading, hour ticks (all left/width set inline) ---- */
+
+.cal-tz-day {
+    position: absolute;
+    top: 0;
+    height: var(--tz-track-h);
+    border-left: 1px solid var(--structural-soft);
+    z-index: 1;
+}
+
+.cal-tz-day.is-first {
+    border-left: none;
+}
+
+/* NO zoom here — this box is positioned by an inline `left` percentage, and
+   zoom would scale that percentage's reference box too (the same trap
+   documented on .cal-tl-hour / .cal-tl-event above). transform: scale() is
+   the safe escape below the ~6px Chrome minimum-font-size floor. */
+.cal-tz-daylabel {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-family: var(--font-ui);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    transform-origin: top left;
+    transform: scale(0.82);
+    pointer-events: none;
+}
+
+/* Must read as "night" over the glass in both themes — a flat dark overlay,
+   not a theme-dependent token. background-image (never the `background`
+   shorthand) so a later rule can't wipe this layer. */
+.cal-tz-night {
+    position: absolute;
+    top: 0;
+    height: var(--tz-track-h);
+    background-color: transparent;
+    background-image: linear-gradient(rgba(10, 16, 32, 0.32), rgba(10, 16, 32, 0.32));
+    pointer-events: none;
+    z-index: 1;
+}
+
+.cal-tz-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: var(--tz-track-h);
+    background-color: var(--structural-soft);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Labeled ticks (every 3rd hour, 6/12/18) run the full row height so their
+   label reads as attached to a specific line rather than floating. */
+.cal-tz-tick.is-labeled {
+    height: calc(var(--tz-track-h) + 14px);
+    background-color: var(--structural);
+}
+
+/* Positioned by an inline `left` percentage — same NO-zoom rule as
+   .cal-tz-daylabel above; transform carries both the centering and the
+   shrink so the label stays centered under its tick regardless of scale. */
+.cal-tz-hlabel {
+    position: absolute;
+    top: calc(var(--tz-track-h) + 1px);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.62rem;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    transform: translateX(-50%) scale(0.82);
+    transform-origin: top center;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ---- Event overlay (primary bar only; left/width set inline) ---- */
+
+.cal-tz-ev {
+    position: absolute;
+    top: 3px;
+    height: calc(var(--tz-track-h) - 6px);
+    overflow: hidden;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: linear-gradient(var(--ev-c, var(--accent)), var(--ev-c, var(--accent)));
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.cal-tz-ev-title {
+    display: block;
+    padding: 1px 4px;
+    font-family: var(--font-ui);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Marked range band (reads --tz-r-left / --tz-r-width) ---- */
+
+.cal-tz-band {
+    position: absolute;
+    top: 0;
+    height: var(--tz-track-h);
+    left: var(--tz-r-left, 0%);
+    width: var(--tz-r-width, 0%);
+    background-color: transparent;
+    background-image: linear-gradient(
+        color-mix(in srgb, var(--accent) 18%, transparent),
+        color-mix(in srgb, var(--accent) 18%, transparent)
+    );
+    border-left: 1px solid var(--accent);
+    border-right: 1px solid var(--accent);
+    pointer-events: none;
+    z-index: 4;
+}
+
+/* ---- Now line (reads --tz-now-pct; neutral, NOT --signal — see the
+   section note above and 1-core.css's whitelist) ---- */
+
+.cal-tz-nowline {
+    position: absolute;
+    top: 0;
+    left: var(--tz-now-pct, 50%);
+    height: var(--tz-track-h);
+    width: 0;
+    border-left: 1px dashed var(--ok-neutral);
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Same trap as .pb-toggle[hidden]: this element would otherwise render via
+   the `position: absolute` box above even while [hidden] is set. */
+.cal-tz-nowline[hidden] {
+    display: none;
+}
+
+/* ---- Dial: one element spanning the whole stack (see the section note
+   above for why this lives in the grid's second column via subgrid, and why
+   it is pointer-events: none). White/--ink, no glow, no transitions — the
+   drag has to track the pointer 1:1. ---- */
+
+.cal-tz-dial {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    position: relative;
+    z-index: 6;
+    pointer-events: none;
+}
+
+.cal-tz-dial::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--tz-dial-pct, 50%);
+    width: 2px;
+    margin-left: -1px;
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+.cal-tz-dial-grip {
+    position: absolute;
+    top: -6px;
+    left: var(--tz-dial-pct, 50%);
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    border-radius: 50%;
+    background-color: var(--ink);
+    border: 2px solid rgba(10, 14, 20, 0.65);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    cursor: ew-resize;
+    pointer-events: auto;
+}
+
+/* Widened touch/pointer hit area around the 12px visible grip, without
+   widening the grip itself or the dial line. */
+.cal-tz-dial-grip::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+}
+
+/* Focus lives on .cal-tz-dial (role="slider" tabindex="0" — its box is the
+   whole track height, which would draw an oversized rectangle if outlined
+   directly), so the ring is painted on the small grip instead. */
+.cal-tz-dial:focus-visible .cal-tz-dial-grip {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ---- Range bar: per-zone readout chips + copy/clear, or the two
+   "at dial" buttons before a range exists ---- */
+
+.cal-tz-rangebar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.35rem 0.1rem 0;
+    border-top: 1px solid var(--structural-soft);
+}
+
+.cal-tz-range-chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.cal-tz-range-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--structural-soft);
+    white-space: nowrap;
+}
+
+.cal-tz-range-zone {
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 1px);
+    zoom: var(--cal-z-tz, 1);
+    font-weight: 600;
+    color: var(--ink-dim);
+}
+
+.cal-tz-range-time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--cal-fs-tz, 0.75rem);
+    zoom: var(--cal-z-tz, 1);
+    color: var(--ink);
+}
+
+.cal-tz-range-nextday {
+    margin-left: 0.2rem;
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 2px);
+    zoom: var(--cal-z-tz, 1);
+    font-style: italic;
+    color: var(--ink-dim);
+}
+
+/* Text-pill actions (Copy / Start at dial / End at dial) share one base;
+   the icon-only Clear button gets its own square shape below. */
+.cal-tz-range-copybtn,
+.cal-tz-range-startbtn,
+.cal-tz-range-endbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 26px;
+    padding: 0 0.6rem;
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 1px);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255, 255, 255, 0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.cal-tz-range-clearbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    padding: 0;
+    color: var(--ink-dim);
+    cursor: pointer;
+    background-color: transparent;
+    background-image:
+        linear-gradient(var(--glass-fill-raised), var(--glass-fill-raised)),
+        linear-gradient(148deg, var(--glass-edge-hi) 0%, var(--glass-edge-lo) 55%, rgba(255, 255, 255, 0.10) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset);
+    transition: background-image 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.cal-tz-range-copybtn:hover:not(:disabled),
+.cal-tz-range-startbtn:hover:not(:disabled),
+.cal-tz-range-endbtn:hover:not(:disabled),
+.cal-tz-range-clearbtn:hover:not(:disabled) {
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.10) 55%, rgba(255, 255, 255, 0.18) 100%);
+    box-shadow: var(--glass-inset-hi);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-range-clearbtn:hover:not(:disabled) {
+    color: var(--danger);
+}
+
+.cal-tz-range-copybtn:disabled,
+.cal-tz-range-startbtn:disabled,
+.cal-tz-range-endbtn:disabled,
+.cal-tz-range-clearbtn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.cal-tz-range-copybtn:focus-visible,
+.cal-tz-range-startbtn:focus-visible,
+.cal-tz-range-endbtn:focus-visible,
+.cal-tz-range-clearbtn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* "Copied" flash: a brief neutral highlight, not a signal-green success
+   state. Duration is already forced to 0.01ms by the global reduced-motion
+   killer in 5-pomodoro.css (`*`), but the animation is neutralized here too,
+   explicitly, per house convention (see .cal-tl-now for the same belt-and-
+   suspenders pattern). */
+.cal-tz-range-copybtn.is-copied {
+    color: var(--ink);
+    background-color: color-mix(in srgb, var(--ok-neutral) 20%, transparent);
+    animation: cal-tz-copied-flash 1.4s ease;
+}
+
+@keyframes cal-tz-copied-flash {
+    0% { box-shadow: var(--glass-inset-hi); }
+    15% { box-shadow: var(--glass-inset-hi), 0 0 0 1px var(--ok-neutral) inset; }
+    100% { box-shadow: var(--glass-inset); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cal-tz-range-copybtn.is-copied {
+        animation: none;
+    }
+}
+
+/* ---- Popovers: zone picker + start-date grid. Both are appended straight
+   to document.body (see toggleTzZonePicker / toggleTzDatePicker), so they
+   sit OUTSIDE .cal-tz-view and everything below must stand on its own —
+   nothing here may depend on a .cal-tz-view/.calendar-group ancestor.
+   position:absolute (not fixed): the renderer positions each popover by
+   adding window.scrollX/scrollY to the anchor's rect, which is exactly
+   absolute-relative-to-document math. z-index:1000 matches this app's other
+   body-level overlays (modals/toasts — see 2-components.css/4-interactions.css)
+   since a body-appended node escapes every card's own stacking context and
+   needs a number large enough to beat all of them, including the sticky
+   header. ---- */
+
+.cal-tz-popover {
+    position: absolute;
+    z-index: 1000;
+    background-color: rgba(25, 27, 32, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    font-family: var(--font-ui);
+}
+
+/* ---- Zone picker (combobox + listbox) ---- */
+
+.cal-tz-zonepop {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 240px;
+    max-width: 300px;
+    max-height: 40vh;
+    padding: 0.4rem;
+}
+
+.cal-tz-zonepop-searchwrap {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--ink-dim);
+}
+
+.cal-tz-zonepop-searchwrap:focus-within {
+    border-color: var(--accent);
+}
+
+.cal-tz-zonepop-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background-color: transparent;
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: var(--cal-fs-details, 0.75rem);
+}
+
+.cal-tz-zonepop-input::placeholder {
+    color: var(--ink-dim);
+}
+
+.cal-tz-zonepop-input:focus {
+    outline: none;
+}
+
+.cal-tz-zonepop-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    max-height: 30vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+/* Comfortable 30px rows, ~418 of them. .is-active (roving highlight, set by
+   setActive alongside aria-activedescendant on the input) is styled
+   independently of :hover / :focus on purpose — keyboard nav in this
+   combobox moves aria-activedescendant, never real DOM focus, so a highlight
+   that only responded to :focus would never show while arrowing through the
+   list.
+   [hidden] MUST be repeated here: filtering toggles the native `hidden` IDL
+   property on these ~418 <li> rows every keystroke (see the `input` handler),
+   and this rule already declares `display: flex` unconditionally above —
+   without the override below, [hidden] rows would keep rendering and typing
+   in the search box would visibly do nothing. */
+.cal-tz-zonepop-opt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    height: 30px;
+    padding: 0 0.5rem;
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: var(--cal-fs-details, 0.75rem);
+    zoom: var(--cal-z-details, 1);
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.cal-tz-zonepop-opt[hidden] {
+    display: none;
+}
+
+.cal-tz-zonepop-opt:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cal-tz-zonepop-opt.is-active {
+    background-color: var(--structural-soft);
+}
+
+.cal-tz-zonepop-id {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-tz-zonepop-off {
+    flex: none;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--cal-fs-details, 0.75rem) - 2px);
+    color: var(--ink-dim);
+}
+
+/* ---- Start-date grid (Mo–Su header + 14 day cells) ---- */
+
+.cal-tz-datepop {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 220px;
+    padding: 0.5rem;
+}
+
+.cal-tz-datepop-head,
+.cal-tz-datepop-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.2rem;
+}
+
+.cal-tz-datepop-wd {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-ui);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+}
+
+.cal-tz-daycell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--cal-fs-details, 0.75rem);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.cal-tz-daycell:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-daycell:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.cal-tz-daycell.is-today {
+    border-color: var(--accent);
+}
+
+/* Part of the 4-day span the start date will produce — lighter than the
+   chosen start cell so the two states stay distinguishable at a glance. */
+.cal-tz-daycell.is-inspan {
+    background-color: var(--structural-soft);
+}
+
+.cal-tz-daycell.is-start {
+    background-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+}
+
+/* ---- Header toggle button: reuses .calendar-refresh-btn (see line 356);
+   only the pressed state is new. ---- */
+
+.cal-tz-toggle-btn[aria-pressed="true"] {
+    color: var(--accent);
+    background-image:
+        linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
+        linear-gradient(148deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.10) 55%, rgba(255, 255, 255, 0.18) 100%);
+    box-shadow: var(--glass-inset-hi), 0 0 0 1px var(--accent) inset;
+}
+
+.cal-tz-toggle-btn[aria-pressed="true"]:hover {
+    transform: none;
+}
+
+/* ---- Narrow card ---- */
+
+.calendar-group[data-card-width="column"] .cal-tz-toolbar {
+    flex-wrap: wrap;
+}
+
+.calendar-group[data-card-width="column"] .cal-tz-hlabel {
+    display: none;
+}
+

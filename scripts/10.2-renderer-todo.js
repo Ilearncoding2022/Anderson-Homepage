@@ -1108,6 +1108,15 @@ Object.assign(UIRenderer, {
     jumpToTodayView() {
         const cm = window.CalendarManager;
         if (!cm) return;
+        // The time-zone tool replaces the card body, so "today" means its own
+        // window and dial, not the day-view offset. Nulling both re-derives
+        // them from the clock on the next model build.
+        if (cm.state?.tzToolActive) {
+            cm.state.tzStartDateStr = null;
+            cm.state.tzDialMs = null;
+            this.refreshCalendarDayView();
+            return;
+        }
         this._calTlForceNow = true;     // consumed by _applyTimelineScroll
         cm.resetDayViewToToday();       // offset = 0, then renderCalendarCard()
         this._flashTodayColumn();

@@ -167,6 +167,7 @@ Object.assign(UIRenderer, {
                                onclick="UIRenderer.openInBackgroundTab(event, this)"><svg class="ico" aria-hidden="true"><use href="#ico-calendar"></use></svg></a> Calendar${this._calendarLegendButton(calendars)}${isConfigured ? this._calendarViewDropdown(viewMode, viewLabel) : ''}${isConfigured ? this._calendarGroupingDropdown(groupLabel) : ''}
                         </div>
                         <div class="calendar-header-meta">
+                            ${isConfigured ? `<button class="calendar-refresh-btn cal-tz-toggle-btn" onclick="CalendarManager.toggleTzTool()" aria-pressed="${cm.state?.tzToolActive ? 'true' : 'false'}" title="Time zone comparison" aria-label="Time zone comparison"><svg class="ico" aria-hidden="true"><use href="#ico-globe"></use></svg></button>` : ''}
                             ${isConfigured ? `<button class="calendar-refresh-btn" onclick="CalendarManager.fetchEvents()" title="Refresh now" aria-label="Refresh now"><svg class="ico" aria-hidden="true"><use href="#ico-refresh"></use></svg></button>` : ''}
                             ${lastFetchedLabel ? `<span class="calendar-last-updated">${Utils.sanitizeHTML(lastFetchedLabel)}</span>` : ''}
                             ${warningBadge}
@@ -174,7 +175,7 @@ Object.assign(UIRenderer, {
                             ${this._cardWidthButton('__calendar__')}
                         </div>
                         ${isFullWidth ? ticker : ''}
-                        ${isConfigured && viewMode !== 'list' ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now (Enter)">Today &amp; Now</button>` : ''}
+                        ${isConfigured && (cm?.state?.tzToolActive || viewMode !== 'list') ? `<button class="cal-nav-today cal-header-today" onclick="UIRenderer.jumpToTodayView()" title="Jump to today · scroll to now (Enter)">Today &amp; Now</button>` : ''}
                     </div>
                 </div>
                 ${isFullWidth ? '' : ticker}
@@ -197,6 +198,7 @@ Object.assign(UIRenderer, {
         const events = cm?.getUpcomingEvents() || [];
         if (!isConfigured) return this._calendarSetupPrompt();
         if (fetchError && events.length === 0) return this._calendarErrorState(fetchError);
+        if (cm.state?.tzToolActive) return this._calendarTzView();
         if (viewMode !== 'list') return this._calendarDayView();
         if (events.length === 0 && !fetchError) return this._calendarEmptyState();
         return this._calendarEventsList(events);
@@ -1147,6 +1149,16 @@ Object.assign(UIRenderer, {
     // target's epoch ms) means a throttled hidden tab self-corrects the moment
     // it's checked again rather than drifting.
     _tickCalendarEta() {
+        // Time zone comparison view (scripts/10.3-renderer-tz.js) has no
+        // .cal-tl-eta chip or .cal-tl-now dial for the branches below to find —
+        // it rides this same 30s ticker (no new interval) purely for its own
+        // now-line, via the cheap CSS-var path, never a rebuild.
+        if (window.CalendarManager?.state?.tzToolActive) {
+            if (!this._cardDragActive() && document.querySelector('.calendar-group .cal-tz-bars')) {
+                this._tzTickUpdate();
+            }
+            return;
+        }
         const chip = document.querySelector('.calendar-group .cal-tl-eta');
         if (!chip) { this._tickCalendarNowState(); return; }
         const target = Number(chip.dataset.etaTarget);
