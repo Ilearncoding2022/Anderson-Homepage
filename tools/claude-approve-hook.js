@@ -5,15 +5,41 @@
  * Remote-approve PreToolUse hook (v4.17). Companion to
  * tools/claude-approve-broker.js — see that file for the architecture.
  *
- * Registered in ~/.claude/settings.json under PreToolUse for the tools that
- * normally raise a permission prompt (Bash|PowerShell|Write|Edit|MultiEdit|
- * NotebookEdit|WebFetch), with "timeout": 180. It asks the broker whether the
- * homepage wants to decide this call. Three possible outcomes:
+ * Registered in ~/.claude/settings.json under PermissionRequest for the tools
+ * that normally raise a permission prompt (Bash|PowerShell|Write|Edit|
+ * MultiEdit|NotebookEdit|WebFetch), with "timeout": 180. It asks the broker
+ * whether the homepage wants to decide this call. Three possible outcomes:
  *
- *   allow / deny  -> emit the PreToolUse permissionDecision JSON on stdout;
- *                    the VS Code dialog never appears.
+ *   allow / deny  -> emit the decision JSON on stdout; the VS Code dialog
+ *                    never appears.
  *   passthrough   -> emit NOTHING; Claude Code's normal permission
  *                    evaluation runs (allowlists, then the dialog).
+ *
+ * WHY PermissionRequest AND NOT PreToolUse (v4.41). It used to be a PreToolUse
+ * hook, which fires on *every* matched tool call, so the gate below had to
+ * infer "would this have prompted?" from `permission_mode` — a vocabulary the
+ * CLI owns and duly changed: 2.1.148 added `auto` (a classifier that silently
+ * allows safe calls), the gate's else-branch swallowed it, and the feature
+ * went dark with no request ever reaching the broker and therefore no line in
+ * approve-log.jsonl to say so. PermissionRequest fires *only* when a prompt is
+ * about to be shown, in every mode, on the main thread and inside subagents —
+ * which is exactly and only what this feature wants. So there is no mode gate
+ * on that path at all, and no future mode name can silently disable it again.
+ * Two consequences worth knowing: calls already covered by `permissions.allow`
+ * are no longer intercepted (they were never going to prompt), and the
+ * `acceptEdits` carve-out below is now implicit rather than hand-maintained.
+ *
+ * BOTH events are registered, and the mode gate is what keeps them from
+ * fighting: PreToolUse acts only under ""/default/acceptEdits, which are
+ * exactly the modes PermissionRequest is not needed for, so a given call is
+ * mediated by one path or the other and never held twice. The belt and braces
+ * are deliberate — v4.17 chose PreToolUse *because* PermissionRequest hook
+ * decisions were ignored upstream at the time (anthropics/claude-code#19298).
+ * They are honoured in 2.1.148, but the older path is proven in this setup, so
+ * it keeps the modes it already covered. If PreToolUse passes through, a
+ * prompt still follows and PermissionRequest gets its own turn; the only cost
+ * is a second hold in the rare case where the user ignores the buttons for the
+ * full 150 s, and the fail-safe direction is unchanged throughout.
  *
  * Behaviour contract (same spirit as tools/claude-status-hook.js):
  *  - ALWAYS exit 0. Never exit 2 — that is PreToolUse's blocking-error code
@@ -93,18 +119,31 @@ function run() {
   const toolName = typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (!sessionId || !toolName) return process.exit(0);
 
-  const permissionMode = typeof payload.permission_mode === 'string' ? payload.permission_mode : '';
-  // Mediate "" and "default" fully; under acceptEdits mediate only the tools
-  // it does NOT auto-approve (intercepting an edit there would ADD a prompt
-  // the user configured away). Plan, bypassPermissions and every unknown
-  // future mode are skipped entirely — they have their own semantics and
-  // this hook must never be the thing that reinterprets them.
-  if (permissionMode && permissionMode !== 'default') {
-    if (permissionMode !== 'acceptEdits') return process.exit(0);
-    if (EDIT_TOOLS.has(toolName)) return process.exit(0);
+  // Which event we're answering decides the stdout shape, so it has to be read
+  // off the payload rather than assumed — the two are not interchangeable.
+  const onPermissionRequest = payload.hook_event_name === 'PermissionRequest';
+
+  if (!onPermissionRequest) {
+    // Legacy PreToolUse path only. See the header: PermissionRequest already
+    // means "a prompt is about to be shown", so applying this gate there would
+    // reintroduce the exact bug it causes — an unrecognised mode name silently
+    // disabling the feature.
+    const permissionMode = typeof payload.permission_mode === 'string' ? payload.permission_mode : '';
+    // Mediate "" and "default" fully; under acceptEdits mediate only the tools
+    // it does NOT auto-approve (intercepting an edit there would ADD a prompt
+    // the user configured away). Plan, bypassPermissions and every unknown
+    // future mode are skipped entirely — they have their own semantics and
+    // this hook must never be the thing that reinterprets them.
+    if (permissionMode && permissionMode !== 'default') {
+      if (permissionMode !== 'acceptEdits') return process.exit(0);
+      if (EDIT_TOOLS.has(toolName)) return process.exit(0);
+    }
   }
 
   const body = JSON.stringify({
+    // PermissionRequest carries no tool_use_id (PreToolUse does). An empty id
+    // is not a degraded case: the broker mints a UUID for it, and the id's only
+    // job is to key this one held request for its own /decide.
     id: typeof payload.tool_use_id === 'string' ? payload.tool_use_id : '',
     sessionId,
     agentId: typeof payload.agent_id === 'string' && payload.agent_id ? payload.agent_id : null,
@@ -155,7 +194,7 @@ function run() {
           decision = typeof obj.decision === 'string' ? obj.decision : '';
         }
       } catch (_err) { /* malformed: passthrough */ }
-      if (decision === 'allow' || decision === 'deny') emitDecision(decision);
+      if (decision === 'allow' || decision === 'deny') emitDecision(decision, onPermissionRequest);
       process.exit(0);
     });
     res.on('error', () => process.exit(0));
@@ -164,14 +203,31 @@ function run() {
   req.end(body);
 }
 
-function emitDecision(decision) {
-  const out = JSON.stringify({
+function emitDecision(decision, onPermissionRequest) {
+  const reason = decision === 'allow'
+    ? 'Approved from the Anderson Homepage status bar.'
+    : 'Denied from the Anderson Homepage status bar.';
+  // Same two outcomes, two different wire shapes. PermissionRequest takes a
+  // decision OBJECT keyed by `behavior`; PreToolUse takes a decision STRING in
+  // `permissionDecision`. A shape emitted on the wrong event doesn't error —
+  // it just fails to parse as a decision, i.e. silently becomes passthrough.
+  //
+  // `updatedInput` is deliberately omitted on allow: Claude Code falls back to
+  // the original input when it is absent, and supplying it would re-run the
+  // tool input through the deny/ask rules for no reason. This hook rewrites
+  // nothing, so it says nothing.
+  const out = JSON.stringify(onPermissionRequest ? {
+    hookSpecificOutput: {
+      hookEventName: 'PermissionRequest',
+      decision: decision === 'allow'
+        ? { behavior: 'allow' }
+        : { behavior: 'deny', message: reason },
+    },
+  } : {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: decision,
-      permissionDecisionReason: decision === 'allow'
-        ? 'Approved from the Anderson Homepage status bar.'
-        : 'Denied from the Anderson Homepage status bar.',
+      permissionDecisionReason: reason,
     },
   });
   // writeSync, not process.stdout.write: process.exit(0) right after an
