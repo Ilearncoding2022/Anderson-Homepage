@@ -2046,20 +2046,49 @@
    every row) — so its own box IS the bar track, and `left: var(--tz-dial-pct)`
    on its contents resolves against exactly the right width with a plain
    percentage, no calc trickery required. `.cal-tz-band` / `.cal-tz-nowline`
-   (inside each `.cal-tz-bar`) share that same width for the same reason: a
-   `.cal-tz-bar` is a grid item in that identical second column.
+   (inside each `.cal-tz-track`) share that same width for the same reason:
+   a `.cal-tz-bar` is a grid item in that identical second column, and
+   `.cal-tz-track` is stretched `left: 0; right: 0` inside it.
+
+   ---- Row anatomy: a grid of labelled hour cells ----
+   `.cal-tz-bar` is a bare positioning context; everything visible lives in
+   `.cal-tz-track`, whose first child `.cal-tz-cells` is a
+   `repeat(var(--tz-cells), 1fr)` grid of one cell per ABSOLUTE hour. Two
+   heights declared on `.cal-tz-bar` divide it:
+
+     --tz-cellbody-h   the labelled hour cells
+     --tz-evstrip-h    the strip event pills are positioned over; 0 until
+                       `.cal-tz-view.has-events` opens it
+
+   **Equal columns are load-bearing, not cosmetic.** Every other layer here —
+   the dial, its cell highlight, the range band, the now line, the event
+   pills — is positioned by a plain percentage against this same box, so
+   uniform cells are the only reason all of them agree about where a given
+   instant sits. Anything that would make one cell wider than another (a
+   roomier date cell, say) breaks the shared axis and must not be added.
+
+   Cells are absolute hours, so column k is the same instant in every row;
+   a zone on a :30/:45 offset simply reads "9:30" at the boundary. The
+   local-midnight cell carries the DATE instead of "12 am" and is the row's
+   only day-boundary marker — no separate rule, no separate label layer, and
+   therefore no way for the two to disagree.
+
+   `--tz-cell-min` (on `.cal-tz-bars`) is the floor width of one cell, and
+   `.cal-tz-bars`' `min-width` multiplies it by the same `--tz-cells`. Below
+   that floor the grid stops shrinking and `.cal-tz-scroll` scrolls instead,
+   so the labels never squeeze into illegibility: 24 cells fit any card, 72
+   scroll on a narrow one.
 
    ---- Z-index ladder (documented once, here) ----
-   Inside the shared coordinate space rooted at `.cal-tz-bars`: 1 day/night
-   shading, 2 hour ticks + labels, 3 event overlay (primary bar only), 4 the
-   marked-range band, 5 the now line, 6 the dial. Later entries need to win
-   over earlier ones exactly in that order — the dial must never be obscured
-   by its own now line or a band the user just painted, and the now line must
-   stay visible through a band it happens to fall inside. None of these
-   elements establish their own stacking context (no `position` element in
-   this chain sets a non-auto z-index above this list), so the six numbers
-   compare directly against each other the same way `.cal-tl-*`'s ladder does
-   elsewhere in this file.
+   On `.cal-tz-bar`: 1 `.cal-tz-track`, which is a stacking context, so
+   everything below compares only against its siblings inside it.
+
+   Inside `.cal-tz-track`: 1 the hour-cell grid, 3 event pills, 4 the "+n"
+   overflow badge, 5 the marked-range band, 6 the now line. Above every row,
+   on `.cal-tz-bars`, 6 the dial. Later entries need to win over earlier ones
+   exactly in that order — the dial must never be obscured by its own now
+   line or a band the user just painted, and the now line must stay visible
+   through a band it happens to fall inside.
 
    ---- Why .cal-tz-dial is pointer-events:none ----
    `.cal-tz-dial`'s box is the FULL bar-track column, stacked at z-index:6
@@ -2255,6 +2284,22 @@
 
 /* .cal-tz-zname (rowhead only) and .cal-tz-gmt (rowhead + chip) — see the
    rowhead rules further down for .cal-tz-zname. */
+/* Hours from the PRIMARY row, worldtimebuddy's leading badge — the number
+   you actually schedule against. Monospace + tabular so "+9.5" and "-11"
+   occupy the same box and the column of badges stays straight. */
+.cal-tz-rel {
+    flex: none;
+    padding: 0 0.25rem;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.09);
+    color: var(--ink-dim);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 3px);
+    font-weight: 700;
+    line-height: 1.5;
+}
+
 .cal-tz-gmt {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
@@ -2316,13 +2361,73 @@
     display: none;
 }
 
-.cal-tz-datebtn {
+/* The three right-hand controls travel together. margin-left:auto lives here
+   rather than on .cal-tz-datebtn (where it used to) so that adding or
+   removing a control cannot strand the group in the middle of the toolbar. */
+.cal-tz-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+    flex: none;
+}
+
+/* AM/PM | 24H — one bordered shell, two segments, no gap between them so the
+   pair reads as a single control. */
+.cal-tz-fmt {
+    display: inline-flex;
+    align-items: stretch;
+    height: 26px;
+    overflow: hidden;
+    border-radius: var(--radius-control);
+    box-shadow: var(--glass-inset), inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+
+.cal-tz-fmt-seg {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.45rem;
+    color: var(--ink-dim);
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 2px);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-radius: 0;
+    transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.cal-tz-fmt-seg + .cal-tz-fmt-seg {
+    border-left: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.cal-tz-fmt-seg:hover {
+    color: var(--ink);
+    background-color: rgba(255, 255, 255, 0.10);
+    transform: none;
+    opacity: 1;
+}
+
+.cal-tz-fmt-seg[aria-pressed="true"] {
+    color: var(--ink);
+    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.cal-tz-fmt-seg:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.cal-tz-datebtn,
+.cal-tz-evbtn {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     height: 26px;
     padding: 0 0.6rem;
-    margin-left: auto;
     color: var(--ink);
     font-family: var(--font-ui);
     font-size: calc(var(--cal-fs-tz, 0.75rem) - 1px);
@@ -2341,7 +2446,8 @@
     transition: background-image 0.18s ease, box-shadow 0.18s ease;
 }
 
-.cal-tz-datebtn:hover {
+.cal-tz-datebtn:hover,
+.cal-tz-evbtn:hover {
     background-image:
         linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
         linear-gradient(148deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.10) 55%, rgba(255, 255, 255, 0.18) 100%);
@@ -2350,7 +2456,8 @@
     opacity: 1;
 }
 
-.cal-tz-datebtn:focus-visible {
+.cal-tz-datebtn:focus-visible,
+.cal-tz-evbtn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
@@ -2359,6 +2466,24 @@
     display: inline-flex;
     flex: none;
     color: var(--ink-dim);
+}
+
+/* Events on/off — bare date bars when off. Square icon-only variant of the
+   date button above, with the same pressed treatment as the header's globe
+   toggle (.cal-tz-toggle-btn) so the two read as the same kind of switch.
+   margin-left is 0: .cal-tz-datebtn's `margin-left: auto` has already pushed
+   the pair to the right edge, and this button sits after it. */
+.cal-tz-evbtn {
+    justify-content: center;
+    width: 26px;
+    padding: 0;
+    flex: none;
+    color: var(--ink-dim);
+}
+
+.cal-tz-evbtn[aria-pressed="true"] {
+    color: var(--accent);
+    box-shadow: var(--glass-inset), 0 0 0 1px var(--accent) inset;
 }
 
 /* ---- Bars: shared grid, subgrid rows (see the note above the section) ---- */
@@ -2370,12 +2495,27 @@
 }
 
 .cal-tz-bars {
+    /* Floor width of one hour cell. Below this the two stacked labels stop
+       being readable, so the whole grid stops shrinking and .cal-tz-scroll
+       takes over horizontally instead — 24 cells fit any card, 72 scroll on
+       a narrow one. Every consumer of the cell count reads --tz-cells, set
+       inline by _tzBars. */
+    --tz-cell-min: 25px;
     position: relative;
     display: grid;
-    grid-template-columns: minmax(120px, 156px) 1fr;
+    grid-template-columns: minmax(132px, 170px) 1fr;
+    /* Explicit rows, one per zone, set inline by _tzBars as --tz-rows.
+       Without them the row track list is entirely IMPLICIT, and `-1` in the
+       full-height overlays' `grid-row: 1 / -1` resolves to the last EXPLICIT
+       line — which is line 1 — so the span collapses to nothing. Both
+       .cal-tz-dial and .cal-tz-hover then compute to height 0 and paint
+       nothing at all: the dial's line and its hour box silently disappear,
+       leaving only the grip (absolutely positioned, so it survives). This
+       one declaration is what makes `1 / -1` mean "every row". */
+    grid-template-rows: repeat(var(--tz-rows, 1), auto);
     column-gap: 0.75rem;
     row-gap: 0.3rem;
-    min-width: 560px;
+    min-width: calc(170px + 0.75rem + var(--tz-cells, 24) * var(--tz-cell-min));
     touch-action: none;
 }
 
@@ -2446,133 +2586,259 @@
     color: var(--ink-dim);
 }
 
-.cal-tz-row.is-primary .cal-tz-bar {
-    box-shadow: inset 0 0 0 1px var(--structural-soft);
+/* The primary row's channel is ringed a touch brighter — it is the row that
+   owns the events, and the row every other row's offset badge is measured
+   against. */
+.cal-tz-row.is-primary .cal-tz-track {
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.13),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .cal-tz-row.is-primary .cal-tz-zname {
     color: var(--ink);
 }
 
+/* ---- Bar + hour-cell grid ----
+
+   The bar is a bare positioning context; everything visible lives in
+   .cal-tz-track, whose first child is the hour grid. Two heights drive the
+   whole row and both are declared here so a change stays in lockstep:
+
+     --tz-cellbody-h   the labelled hour cells
+     --tz-evstrip-h    the strip event pills are absolutely positioned over,
+                       0 until .cal-tz-view.has-events opens it
+
+   With events off the cells simply take the full track height — no hidden
+   nodes, and no reserved gap under a row that has nothing to put in it.
+
+   --tz-evstrip-h is not free: it has to hold two pill lanes plus the overflow
+   badge row above them, i.e. 3 * gap + 2 * --tz-ev-h + badge-height, which at
+   the current numbers is 6 + 22 + 6 + 22 + 6 + 16 = 78 in an 80px strip. Grow
+   --tz-ev-h without growing the strip and the badge row is pushed out through
+   the top of the track into the hour cells. */
 .cal-tz-bar {
-    /* Height of the shaded/ticked band; the row is this plus a 14px strip
-       below it for hour labels. Day/night/tick/band/nowline all read this so
-       they stay in lockstep if the band height ever changes. */
-    --tz-track-h: 44px;
+    --tz-cell-scale: 0.75;
+    --tz-cellbody-h: 64px;
+    --tz-evstrip-h: 0px;
+    --tz-ev-h: 22px;
+    --tz-track-h: calc(var(--tz-cellbody-h) + var(--tz-evstrip-h));
     position: relative;
-    height: calc(var(--tz-track-h) + 14px);
+    height: var(--tz-track-h);
     min-width: 0;
-    border-radius: var(--radius-card);
-    overflow: hidden;
-    background-color: rgba(255, 255, 255, 0.03);
     cursor: pointer;
 }
 
-/* ---- Day segments, night shading, hour ticks (all left/width set inline) ---- */
-
-.cal-tz-day {
-    position: absolute;
-    top: 0;
-    height: var(--tz-track-h);
-    border-left: 1px solid var(--structural-soft);
-    z-index: 1;
+/* Only the primary row opens the strip: it is the only row that renders
+   events, so reserving the space on the others left every secondary track
+   with a hollow bottom third. Rows of different heights are the honest
+   result — the shared axis is horizontal, and nothing about it needs the
+   rows to be equally tall. 40px is what the two pill lanes plus the overflow
+   badge row above them measure; see .cal-tz-ev / .cal-tz-ev-more. */
+.cal-tz-view.has-events .cal-tz-row.is-primary .cal-tz-bar {
+    --tz-evstrip-h: 80px;
 }
 
-.cal-tz-day.is-first {
-    border-left: none;
-}
-
-/* NO zoom here — this box is positioned by an inline `left` percentage, and
-   zoom would scale that percentage's reference box too (the same trap
-   documented on .cal-tl-hour / .cal-tl-event above). transform: scale() is
-   the safe escape below the ~6px Chrome minimum-font-size floor. */
-.cal-tz-daylabel {
+.cal-tz-track {
     position: absolute;
-    top: 2px;
-    left: 4px;
-    font-family: var(--font-ui);
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--ink-dim);
-    white-space: nowrap;
-    transform-origin: top left;
-    transform: scale(0.82);
-    pointer-events: none;
-}
-
-/* Must read as "night" over the glass in both themes — a flat dark overlay,
-   not a theme-dependent token. background-image (never the `background`
-   shorthand) so a later rule can't wipe this layer. */
-.cal-tz-night {
-    position: absolute;
-    top: 0;
-    height: var(--tz-track-h);
+    inset: 0;
+    border-radius: 5px;
+    overflow: hidden;
     background-color: transparent;
-    background-image: linear-gradient(rgba(10, 16, 32, 0.32), rgba(10, 16, 32, 0.32));
-    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     z-index: 1;
 }
 
-.cal-tz-tick {
+/* One column per ABSOLUTE hour. Equal columns are load-bearing, not
+   cosmetic: the dial, the range band, the now line and the event pills are
+   all positioned by percentage against this same box, so uniform cells are
+   what keeps every layer agreeing about where an instant sits. The grid is
+   never allowed below --tz-cell-min — .cal-tz-bars' min-width (which reads
+   the same --tz-cells) turns a too-wide window into a horizontal scroll
+   rather than squeezing the labels into illegibility. */
+.cal-tz-cells {
     position: absolute;
     top: 0;
-    width: 1px;
-    height: var(--tz-track-h);
-    background-color: var(--structural-soft);
-    pointer-events: none;
-    z-index: 2;
+    left: 0;
+    right: 0;
+    height: var(--tz-cellbody-h);
+    display: grid;
+    grid-template-columns: repeat(var(--tz-cells, 24), 1fr);
+    z-index: 1;
 }
 
-/* Labeled ticks (every 3rd hour, 6/12/18) run the full row height so their
-   label reads as attached to a specific line rather than floating. */
-.cal-tz-tick.is-labeled {
-    height: calc(var(--tz-track-h) + 14px);
-    background-color: var(--structural);
-}
-
-/* Positioned by an inline `left` percentage — same NO-zoom rule as
-   .cal-tz-daylabel above; transform carries both the centering and the
-   shrink so the label stays centered under its tick regardless of scale. */
-.cal-tz-hlabel {
-    position: absolute;
-    top: calc(var(--tz-track-h) + 1px);
-    font-family: var(--font-mono);
+.cal-tz-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-right: 1px solid rgba(0, 0, 0, 0.18);
+    font-family: var(--font-ui);
     font-variant-numeric: tabular-nums;
-    font-size: 0.62rem;
-    color: var(--ink-dim);
-    white-space: nowrap;
-    transform: translateX(-50%) scale(0.82);
-    transform-origin: top center;
-    pointer-events: none;
-    z-index: 2;
+    line-height: 1.05;
+    text-align: center;
 }
 
-/* ---- Event overlay (primary bar only; left/width set inline) ---- */
+.cal-tz-cell:last-child {
+    border-right: none;
+}
 
+/* TWO time-of-day bands, split at 06:00 and 18:00 — night is dark blue with
+   light type, day is sand with dark type. Deliberately literal colours rather
+   than theme tokens: they must read the same over the glass in BOTH themes,
+   and every surface here is dark in both (see the theme-flip note at the top
+   of the file), so a token that inverts would flip only one of the two and
+   break the pair. An earlier cut had a third "shoulder" shade either side of
+   the working day; it read as a third kind of thing rather than as a
+   gradient, so the vocabulary is day/night and nothing else. */
+.cal-tz-cell.is-night {
+    background-color: rgba(21, 42, 80, 0.95);
+    color: #fff;
+}
+
+.cal-tz-cell.is-day {
+    background-color: rgba(226, 214, 160, 0.92);
+    color: #14120a;
+}
+
+/* Local midnight carries the date instead of "12 am" — it is the row's only
+   day-boundary marker, so it also gets the row's only strong vertical rule.
+   Nothing else draws one, which is why the two can never disagree. */
+/* Local midnight falls inside the night band and keeps its colour: the day
+   boundary is marked by the rule and the uppercase date, not by a third
+   shade. */
+.cal-tz-cell.is-date {
+    background-color: rgba(21, 42, 80, 0.95);
+    border-left: 2px solid rgba(255, 255, 255, 0.55);
+    color: #fff;
+}
+
+/* nowrap on both lines is load-bearing, not tidiness: at the 25px cell floor
+   "SEP 10" wrapped to a third line and pushed itself out of the cell. Clipping
+   is the acceptable failure here; re-flowing is not.
+
+   --tz-cell-scale shrinks all four cell type sizes by one number. It is a
+   transform and NOT smaller font-size values because three of the four would
+   land at or under the ~6px Chrome minimum-font-size floor and simply stop
+   shrinking (0.43rem * 0.75 = 5.2px) — transform: scale() is the documented
+   escape below that floor, same as .cal-tz-daylabel used to do. The declared
+   font-size therefore stays the DESIGN size; the rendered size is that times
+   the scale. The transform is safe here because these spans are laid out by
+   flex, not positioned by an inline percentage — that is the trap the
+   .cal-tl-hour / .cal-tl-event comments warn about, and it does not apply. */
+.cal-tz-cell-t,
+.cal-tz-cell-b {
+    white-space: nowrap;
+    transform: scale(var(--tz-cell-scale, 0.75));
+}
+
+.cal-tz-cell-t {
+    font-size: 0.62rem;
+    font-weight: 600;
+}
+
+.cal-tz-cell-b {
+    font-size: 0.5rem;
+    font-weight: 500;
+    opacity: 0.78;
+}
+
+/* The date cell's two lines are tighter than an hour's: "SEP 10" has to fit
+   the same column width as "7". */
+.cal-tz-cell.is-date .cal-tz-cell-t {
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+}
+
+/* Sized against "SEP 10" at the --tz-cell-min floor: any larger and the
+   month clips off on a 3-day window. */
+.cal-tz-cell.is-date .cal-tz-cell-b {
+    font-size: 0.43rem;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    text-transform: uppercase;
+    opacity: 1;
+}
+
+/* ---- Event pills (primary row only; left/width/lane set inline) ----
+
+   Thin, opaque, lane-packed, over the strip .has-events opens at the bottom
+   of the track:
+
+     lane 0 (upper)  bottom: 6 + --tz-ev-h + 6
+     lane 1 (lower)  bottom: 6
+
+   pointer-events: auto is deliberate — it is what makes the `title` tooltip
+   reachable, which is load-bearing now that narrow pills render no label.
+   The drag handler matches with closest('.cal-tz-bar'), so a pointerdown on
+   a pill still starts a drag on the row underneath it. */
 .cal-tz-ev {
     position: absolute;
-    top: 3px;
-    height: calc(var(--tz-track-h) - 6px);
+    bottom: 6px;
+    height: var(--tz-ev-h);
+    min-width: 2px;
     overflow: hidden;
-    border-radius: 3px;
+    border-radius: 2px;
     background-color: transparent;
     background-image: linear-gradient(var(--ev-c, var(--accent)), var(--ev-c, var(--accent)));
-    opacity: 0.35;
-    pointer-events: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
     z-index: 3;
+}
+
+.cal-tz-ev[data-lane="0"] {
+    bottom: calc(var(--tz-ev-h) + 12px);
 }
 
 .cal-tz-ev-title {
     display: block;
-    padding: 1px 4px;
+    padding: 0 3px;
     font-family: var(--font-ui);
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     font-weight: 600;
+    line-height: var(--tz-ev-h);
     color: #fff;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* "+n" marker for events that would have needed a third lane. Rendered
+   rather than dropped: a row that silently omits events is worse than a busy
+   one. Sits at the top of the event strip, clear of both pill lanes —
+   anywhere inside them and the badge lands on the very pills it reports. */
+.cal-tz-ev-more {
+    position: absolute;
+    bottom: calc(2 * var(--tz-ev-h) + 16px);
+    display: flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background-color: rgba(8, 12, 22, 0.86);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 0.52rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: auto;
+    z-index: 4;
+}
+
+/* Set by the hover handler while the pointer is within TZ_EDGE_GRAB_PX of a
+   range edge. The cursor is the only thing advertising that the edges are
+   draggable, so it is the affordance, not decoration. */
+.cal-tz-bars.is-edge-grab .cal-tz-bar,
+.cal-tz-bars.is-edge-grab .cal-tz-cell {
+    cursor: ew-resize;
 }
 
 /* ---- Marked range band (reads --tz-r-left / --tz-r-width) ---- */
@@ -2580,18 +2846,26 @@
 .cal-tz-band {
     position: absolute;
     top: 0;
-    height: var(--tz-track-h);
+    height: 100%;
     left: var(--tz-r-left, 0%);
     width: var(--tz-r-width, 0%);
+    /* A light wash, not a tint. The band lies over the day/night cells, and
+       at the 18% it used to carry it turned sand and dark blue into the same
+       muddy grey — which defeats the two-shade scheme underneath it. The
+       selection is carried by the two hard accent edges instead; the fill is
+       only there to join them into one block. */
     background-color: transparent;
     background-image: linear-gradient(
-        color-mix(in srgb, var(--accent) 18%, transparent),
-        color-mix(in srgb, var(--accent) 18%, transparent)
+        color-mix(in srgb, var(--accent) 8%, transparent),
+        color-mix(in srgb, var(--accent) 8%, transparent)
     );
-    border-left: 1px solid var(--accent);
-    border-right: 1px solid var(--accent);
+    border-left: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+        0 0 0 1px rgba(0, 0, 0, 0.35);
     pointer-events: none;
-    z-index: 4;
+    z-index: 5;
 }
 
 /* ---- Now line (reads --tz-now-pct; neutral, NOT --signal — see the
@@ -2601,11 +2875,11 @@
     position: absolute;
     top: 0;
     left: var(--tz-now-pct, 50%);
-    height: var(--tz-track-h);
+    height: 100%;
     width: 0;
     border-left: 1px dashed var(--ok-neutral);
     pointer-events: none;
-    z-index: 5;
+    z-index: 6;
 }
 
 /* Same trap as .pb-toggle[hidden]: this element would otherwise render via
@@ -2636,6 +2910,27 @@
     width: 2px;
     margin-left: -1px;
     background-color: rgba(255, 255, 255, 0.85);
+    z-index: 1;
+}
+
+/* The hour column the dial is standing in, highlighted across the whole
+   stack — worldtimebuddy's boxed column. Both custom properties are written
+   by the same cheap drag frame (_tzWriteDial), so the box tracks the line
+   without a single layout read; CSS cannot floor a percentage to a column,
+   which is why the snapped value arrives pre-computed as its own variable. */
+.cal-tz-dial::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--tz-dialcell-pct, 0%);
+    width: var(--tz-cell-pct, 4.1667%);
+    /* A soft tint, deliberately WEAKER than .cal-tz-hover's outline: this
+       marks where the dial is parked, the hover box marks where the cursor
+       is, and two boxes of equal weight read as one confusing pair. */
+    background-color: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
 }
 
 .cal-tz-dial-grip {
@@ -2660,6 +2955,44 @@
     position: absolute;
     inset: -6px;
     border-radius: 50%;
+}
+
+/* ---- Hover indicator: the hour column under the cursor ----
+
+   One cell wide (--tz-cell-pct is exactly 60 minutes) and the full height of
+   the stack, so hovering ANY row reads that hour off every other row at the
+   same time — the reason it spans rather than lighting up only the row the
+   cursor is in. Driven by --tz-hovercell-pct, written by
+   _attachTzHoverHandler on the same vars-only cheap path as the dial.
+
+   Outline, not a fill: it lands on top of the dial's filled cell box
+   whenever the two coincide, and an outline stays legible over it while a
+   second fill would just read as one muddled block. */
+.cal-tz-hover {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    position: relative;
+    z-index: 5;
+    pointer-events: none;
+}
+
+/* Same trap as .cal-tz-nowline[hidden] and .pb-toggle[hidden]: this element
+   would otherwise still render via the positioned box below. */
+.cal-tz-hover[hidden] {
+    display: none;
+}
+
+.cal-tz-hover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--tz-hovercell-pct, 0%);
+    width: var(--tz-cell-pct, 4.1667%);
+    box-sizing: border-box;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.07);
 }
 
 /* Focus lives on .cal-tz-dial (role="slider" tabindex="0" — its box is the
@@ -2727,11 +3060,10 @@
     color: var(--ink-dim);
 }
 
-/* Text-pill actions (Copy / Start at dial / End at dial) share one base;
-   the icon-only Clear button gets its own square shape below. */
-.cal-tz-range-copybtn,
-.cal-tz-range-startbtn,
-.cal-tz-range-endbtn {
+/* Text-pill action (Copy); the icon-only Clear button gets its own square
+   shape below. The old "Start at dial" / "End at dial" pills shared this base
+   until the range became a drag on the primary bar. */
+.cal-tz-range-copybtn {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -2753,6 +3085,16 @@
     border-radius: var(--radius-control);
     box-shadow: var(--glass-inset);
     transition: background-image 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+/* Shown in place of the range chips when nothing is marked — the only thing
+   that tells a first-time user the primary bar is draggable. --ink-dim, not
+   --text-secondary: this sits on glass, which is dark in both themes. */
+.cal-tz-range-hint {
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-tz, 0.75rem) - 1px);
+    zoom: var(--cal-z-tz, 1);
+    color: var(--ink-dim);
 }
 
 .cal-tz-range-clearbtn {
@@ -2778,8 +3120,6 @@
 }
 
 .cal-tz-range-copybtn:hover:not(:disabled),
-.cal-tz-range-startbtn:hover:not(:disabled),
-.cal-tz-range-endbtn:hover:not(:disabled),
 .cal-tz-range-clearbtn:hover:not(:disabled) {
     background-image:
         linear-gradient(var(--glass-fill-hover), var(--glass-fill-hover)),
@@ -2794,16 +3134,12 @@
 }
 
 .cal-tz-range-copybtn:disabled,
-.cal-tz-range-startbtn:disabled,
-.cal-tz-range-endbtn:disabled,
 .cal-tz-range-clearbtn:disabled {
     opacity: 0.35;
     cursor: default;
 }
 
 .cal-tz-range-copybtn:focus-visible,
-.cal-tz-range-startbtn:focus-visible,
-.cal-tz-range-endbtn:focus-visible,
 .cal-tz-range-clearbtn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -2928,7 +3264,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    /* flex: none is load-bearing, not tidiness. The list is a flex COLUMN
+       with a max-height, so its items default to flex-shrink: 1 — once the
+       matches overflow, every row is squeezed below its 30px and the labels
+       crush into each other. Shrinking happens before overflow is considered,
+       so `overflow-y: auto` on the list does not save it; the items have to
+       refuse to shrink for the scrollbar to ever take over. */
+    flex: none;
     height: 30px;
+    min-height: 30px;
     padding: 0 0.5rem;
     border-radius: 5px;
     color: var(--ink);
@@ -3027,16 +3371,42 @@
     border-color: var(--accent);
 }
 
-/* Part of the 4-day span the start date will produce — lighter than the
-   chosen start cell so the two states stay distinguishable at a glance. */
+/* Interior of the chosen window — lighter than its two end caps so the
+   three states stay distinguishable at a glance. */
 .cal-tz-daycell.is-inspan {
     background-color: var(--structural-soft);
 }
 
-.cal-tz-daycell.is-start {
+/* Both ends of the window read identically: the pair IS the range, and which
+   of the two is the anchor is the picker's business, not the user's. */
+.cal-tz-daycell.is-start,
+.cal-tz-daycell.is-end {
     background-color: var(--accent);
     color: #fff;
     font-weight: 700;
+}
+
+/* Too far from the start to be its end date. Dimmed, NOT disabled — clicking
+   one restarts the pick there, which is the fastest way out of a wrong start
+   (see toggleTzDatePicker). Hover lifts it back toward legible so the cell
+   still reads as clickable. */
+.cal-tz-daycell.is-dim {
+    opacity: 0.3;
+}
+
+.cal-tz-daycell.is-dim:hover {
+    opacity: 0.65;
+}
+
+/* Live instruction line under the grid: role="status", so it is both the
+   visible hint and the screen-reader announcement for each pick. */
+.cal-tz-datepop-hint {
+    margin: 0.1rem 0 0;
+    max-width: 220px;
+    font-family: var(--font-ui);
+    font-size: calc(var(--cal-fs-details, 0.75rem) - 2px);
+    line-height: 1.35;
+    color: var(--ink-dim);
 }
 
 /* ---- Header toggle button: reuses .calendar-refresh-btn (see line 356);
@@ -3060,7 +3430,11 @@
     flex-wrap: wrap;
 }
 
-.calendar-group[data-card-width="column"] .cal-tz-hlabel {
+/* On a narrow card the meridiem line is the first thing to go: "7" alone
+   still reads as an hour, and dropping it buys back the width the two-line
+   cell needed. The date cells keep both lines — losing those would leave the
+   row with no day boundary at all. */
+.calendar-group[data-card-width="column"] .cal-tz-cell:not(.is-date) .cal-tz-cell-b {
     display: none;
 }
 

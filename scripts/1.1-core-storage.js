@@ -530,7 +530,14 @@ const Storage = {
                     let primary = parseInt(parsed.primary, 10);
                     if (!Number.isFinite(primary)) primary = 0;
                     primary = Math.min(Math.max(primary, 0), zones.length - 1);
-                    Utils.safeLocalStorageSet('calendarTzTool', JSON.stringify({ zones, primary }));
+                    // Only an explicit false turns events off, matching
+                    // getTzToolConfig — an export predating the option has no
+                    // such key and must import as "events on".
+                    const showEvents = parsed.showEvents !== false;
+                    // hour24 opts IN explicitly, the mirror of showEvents: an
+                    // export predating it has no key and must import as 12-hour.
+                    const hour24 = parsed.hour24 === true;
+                    Utils.safeLocalStorageSet('calendarTzTool', JSON.stringify({ zones, primary, showEvents, hour24 }));
                 }
             }
         }

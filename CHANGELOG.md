@@ -5,6 +5,55 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.43] — 2026-09-09
+
+### The time-zone view becomes a scheduling grid
+
+- **Every hour is now a labelled box rather than a shaded stripe:** each row
+  reads out its own local time hour by hour, so you can see at a glance that
+  3 pm for you is 8 am for them without measuring anything against a ruler.
+  Rows are twice as tall as before, and the day is painted in two shades — a
+  dark blue evening and night from 6 pm to 6 am, and a warm sand daytime from
+  6 am to 6 pm — so the sociable hours in every zone stand out as one block.
+  Where a zone rolls over to the next day, that hour carries the date instead
+  of the time, which makes the day boundary impossible to miss.
+- **Choose one, two or three days:** the date button now sets both ends of the
+  window. Click a date to start there and the view narrows to that single day;
+  click a second date within three days to stretch the window out to it, or
+  click the first one again to go back to a single day. Dates too far away to
+  pair with your start are dimmed, and clicking one of those simply starts
+  again from there.
+- **Select a time window from any row, not just the starred one:** click an
+  hour to pick it, or drag across several to pick a span, and the same
+  selection appears on every other row at the matching local hours. Drag either
+  vertical edge of the selection to stretch or shrink it an hour at a time.
+  Clicking a different hour replaces the selection, and clicking away from the
+  rows clears it.
+- **A box follows your cursor across every row:** hovering anywhere on any row
+  outlines that one hour on all of them at once, so you can sweep along looking
+  for a time that suits everyone without committing to a selection.
+- **Read the hours as AM/PM or on a 24-hour clock:** a new pair of buttons
+  beside the date picker switches between them, and your choice is remembered.
+  Each row also gained a small badge showing how many hours ahead or behind the
+  starred zone it is, including the half and quarter hour offsets that India
+  and Nepal use.
+- **Events are drawn as slim coloured bars under the starred row,** stacked so
+  that overlapping meetings no longer paint over one another, with a "+2" mark
+  where more of them collide than there is room to show. A new button beside
+  the date picker hides them entirely when you only want the bare clock.
+
+### Fixes
+
+- **The time-zone search list no longer squashes its results:** a query that
+  matched a lot of zones compressed every row until the names ran into each
+  other. The list keeps its rows at full height and scrolls instead.
+- **Clicking a bar lands on the hour you clicked:** the dial was measuring your
+  pointer against the whole row including the name column on the left, so it
+  settled up to thirty pixels to the right of the cursor, and a painted range
+  was skewed the same way.
+- **The dial's line and its highlighted hour are visible again:** the row
+  layout was collapsing both to nothing, so only the small round grip at the
+  top of the view ever showed.
 ## [v4.42] — 2026-08-27
 
 ### Compare up to four time zones on the calendar

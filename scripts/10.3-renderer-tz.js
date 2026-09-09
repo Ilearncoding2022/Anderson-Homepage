@@ -49,7 +49,7 @@ Object.assign(UIRenderer, {
             return `<div class="cal-tz-view"><div class="calendar-empty-state">Couldn't build the time zone comparison — try reopening the tool.</div></div>`;
         }
         return `
-            <div class="cal-tz-view">
+            <div class="cal-tz-view${model.showEvents ? ' has-events' : ''}">
                 ${this._tzToolbar(model)}
                 <div class="cal-tz-scroll">
                     ${this._tzBars(model)}
@@ -68,23 +68,46 @@ Object.assign(UIRenderer, {
                    <span aria-hidden="true">+</span>
                </button>`
             : '';
-        const primaryRow = model.rows[model.primaryIdx] || model.rows[0];
-        const days = primaryRow?.days || [];
-        const rangeLabel = days.length ? `${days[0].dateLabel} – ${days[days.length - 1].dateLabel}` : '';
-        const safeRangeLabel = Utils.sanitizeHTML(rangeLabel);
+        // model.windowLabel already collapses a one-day window to a single
+        // date rather than "Aug 24 – Aug 24".
+        const safeRangeLabel = Utils.sanitizeHTML(model.windowLabel || '');
         return `
             <div class="cal-tz-toolbar">
                 <div class="cal-tz-slots">
                     ${chips}
                     ${addBtn}
                 </div>
-                <button type="button" class="cal-tz-datebtn" onclick="UIRenderer.toggleTzDatePicker(this)"
-                        aria-haspopup="true" aria-expanded="false"
-                        title="Change start date" aria-label="Change start date. Current range: ${safeRangeLabel}">
-                    <svg class="ico ico-sm" aria-hidden="true"><use href="#ico-calendar-days"></use></svg>
-                    ${safeRangeLabel}
-                    <span class="cal-tz-chevron" aria-hidden="true"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-chevron"></use></svg></span>
-                </button>
+                <div class="cal-tz-actions">
+                    ${this._tzFormatToggle(model)}
+                    <button type="button" class="cal-tz-datebtn" onclick="UIRenderer.toggleTzDatePicker(this)"
+                            aria-haspopup="true" aria-expanded="false"
+                            title="Change date range" aria-label="Change date range. Currently ${safeRangeLabel}">
+                        <svg class="ico ico-sm" aria-hidden="true"><use href="#ico-calendar-days"></use></svg>
+                        ${safeRangeLabel}
+                        <span class="cal-tz-chevron" aria-hidden="true"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-chevron"></use></svg></span>
+                    </button>
+                    <button type="button" class="cal-tz-evbtn" onclick="CalendarManager.toggleTzEvents()"
+                            aria-pressed="${model.showEvents ? 'true' : 'false'}"
+                            title="${model.showEvents ? 'Hide events' : 'Show events'}"
+                            aria-label="${model.showEvents ? 'Hide events — show bare date bars' : 'Show events on the primary bar'}">
+                        <svg class="ico ico-sm" aria-hidden="true"><use href="#ico-calendar"></use></svg>
+                    </button>
+                </div>
+            </div>`;
+    },
+
+    // Two explicit segments rather than one flipping button: a lone toggle
+    // labelled "24H" is ambiguous about whether it reports the current state
+    // or the action, and this control is read at a glance while scanning the
+    // hour labels underneath it.
+    _tzFormatToggle(model) {
+        const seg = (label, is24, title) =>
+            `<button type="button" class="cal-tz-fmt-seg" aria-pressed="${model.hour24 === is24 ? 'true' : 'false'}"
+                     onclick="CalendarManager.setTzHour24(${is24})" title="${title}">${label}</button>`;
+        return `
+            <div class="cal-tz-fmt" role="group" aria-label="Time format">
+                ${seg('AM/PM', false, 'Show hours as AM/PM')}
+                ${seg('24H', true, 'Show hours on a 24-hour clock')}
             </div>`;
     },
 
@@ -125,10 +148,22 @@ Object.assign(UIRenderer, {
         const nowPct = nowIsNull ? 0 : model.nowPct;
         const rangeLeft = hasRange ? model.range.leftPct : 0;
         const rangeWidth = hasRange ? model.range.widthPct : 0;
+        // --tz-rows is what lets the full-height overlays (.cal-tz-dial and
+        // .cal-tz-hover) actually span the stack: `grid-row: 1 / -1` needs an
+        // EXPLICIT last row line to reach, and the row tracks here are
+        // otherwise entirely implicit. See the grid-template-rows note on
+        // .cal-tz-bars.
+        // --tz-cells (unitless) sizes the hour grid AND the bars' min-width, so
+        // a window too wide to show 25px cells scrolls rather than squeezing
+        // the labels out of legibility. --tz-cell-pct is the same number as a
+        // percentage, which is what lets the dial's cell highlight snap
+        // without any JS layout read.
+        const cells = Math.max(1, model.hourCount || 1);
+        const dialCellPct = this._tzPct(Math.floor(model.dial.pct / model.cellPct) * model.cellPct);
         return `
             <div class="cal-tz-bars"
-                 style="--tz-dial-pct:${this._tzPct(model.dial.pct)}%;--tz-now-pct:${this._tzPct(nowPct)}%;--tz-r-left:${this._tzPct(rangeLeft)}%;--tz-r-width:${this._tzPct(rangeWidth)}%"
-                 data-start-ms="${model.startMs}" data-span-ms="${model.spanMs}">
+                 style="--tz-rows:${model.rows.length};--tz-cells:${cells};--tz-cell-pct:${this._tzPct(model.cellPct)}%;--tz-dial-pct:${this._tzPct(model.dial.pct)}%;--tz-dialcell-pct:${dialCellPct}%;--tz-hovercell-pct:${dialCellPct}%;--tz-now-pct:${this._tzPct(nowPct)}%;--tz-r-left:${this._tzPct(rangeLeft)}%;--tz-r-width:${this._tzPct(rangeWidth)}%"
+                 data-start-ms="${model.startMs}" data-span-ms="${model.spanMs}" data-cells="${cells}">
                 ${rowsHTML}
                 <div class="cal-tz-dial" role="slider" tabindex="0" aria-orientation="horizontal"
                      aria-valuemin="0" aria-valuemax="${spanMin}" aria-valuenow="${dialMin}"
@@ -136,36 +171,71 @@ Object.assign(UIRenderer, {
                      onkeydown="UIRenderer.tzDialKeydown(event)">
                     <span class="cal-tz-dial-grip" aria-hidden="true"></span>
                 </div>
+                <div class="cal-tz-hover" hidden aria-hidden="true"></div>
             </div>`;
     },
 
+    // Row anatomy — a WorldTimeBuddy-style grid of labelled hour cells.
+    //
+    // The row's `grid-row` is set EXPLICITLY rather than left to auto-place.
+    // The full-height overlays (.cal-tz-dial, .cal-tz-hover) are explicitly
+    // placed at `grid-row: 1 / -1` in column 2, and auto-placement refuses to
+    // put an auto-placed item into a cell an explicitly-placed one already
+    // occupies — so the rows got pushed into implicit tracks BELOW the
+    // overlays, leaving the overlays spanning three empty 0px tracks. Two
+    // explicitly-placed items are allowed to overlap, which is the whole
+    // point: the dial and the hover box are meant to lie over every row.
+    //
+    //   .cal-tz-track   the recessed channel; its first child is
+    //                   .cal-tz-cells, a `repeat(var(--tz-cells), 1fr)` grid
+    //                   of one cell per ABSOLUTE hour. Uniform width is not a
+    //                   style choice: every other layer in this widget is
+    //                   positioned by percentage against the same box, so
+    //                   equal columns are what keeps the cells, the dial, the
+    //                   range band and the now line all agreeing about where
+    //                   a given instant is.
+    //   .cal-tz-cell    two stacked lines — "7"/"am", or "9:30"/"am" in a
+    //                   half-offset zone. The local-midnight cell instead
+    //                   carries the DATE ("Thu"/"Sep 10") and is the row's
+    //                   only day-boundary marker, which is why nothing here
+    //                   draws a separate midnight rule any more.
+    //   event pills     absolutely positioned over the bottom strip of the
+    //                   track, which .cal-tz-view.has-events reserves for
+    //                   them; with events off the cells take the full height.
     _tzRow(row, idx, nowIsNull, hasRange) {
         const safeLabel = Utils.sanitizeHTML(row.label);
         const safeOffset = Utils.sanitizeHTML(row.offsetLabel);
         const readout = row.readout || { time: '', date: '' };
 
-        const daysHTML = (row.days || []).map((d, i) => `
-                <div class="cal-tz-day${i === 0 ? ' is-first' : ''}" style="left:${this._tzPct(d.leftPct)}%;width:${this._tzPct(d.widthPct)}%">
-                    <span class="cal-tz-daylabel">${Utils.sanitizeHTML(d.wkday)} · ${Utils.sanitizeHTML(d.dateLabel)}</span>
-                </div>`).join('');
-
-        const nightsHTML = (row.nights || []).map(n =>
-            `<div class="cal-tz-night" style="left:${this._tzPct(n.leftPct)}%;width:${this._tzPct(n.widthPct)}%" aria-hidden="true"></div>`).join('');
-
-        const ticksHTML = (row.ticks || []).map(t => {
-            const tick = `<div class="cal-tz-tick${t.isLabeled ? ' is-labeled' : ''}" style="left:${this._tzPct(t.leftPct)}%" aria-hidden="true"></div>`;
-            const lbl = t.isLabeled
-                ? `<span class="cal-tz-hlabel" style="left:${this._tzPct(t.leftPct)}%" aria-hidden="true">${Utils.sanitizeHTML(t.label)}</span>`
-                : '';
-            return tick + lbl;
+        // The second line is omitted entirely in 24-hour mode rather than
+        // rendered empty — an empty span still occupies a line box and would
+        // push the hour off centre.
+        const cellsHTML = (row.cells || []).map(c => {
+            const cls = `cal-tz-cell is-${c.band}${c.isDate ? ' is-date' : ''}`;
+            const bot = c.bot ? `<span class="cal-tz-cell-b">${Utils.sanitizeHTML(c.bot)}</span>` : '';
+            return `<div class="${cls}" aria-hidden="true"><span class="cal-tz-cell-t">${
+                Utils.sanitizeHTML(c.top)}</span>${bot}</div>`;
         }).join('');
 
+        // Pills carry their lane in data-lane (CSS owns the two bottom
+        // offsets) and render their title only when the model says the box is
+        // wide enough to hold one; the name is always on the tooltip. They are
+        // the one thing over the cells that takes pointer events — `closest`
+        // still walks up to .cal-tz-bar, so the drag handler is unaffected.
         const eventsHTML = row.isPrimary ? (row.events || []).map(ev => {
             const color = Utils.isValidColor(ev.color) ? ev.color : DEFAULT_CAL_COLOR;
             const safeTitle = Utils.sanitizeHTML(ev.title || 'Untitled');
-            return `<div class="cal-tz-ev" style="left:${this._tzPct(ev.leftPct)}%;width:${this._tzPct(ev.widthPct)}%;--ev-c:${color}" title="${safeTitle}">
-                        <span class="cal-tz-ev-title">${safeTitle}</span>
-                    </div>`;
+            return `<div class="cal-tz-ev" data-lane="${ev.lane === 1 ? '1' : '0'}" style="left:${this._tzPct(ev.leftPct)}%;width:${this._tzPct(ev.widthPct)}%;--ev-c:${color}" title="${safeTitle}">${
+                ev.showTitle ? `<span class="cal-tz-ev-title">${safeTitle}</span>` : ''
+            }</div>`;
+        }).join('') : '';
+
+        const moreHTML = row.isPrimary ? (row.eventsOverflow || []).map(o => {
+            const names = (o.titles || []).slice(0, 6).map(t => t || 'Untitled').join(', ');
+            const safeNames = Utils.sanitizeHTML(names + ((o.titles || []).length > 6 ? '…' : ''));
+            const n = Math.max(1, Math.round(o.count) || 1);
+            return `<span class="cal-tz-ev-more" style="left:${this._tzPct(o.leftPct)}%" title="${safeNames}"
+                          aria-label="${n} more event${n === 1 ? '' : 's'}: ${safeNames}">+${n}</span>`;
         }).join('') : '';
 
         const bandHTML = hasRange ? `<div class="cal-tz-band" aria-hidden="true"></div>` : '';
@@ -173,8 +243,15 @@ Object.assign(UIRenderer, {
         // (never create/destroy nodes outside a full rebuild) — see _tzTickUpdate.
         const nowlineHTML = `<div class="cal-tz-nowline"${nowIsNull ? ' hidden' : ''} aria-hidden="true"></div>`;
 
+        // The relative-offset badge is suppressed on the primary row, where
+        // it would always read "0" — the filled star already says which row
+        // everything else is measured against.
+        const relHTML = row.relLabel
+            ? `<span class="cal-tz-rel" title="${Utils.sanitizeHTML(row.relLabel)} hours from ${Utils.sanitizeHTML(row.label)}'s reference zone" aria-label="${Utils.sanitizeHTML(row.relLabel)} hours from the primary zone">${Utils.sanitizeHTML(row.relLabel)}</span>`
+            : '';
+
         return `
-            <div class="cal-tz-row${row.isPrimary ? ' is-primary' : ''}" data-idx="${idx}">
+            <div class="cal-tz-row${row.isPrimary ? ' is-primary' : ''}" data-idx="${idx}" style="grid-row:${idx + 1}">
                 <div class="cal-tz-rowhead">
                     <button type="button" class="cal-tz-star" onclick="CalendarManager.setTzPrimary(${idx})"
                             aria-pressed="${row.isPrimary ? 'true' : 'false'}"
@@ -183,24 +260,30 @@ Object.assign(UIRenderer, {
                     </button>
                     <span class="cal-tz-zname">${safeLabel}</span>
                     <span class="cal-tz-gmt">${safeOffset}</span>
+                    ${relHTML}
                     <span class="cal-tz-readout" data-idx="${idx}">
                         <span class="cal-tz-readout-time">${Utils.sanitizeHTML(readout.time || '')}</span><span class="cal-tz-readout-date">${Utils.sanitizeHTML(readout.date || '')}</span>
                     </span>
                 </div>
                 <div class="cal-tz-bar" role="group" aria-label="Times in ${safeLabel}">
-                    ${daysHTML}
-                    ${nightsHTML}
-                    ${ticksHTML}
-                    ${eventsHTML}
-                    ${bandHTML}
-                    ${nowlineHTML}
+                    <div class="cal-tz-track">
+                        <div class="cal-tz-cells">${cellsHTML}</div>
+                        ${eventsHTML}
+                        ${moreHTML}
+                        ${bandHTML}
+                        ${nowlineHTML}
+                    </div>
                 </div>
             </div>`;
     },
 
     // ---- Range readout / commit bar -------------------------------------------
+    // Marking a range is a drag on any row and nothing else — there is no
+    // button pair here mirroring the dial, because the dial and the range are
+    // no longer coupled (see setTzRange). With no range marked this bar is
+    // pure affordance text; that is the only thing telling a first-time user
+    // the rows are draggable, so don't drop it for being "just a hint".
     _tzRangeBar(model) {
-        const cm = window.CalendarManager;
         if (model.range) {
             const chips = (model.range.perZone || []).map(z => {
                 const safeLabel = Utils.sanitizeHTML(z.label);
@@ -222,13 +305,9 @@ Object.assign(UIRenderer, {
                     </button>
                 </div>`;
         }
-        const hasStart = cm?.state?.tzRangeStartMs != null;
         return `
             <div class="cal-tz-rangebar" aria-live="polite">
-                <button type="button" class="cal-tz-range-startbtn" onclick="CalendarManager.setTzRangeStartAtDial()">Start at dial</button>
-                <button type="button" class="cal-tz-range-endbtn" onclick="CalendarManager.setTzRangeEndAtDial()"${hasStart ? '' : ' disabled'}>End at dial</button>
-                ${hasStart ? `<button type="button" class="cal-tz-range-clearbtn" onclick="CalendarManager.clearTzRange()"
-                        title="Clear range start" aria-label="Clear range start"><svg class="ico ico-sm" aria-hidden="true"><use href="#ico-trash"></use></svg></button>` : ''}
+                <span class="cal-tz-range-hint">Drag across any row to select a time window.</span>
             </div>`;
     },
 
@@ -261,6 +340,16 @@ Object.assign(UIRenderer, {
     _tzWriteDial(bars, ms, startMs, spanMs) {
         const pct = spanMs > 0 ? ((ms - startMs) / spanMs) * 100 : 0;
         bars.style.setProperty('--tz-dial-pct', `${this._tzPct(pct)}%`);
+        // The highlighted hour cell under the dial. CSS cannot floor a
+        // percentage to a column, so the snap is done here and published as a
+        // second variable — still "vars only", still no layout read, one extra
+        // setProperty per frame.
+        const cells = Number(bars.dataset.cells);
+        if (Number.isFinite(cells) && cells > 0) {
+            const cellPct = 100 / cells;
+            const idx = Math.min(cells - 1, Math.max(0, Math.floor(pct / cellPct)));
+            bars.style.setProperty('--tz-dialcell-pct', `${this._tzPct(idx * cellPct)}%`);
+        }
         this._tzWriteReadouts(ms, bars);
 
         const dial = bars.querySelector('.cal-tz-dial');
@@ -318,6 +407,142 @@ Object.assign(UIRenderer, {
     // (scripts/10-renderer.js:803-895)
     // ========================================
 
+    // ========================================
+    // HOVER — the 60-minute box that follows the cursor across the stack
+    // ========================================
+
+    // Same cheap-path contract as the drag: one CSS custom property, no DOM
+    // rebuild, and at most ONE getBoundingClientRect per animation frame
+    // (pointermove fires far faster than that, so the reads are coalesced
+    // exactly the way _attachTzDragHandler coalesces its own frames).
+    //
+    // The box spans every row, not just the row under the cursor — reading
+    // one hour across all four zones at once is the entire point of the
+    // widget, and it is what makes hovering a secondary row useful rather
+    // than decorative.
+    // Clicking away from the rows drops the selection.
+    //
+    // The allowlist is the whole design here. "Outside the sliders" cannot
+    // mean "outside .cal-tz-bars", because the range bar's own Copy and Clear
+    // buttons live outside it — clearing on the way to Copy would make the
+    // button impossible to use. So the rule is: a click that lands on any
+    // control belonging to this tool is never a dismissal, and everything
+    // else is.
+    //
+    // Registered once on the card container (which survives
+    // refreshCalendarDayView, unlike the view inside it), and only while the
+    // tool is open. A pointerdown that turns into a drag is ignored: the
+    // gesture's own commit path already owns the range by then.
+    _attachTzClearOutsideHandler(container) {
+        container.addEventListener('click', (e) => {
+            const cm = window.CalendarManager;
+            if (!cm?.state?.tzToolActive) return;
+            if (cm.state.tzRangeStartMs == null) return;
+            if (this._tzDragActive) return;
+            const t = e.target;
+            if (!t?.closest) return;
+            // Inside the rows: the pointer handler decided what happens.
+            if (t.closest('.cal-tz-bars')) return;
+            // Any of the tool's own chrome, including the range bar the Clear
+            // and Copy buttons sit in.
+            if (t.closest('.cal-tz-toolbar, .cal-tz-rangebar, .cal-tz-popover, .calendar-header, .cal-tz-scroll')) return;
+            cm.clearTzRange?.();
+        });
+    },
+
+    // How close to a range edge counts as "grabbing" it, in px. Wide enough
+    // to hit with a mouse, narrow enough that a 25px cell is still mostly
+    // click-through to the bar underneath.
+    TZ_EDGE_GRAB_PX: 7,
+
+    // Which edge of the marked range the pointer is over, or null. Measured
+    // off the live CSS custom properties rather than the band's DOM box: the
+    // band is pointer-events:none (so clicks reach the bar), and during a
+    // resize the vars move a frame ahead of any committed state.
+    _tzEdgeAt(bars, clientX) {
+        const cm = window.CalendarManager;
+        if (cm?.state?.tzRangeStartMs == null || cm?.state?.tzRangeEndMs == null) return null;
+        const trackEl = bars.querySelector('.cal-tz-dial') || bars.querySelector('.cal-tz-bar');
+        if (!trackEl) return null;
+        const rect = trackEl.getBoundingClientRect();
+        if (rect.width <= 0) return null;
+        const left = parseFloat(bars.style.getPropertyValue('--tz-r-left'));
+        const width = parseFloat(bars.style.getPropertyValue('--tz-r-width'));
+        if (!Number.isFinite(left) || !Number.isFinite(width) || width <= 0) return null;
+        const x0 = rect.left + (left / 100) * rect.width;
+        const x1 = rect.left + ((left + width) / 100) * rect.width;
+        const grab = this.TZ_EDGE_GRAB_PX;
+        const d0 = Math.abs(clientX - x0);
+        const d1 = Math.abs(clientX - x1);
+        if (d0 > grab && d1 > grab) return null;
+        // A one-cell range puts both edges within a grab width of each other;
+        // whichever is nearer wins, so the range can still be widened from
+        // either side rather than one edge always shadowing the other.
+        return d0 <= d1 ? 'start' : 'end';
+    },
+
+    _attachTzHoverHandler(container) {
+        const hide = () => {
+            const bars = container.querySelector('.cal-tz-bars');
+            const box = bars?.querySelector('.cal-tz-hover');
+            if (box && !box.hasAttribute('hidden')) box.setAttribute('hidden', '');
+            bars?.classList.remove('is-edge-grab');
+            this._tzHoverPending = null;
+        };
+        this._tzHideTzHover = hide;
+
+        const runFrame = () => {
+            this._tzHoverRaf = null;
+            const pend = this._tzHoverPending;
+            if (!pend) return;
+            const { bars, clientX } = pend;
+            if (!bars.isConnected) return;
+            const box = bars.querySelector('.cal-tz-hover');
+            const trackEl = bars.querySelector('.cal-tz-dial') || bars.querySelector('.cal-tz-bar');
+            if (!box || !trackEl) return;
+            const cells = Math.max(1, Number(bars.dataset.cells) || 1);
+            const rect = trackEl.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            const frac = (clientX - rect.left) / rect.width;
+            // Outside the track entirely (the row head, or past the last
+            // cell): no cell to box, so take the indicator away rather than
+            // pinning it to an edge it isn't over.
+            if (frac < 0 || frac >= 1) { hide(); return; }
+            const idx = Math.min(cells - 1, Math.max(0, Math.floor(frac * cells)));
+            bars.style.setProperty('--tz-hovercell-pct', `${this._tzPct(idx * (100 / cells))}%`);
+            box.removeAttribute('hidden');
+            // The only discoverability the resize handles get: without the
+            // cursor change nothing tells you the range edges are draggable.
+            bars.classList.toggle('is-edge-grab', !!this._tzEdgeAt(bars, clientX));
+        };
+
+        container.addEventListener('pointermove', (e) => {
+            // Mouse (and pen) only: a touch pointermove would leave the box
+            // stranded at the last touched cell with no leave event coming.
+            if (e.pointerType === 'touch') return;
+            // While a drag is live the range band and the dial already track
+            // the pointer; a third box chasing them is noise.
+            if (this._tzDragActive) { hide(); return; }
+            const bars = e.target.closest?.('.cal-tz-bars');
+            const overBar = e.target.closest?.('.cal-tz-row .cal-tz-bar');
+            if (!bars || !overBar) { hide(); return; }
+            this._tzHoverPending = { bars, clientX: e.clientX };
+            if (this._tzHoverRaf === null || this._tzHoverRaf === undefined) {
+                this._tzHoverRaf = requestAnimationFrame(runFrame);
+            }
+        });
+
+        // pointerout bubbles (pointerleave does not), so one delegated
+        // listener on the container covers every row.
+        container.addEventListener('pointerout', (e) => {
+            if (e.pointerType === 'touch') return;
+            const to = e.relatedTarget;
+            if (to && to.closest?.('.cal-tz-row .cal-tz-bar')) return;   // moved between cells, still inside
+            hide();
+        });
+        container.addEventListener('pointercancel', hide);
+    },
+
     _attachTzDragHandler(container) {
         container.addEventListener('pointerdown', (e) => {
             if (e.button !== 0) return;
@@ -331,40 +556,98 @@ Object.assign(UIRenderer, {
             const barEl = e.target.closest('.cal-tz-row .cal-tz-bar');
             if (!onDial && !barEl) return;   // rowhead / star / chip clicks pass through untouched
 
-            const rowEl = barEl ? barEl.closest('.cal-tz-row') : null;
-            const isPrimary = !!rowEl?.classList.contains('is-primary');
-
             const startMs = Number(bars.dataset.startMs);
             const spanMs = Number(bars.dataset.spanMs);
             if (!Number.isFinite(startMs) || !Number.isFinite(spanMs) || spanMs <= 0) return;
+            const cellCount = Math.max(1, Number(bars.dataset.cells) || 1);
+
+            // Pointer x is measured against the grid's SECOND column, not
+            // against .cal-tz-bars. Everything that draws — the dial line, the
+            // range band, every day/night/tick segment — positions with plain
+            // percentages inside that column (see the subgrid note at the top
+            // of section 15 in 3.1-groups-calendar.css), while the .cal-tz-bars
+            // rect also spans the ~156px rowhead column and the 0.75rem gap.
+            // Dividing by the wrong width lands the dial ~30px right of the
+            // cursor at the far end of the track, and skews a painted range the
+            // same way. .cal-tz-dial is the reference because it IS that column
+            // (grid-column: 2, grid-row: 1 / -1) and is always rendered.
+            const trackEl = bars.querySelector('.cal-tz-dial') || bars.querySelector('.cal-tz-bar') || bars;
 
             e.preventDefault();
             try { e.target.setPointerCapture?.(e.pointerId); } catch { /* capture is best-effort */ }
 
+            const pointerFrac = (clientX) => {
+                const rect = trackEl.getBoundingClientRect();
+                return rect.width > 0 ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) : 0;
+            };
+
+            // The dial keeps its own 15-minute snap: it is the precise instant
+            // the readouts and the keyboard slider work in.
             const pointerToMs = (clientX) => {
-                const rect = bars.getBoundingClientRect();
-                const pct = rect.width > 0 ? Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) : 0;
-                const raw = startMs + pct * spanMs;
+                const raw = startMs + pointerFrac(clientX) * spanMs;
                 const snapped = Math.round(raw / 900000) * 900000;
                 return Math.min(startMs + spanMs, Math.max(startMs, snapped));
             };
+
+            // A painted range snaps to whole hour CELLS instead, so the
+            // selection always lands on the column boundaries the user can
+            // actually see — dragging across "9am 10am 11am" selects exactly
+            // those three, never 9:15-11:45.
+            const pointerToCell = (clientX) =>
+                Math.min(cellCount - 1, Math.max(0, Math.floor(pointerFrac(clientX) * cellCount)));
+            const cellEdgeMs = (i) => startMs + (Math.min(cellCount, Math.max(0, i)) / cellCount) * spanMs;
+
+            // A resize handle sits ON a boundary, so it takes the cell on its
+            // OWN side of it: the start handle the cell to its right, the end
+            // handle the cell to its left. Plain floor() for both would put the
+            // end handle in the cell AFTER the boundary it is sitting on, and
+            // merely grabbing it without moving would extend the range by an
+            // hour. Past the opposite edge the bias stops mattering — the
+            // min/max below picks the crossing up either way.
+            const resizeCell = (clientX, which) => {
+                const raw = pointerFrac(clientX) * cellCount;
+                const i = which === 'end' ? Math.ceil(raw) - 1 : Math.floor(raw);
+                return Math.min(cellCount - 1, Math.max(0, i));
+            };
+
+            // Grabbing an edge of an existing range resizes it instead of
+            // starting a new one. Checked before anything else because the
+            // edge sits ON a cell that would otherwise begin a fresh paint.
+            const edge = onDial ? null : this._tzEdgeAt(bars, e.clientX);
+            const cm0 = window.CalendarManager;
+            const fixedCell = edge
+                ? Math.round((((edge === 'start' ? cm0.state.tzRangeEndMs : cm0.state.tzRangeStartMs) - startMs) / spanMs) * cellCount)
+                : null;
 
             const state = {
                 bars, startMs, spanMs, pointerToMs,
                 pointerId: e.pointerId,
                 startX: e.clientX,
-                mode: onDial ? 'dial' : (isPrimary ? 'primary' : 'scrub'),
+                // Every bar behaves the same: drag paints a range, click marks
+                // a single hour. The old primary-only rule meant the two
+                // secondary rows silently did something different from the one
+                // above them, which is exactly the affordance worldtimebuddy
+                // gets right — any row is a slider.
+                mode: onDial ? 'dial' : (edge ? 'resize' : 'bar'),
+                edge,
+                // For a resize the OPPOSITE edge is the anchor, so dragging the
+                // left handle past the right one flips the range rather than
+                // collapsing it. Stored as a cell boundary index, which is what
+                // cellEdgeMs consumes.
+                fixedCell,
                 moved: false,
-                rangeAnchorMs: null,
+                rangeAnchorCell: null,
                 pendingRange: null,
                 pendingClientX: e.clientX,
                 rafId: null,
                 preDialPct: bars.style.getPropertyValue('--tz-dial-pct'),
+                preDialCell: bars.style.getPropertyValue('--tz-dialcell-pct'),
                 preRLeft: bars.style.getPropertyValue('--tz-r-left'),
                 preRWidth: bars.style.getPropertyValue('--tz-r-width'),
             };
             this._tzDrag = state;
             this._tzDragActive = true;
+            this._tzHideTzHover?.();
 
             // Coalesce pointermove handling into one rAF per frame — the shape
             // mirrors minimap.js's _scheduleDragFrame/_runDragFrame.
@@ -373,24 +656,44 @@ Object.assign(UIRenderer, {
                 if (this._tzDrag !== state) return;
                 const dx = state.pendingClientX - state.startX;
                 if (!state.moved) {
-                    if (Math.abs(dx) < 5) return;
+                    // A resize commits on the first pixel: the pointer is
+                    // already on the handle, so there is no "did they mean to
+                    // click instead" ambiguity to wait out.
+                    if (state.mode !== 'resize' && Math.abs(dx) < 5) return;
                     state.moved = true;
-                    if (state.mode === 'primary') {
-                        // Committing to a range paint: anchor at the snapped
-                        // POINTERDOWN position, not wherever we've dragged to.
-                        state.rangeAnchorMs = pointerToMs(state.startX);
+                    if (state.mode === 'bar') {
+                        // Committing to a range paint: anchor on the cell under
+                        // the POINTERDOWN, not wherever we have dragged to.
+                        state.rangeAnchorCell = pointerToCell(state.startX);
                         state.mode = 'range';
                     }
+                    // 'resize' deliberately stays 'resize'. A paint anchors on a
+                    // CELL (both ends inclusive); a resize anchors on the
+                    // opposite edge's BOUNDARY, which must not move even when
+                    // the dragged edge crosses it. Forcing the two through one
+                    // formula shifted that fixed edge by an hour on every flip.
                 }
-                const ms = pointerToMs(state.pendingClientX);
-                if (state.mode === 'range') {
-                    const lo = Math.min(state.rangeAnchorMs, ms);
-                    const hi = Math.max(state.rangeAnchorMs, ms);
+                if (state.mode === 'range' || state.mode === 'resize') {
+                    let lo, hi;
+                    if (state.mode === 'resize') {
+                        const c = resizeCell(state.pendingClientX, state.edge);
+                        // min/max against the fixed boundary: the untouched edge
+                        // stays put, and dragging past it flips the range around
+                        // that boundary instead of collapsing it to nothing.
+                        lo = cellEdgeMs(Math.min(c, state.fixedCell));
+                        hi = cellEdgeMs(Math.max(c + 1, state.fixedCell));
+                    } else {
+                        // Inclusive of both end cells, so a drag that never
+                        // leaves the cell it started in still selects that hour.
+                        const c = pointerToCell(state.pendingClientX);
+                        lo = cellEdgeMs(Math.min(state.rangeAnchorCell, c));
+                        hi = cellEdgeMs(Math.max(state.rangeAnchorCell, c) + 1);
+                    }
                     bars.style.setProperty('--tz-r-left', `${this._tzPct(((lo - startMs) / spanMs) * 100)}%`);
                     bars.style.setProperty('--tz-r-width', `${this._tzPct(((hi - lo) / spanMs) * 100)}%`);
                     state.pendingRange = { startMs: lo, endMs: hi };
                 } else {
-                    this._tzWriteDial(bars, ms, startMs, spanMs);
+                    this._tzWriteDial(bars, pointerToMs(state.pendingClientX), startMs, spanMs);
                 }
             };
 
@@ -421,6 +724,7 @@ Object.assign(UIRenderer, {
 
                 if (!commit) {
                     bars.style.setProperty('--tz-dial-pct', state.preDialPct || '0%');
+                    bars.style.setProperty('--tz-dialcell-pct', state.preDialCell || '0%');
                     bars.style.setProperty('--tz-r-left', state.preRLeft || '0%');
                     bars.style.setProperty('--tz-r-width', state.preRWidth || '0%');
                     this._flushDeferredRender();
@@ -428,19 +732,46 @@ Object.assign(UIRenderer, {
                 }
 
                 if (!state.moved) {
-                    // Plain click on the dial, a primary bar, or a non-primary
-                    // bar: all three mean the same thing — move the dial here.
-                    cm?.setTzDialMs?.(pointerToMs(ev ? ev.clientX : state.startX));
-                } else if (state.mode === 'range' && state.pendingRange) {
-                    // No single "set range" mutator exists — a paint commits as
-                    // two dial moves, each immediately pinned. The dial visibly
-                    // ends at the range's end; that's a consequence of the given
-                    // API surface, not an oversight.
+                    const x = ev ? ev.clientX : state.startX;
+                    if (state.mode === 'resize') {
+                        // Pressed a resize handle and let go without moving.
+                        // That is a no-op, NOT a click on the cell underneath:
+                        // otherwise merely touching a handle would collapse the
+                        // whole window down to the single hour beneath it.
+                        this._flushDeferredRender();
+                        return;
+                    }
+                    if (state.mode === 'dial') {
+                        // On the dial itself a click is just a nudge of the dial.
+                        cm?.setTzDialMs?.(pointerToMs(x));
+                    } else {
+                        // Anywhere on a row: the clicked hour BECOMES the
+                        // window, replacing whatever was selected. One click is
+                        // therefore both "clear the old selection" and "select
+                        // this hour" — the two are the same gesture, so there is
+                        // no state where a stale range outlives the click that
+                        // replaced it. The dial follows to the window's start so
+                        // the row readouts agree with the chips.
+                        const c = pointerToCell(x);
+                        cm?.setTzDialMs?.(cellEdgeMs(c));
+                        cm?.setTzRange?.(cellEdgeMs(c), cellEdgeMs(c + 1));
+                    }
+                } else if ((state.mode === 'range' || state.mode === 'resize') && state.pendingRange) {
+                    // One commit, one refresh — and the dial stays where it
+                    // was, which is why the paint only ever wrote --tz-r-left/
+                    // --tz-r-width and never touched --tz-dial-pct.
                     const { startMs: lo, endMs: hi } = state.pendingRange;
-                    cm?.setTzDialMs?.(lo);
-                    cm?.setTzRangeStartAtDial?.();
-                    cm?.setTzDialMs?.(hi);
-                    cm?.setTzRangeEndAtDial?.();
+                    if (hi > lo) {
+                        cm?.setTzRange?.(lo, hi);
+                    } else {
+                        // Both ends snapped to the same quarter-hour: nothing to
+                        // mark, and setTzRange declines it — so no rebuild is
+                        // coming to regenerate the vars. Put the band back by
+                        // hand or an existing range would silently disappear
+                        // from the bars while still living in state.
+                        bars.style.setProperty('--tz-r-left', state.preRLeft || '0%');
+                        bars.style.setProperty('--tz-r-width', state.preRWidth || '0%');
+                    }
                 } else {
                     cm?.setTzDialMs?.(pointerToMs(ev.clientX));
                 }
@@ -698,6 +1029,26 @@ Object.assign(UIRenderer, {
         input.focus();
     },
 
+    // Two-click range picker, not a single start-date picker.
+    //
+    //   1st click  -> that date becomes the start AND the whole window (1 day);
+    //                 everything outside [start, start+MAX-1] dims, because
+    //                 those dates cannot be an end for this start.
+    //   2nd click  inside the undimmed tail -> that date is the end; commit and
+    //                 close, the interaction is finished.
+    //              on the start itself      -> reset back to the 1-day window
+    //                 and wait for a fresh end pick.
+    //              on a dimmed date         -> that is a NEW start (step 1 again).
+    //
+    // Dimmed cells stay clickable on purpose: dimming says "not a valid end",
+    // and the escape hatch from a wrong start is to click the date you actually
+    // wanted, not to first undo the one you picked.
+    //
+    // Every click commits immediately, which rebuilds the card body and so
+    // REPLACES the button this popover is anchored to — hence `anchor` is a
+    // live reference re-acquired after each commit rather than the captured
+    // `btn`. Everything downstream (dismiss detection, aria-expanded, refocus
+    // on close, repositioning under a label that changes width) reads it.
     toggleTzDatePicker(btn) {
         const reopening = this._tzPickerKind === 'date' && this._tzPickerInvoker === btn;
         this._tzPickerClose?.(false);
@@ -710,35 +1061,73 @@ Object.assign(UIRenderer, {
         try { days = cm._tzPickerDays?.() || []; } catch { days = []; }
         if (!Array.isArray(days) || !days.length) return;
 
+        const MAX = Number(cm.TZ_MAX_DAYS) || 3;
+        let anchor = btn;
+
         const weekHead = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
             .map(w => `<span class="cal-tz-datepop-wd" aria-hidden="true">${w}</span>`).join('');
 
-        let sawStart = false;
+        // Only the immutable bits are baked into the markup; is-start/is-end/
+        // is-inspan/is-dim and the roving tabindex are all owned by paint().
         const cellsHTML = days.map((d, i) => {
-            const cls = ['cal-tz-daycell'];
-            if (d.isToday) cls.push('is-today');
-            if (d.isStart) { cls.push('is-start'); sawStart = true; }
-            if (d.inSpan) cls.push('is-inspan');
             const full = this._tzFullDateLabel(d.dateStr) || d.label || d.dateStr;
             const safeFull = Utils.sanitizeHTML(full);
-            const tabIdx = d.isStart ? '0' : '-1';
-            return `<button type="button" class="${cls.join(' ')}" id="calTzDayCell-${i}"
-                            data-datestr="${Utils.sanitizeHTML(d.dateStr)}"
-                            aria-label="${safeFull}" title="${safeFull}" tabindex="${tabIdx}">${Utils.sanitizeHTML(String(d.dayNum))}</button>`;
+            return `<button type="button" class="cal-tz-daycell${d.isToday ? ' is-today' : ''}" id="calTzDayCell-${i}"
+                            data-datestr="${Utils.sanitizeHTML(d.dateStr)}" aria-pressed="false"
+                            aria-label="${safeFull}" title="${safeFull}" tabindex="-1">${Utils.sanitizeHTML(String(d.dayNum))}</button>`;
         }).join('');
 
         const pop = document.createElement('div');
         pop.className = 'cal-tz-popover cal-tz-datepop';
         pop.setAttribute('role', 'dialog');
-        pop.setAttribute('aria-label', 'Choose start date');
+        pop.setAttribute('aria-label', 'Choose date range');
         pop.innerHTML = `
             <div class="cal-tz-datepop-head">${weekHead}</div>
-            <div class="cal-tz-datepop-grid">${cellsHTML}</div>`;
+            <div class="cal-tz-datepop-grid">${cellsHTML}</div>
+            <p class="cal-tz-datepop-hint" role="status"></p>`;
         document.body.appendChild(pop);
-        this._tzPositionPopover(pop, btn);
+        this._tzPositionPopover(pop, anchor);
 
         const cells = [...pop.querySelectorAll('.cal-tz-daycell')];
-        if (!sawStart && cells[0]) cells[0].tabIndex = 0;
+        const hint = pop.querySelector('.cal-tz-datepop-hint');
+
+        // Opening selection = the committed window. `end` is null for a 1-day
+        // window, which is also the "waiting for an end pick" state — the two
+        // are deliberately the same state, so reopening the picker resumes
+        // exactly where the last interaction left off.
+        const sel = {
+            start: days.find(d => d.isStart)?.dateStr || null,
+            end: days.find(d => d.isEnd)?.dateStr || null
+        };
+        const labelOf = (dateStr) => days.find(d => d.dateStr === dateStr)?.label || dateStr || '';
+
+        const paint = () => {
+            const spanLen = (sel.start && sel.end) ? (cm._daysBetweenUTC(sel.start, sel.end) + 1) : 1;
+            let startIdx = -1;
+            cells.forEach((cell, i) => {
+                const ds = cell.dataset.datestr;
+                const off = sel.start ? cm._daysBetweenUTC(sel.start, ds) : NaN;
+                const isStart = !!sel.start && ds === sel.start;
+                const isEnd = !!sel.end && ds === sel.end;
+                if (isStart) startIdx = i;
+                cell.classList.toggle('is-start', isStart);
+                cell.classList.toggle('is-end', isEnd);
+                cell.classList.toggle('is-inspan', !isStart && !isEnd && Number.isFinite(off) && off > 0 && off < spanLen);
+                cell.classList.toggle('is-dim', !!sel.start && !(Number.isFinite(off) && off >= 0 && off < MAX));
+                cell.setAttribute('aria-pressed', (isStart || isEnd) ? 'true' : 'false');
+                cell.tabIndex = -1;
+            });
+            // Roving tabindex: the selected start owns the tab stop, except
+            // while a cell has focus — repainting must not move the tab stop
+            // out from under the keyboard user mid-interaction.
+            const focused = cells.indexOf(document.activeElement);
+            const stop = focused >= 0 ? focused : (startIdx >= 0 ? startIdx : 0);
+            if (cells[stop]) cells[stop].tabIndex = 0;
+
+            if (!sel.start) hint.textContent = 'Pick a start date.';
+            else if (!sel.end) hint.textContent = `${labelOf(sel.start)} · 1 day. Pick an end date (up to ${MAX} days), or click it again to reset.`;
+            else hint.textContent = `${labelOf(sel.start)} – ${labelOf(sel.end)} · ${spanLen} days.`;
+        };
 
         const close = (refocus) => {
             pop.remove();
@@ -746,19 +1135,50 @@ Object.assign(UIRenderer, {
             document.removeEventListener('keydown', this._tzPickerKeydown, true);
             this._tzPickerDismiss = this._tzPickerKeydown = this._tzPickerClose = null;
             this._tzPickerKind = this._tzPickerInvoker = null;
-            btn.setAttribute('aria-expanded', 'false');
-            if (refocus && btn?.isConnected) btn.focus();
+            anchor?.setAttribute('aria-expanded', 'false');
+            if (refocus && anchor?.isConnected) anchor.focus();
         };
         this._tzPickerClose = close;
         this._tzPickerKind = 'date';
-        this._tzPickerInvoker = btn;
-        btn.setAttribute('aria-expanded', 'true');
+        this._tzPickerInvoker = anchor;
+        anchor.setAttribute('aria-expanded', 'true');
+
+        const commit = (startStr, dayCount) => {
+            cm.setTzStartDate?.(startStr, dayCount);
+            const fresh = document.querySelector('.calendar-group .cal-tz-datebtn');
+            if (fresh) {
+                anchor = fresh;
+                this._tzPickerInvoker = anchor;
+                anchor.setAttribute('aria-expanded', 'true');
+            }
+            // The button's label changes width with the window, so re-anchor
+            // even when the node itself survived (a no-op commit).
+            this._tzPositionPopover(pop, anchor);
+        };
 
         const pick = (cell) => {
-            const dateStr = cell?.dataset.datestr;
-            if (!dateStr) return;
-            close(false);
-            cm.setTzStartDate?.(dateStr);
+            const ds = cell?.dataset.datestr;
+            if (!ds) return;
+            if (sel.start) {
+                const off = cm._daysBetweenUTC(sel.start, ds);
+                if (off === 0) {
+                    sel.end = null;
+                    commit(sel.start, 1);
+                    paint();
+                    return;
+                }
+                if (Number.isFinite(off) && off > 0 && off < MAX) {
+                    sel.end = ds;
+                    commit(sel.start, off + 1);
+                    paint();
+                    close(true);
+                    return;
+                }
+            }
+            sel.start = ds;
+            sel.end = null;
+            commit(ds, 1);
+            paint();
         };
 
         pop.addEventListener('click', (e) => {
@@ -791,11 +1211,12 @@ Object.assign(UIRenderer, {
             cells[next].focus();
         });
 
-        this._tzPickerDismiss = (e) => { if (!pop.contains(e.target) && e.target !== btn) close(false); };
+        this._tzPickerDismiss = (e) => { if (!pop.contains(e.target) && e.target !== anchor) close(false); };
         this._tzPickerKeydown = (e) => { if (e.key === 'Escape') close(true); };
         document.addEventListener('click', this._tzPickerDismiss, true);
         document.addEventListener('keydown', this._tzPickerKeydown, true);
 
+        paint();
         (pop.querySelector('.cal-tz-daycell.is-start') || cells[0])?.focus();
     },
 
