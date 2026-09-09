@@ -1110,7 +1110,9 @@ Object.assign(UIRenderer, {
         if (!cm) return;
         // The time-zone tool replaces the card body, so "today" means its own
         // window and dial, not the day-view offset. Nulling both re-derives
-        // them from the clock on the next model build.
+        // them from the clock on the next model build. tzDayCount is left
+        // alone on purpose: the window's WIDTH is a standing user choice
+        // (like the zone set), and "Today" only moves where it starts.
         if (cm.state?.tzToolActive) {
             cm.state.tzStartDateStr = null;
             cm.state.tzDialMs = null;

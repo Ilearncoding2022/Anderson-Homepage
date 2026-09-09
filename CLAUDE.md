@@ -388,23 +388,51 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
 ## Calendar Time-Zone Tool (v4.42)
 
 A globe button in the Calendar header swaps the card body for up to 4 stacked
-zone bars sharing **one absolute-time x-axis** over a 4-day window: the same x
-is the same instant on every bar, so there is exactly **one** dial line for the
-whole stack. Data/geometry in `scripts/5.1-calendar-tz.js`
+zone rows sharing **one absolute-time x-axis** over a 1–3 day window: the same x
+is the same instant on every row, so there is exactly **one** dial line for the
+whole stack. Each row is a WorldTimeBuddy-style grid of labelled hour cells. Data/geometry in `scripts/5.1-calendar-tz.js`
 (`Object.assign(CalendarManager, …)`), rendering + interaction in
 `scripts/10.3-renderer-tz.js` (`Object.assign(UIRenderer, …)`), styles in
 section 15 of `styles/3.1-groups-calendar.css` (`.cal-tz-*`). It is a new branch
 in `_calendarContentHTML()`, so `refreshCalendarDayView()` swaps it in place and
 the header ticker keeps running.
 
-- **The window is not 4 × 86 400 000 ms.** It runs `_zonedDayStartMs(d0)` →
-  `_zonedDayStartMs(d4)` in the *primary* zone, which is legitimately 95 or 97
-  hours across a DST edge, and every percentage divides by that real span. Each
+- **The window is not `dayCount` × 86 400 000 ms.** It runs
+  `_zonedDayStartMs(d0)` → `_zonedDayStartMs(dEnd)` in the *primary* zone, which
+  is legitimately an hour short or long across a DST edge, and every percentage
+  divides by that real span. Each
   row's own midnights come from walking *that* zone's local date strings through
   `_zonedDayStartMs` — never by offsetting the primary's boundaries. Build the
   date sequence with date-only UTC arithmetic, the same discipline
-  `getDayViewWindow` documents. Night shading (local 22:00→06:00) goes through
-  `_zonedTimeMs`, so a DST jump inside the night still yields the true span.
+  `getDayViewWindow` documents (`_addDaysUTC`/`_daysBetweenUTC` are the two
+  primitives; neither ever touches local `Date#setDate`). Night shading (local
+  22:00→06:00) goes through `_zonedTimeMs`, so a DST jump inside the night still
+  yields the true span.
+- **The width is `TZ_MAX_DAYS` (3) and user-chosen (1–3), via one mutator.**
+  `setTzStartDate(dateStr, dayCount)` writes both ends together — a start-only
+  commit would render a window nobody asked for and refresh the card twice per
+  click — and `_tzDayCount()` clamps on *read*, so a hand-edited state can never
+  widen past the cap. The date popover is a two-click range picker: first click
+  sets start + a 1-day window and dims everything outside `[start, start+2]`;
+  a second click in the undimmed tail sets the end and closes; a click on the
+  start itself resets to 1 day; a click on a dimmed cell starts over there.
+  Dimmed cells stay **clickable** — dimming means "not a valid end", and that
+  is also the escape hatch from a wrong start. Two consequences: each click
+  commits, and the commit rebuilds the card body and so **replaces the button
+  the popover is anchored to** — the picker therefore keeps a live `anchor`
+  reference it re-acquires after every commit (dismiss detection,
+  `aria-expanded`, refocus-on-close and repositioning all read it), and
+  `_tzPickerDays()` supplies only the *opening* state, since the picker repaints
+  `is-start`/`is-end`/`is-inspan`/`is-dim` itself between commits.
+- **A range is marked by dragging the primary bar, and only that.**
+  `setTzRange(lo, hi)` is the single commit point, so the range never exists
+  half-set and the dial is left where the user dropped it — which is why the
+  drag paints only `--tz-r-left`/`--tz-r-width` and never `--tz-dial-pct`. The
+  old "Start at dial"/"End at dial" buttons (and the `setTzRange*AtDial`
+  mutators behind them) are gone. `setTzRange` declines a sub-snap paint, and
+  because a declined commit triggers no rebuild, the drag restores the two
+  range vars by hand in that case — otherwise an existing band would vanish
+  from the bars while still living in state.
 - **`buildTzModel()` must never run during a drag.** A drag frame writes 1–3 CSS
   custom properties on `.cal-tz-bars` plus `textContent` on the ≤4 readout
   chips, rAF-coalesced; the ms comes from pointer x over `data-start-ms` /
@@ -419,8 +447,9 @@ the header ticker keeps running.
 - **The dial is a fixed instant, not a clock.** `state.tzDialMs` materializes
   once (now, snapped to 15 min) and then stays put; only the now line follows
   the clock, nudged by the existing 30 s eta tick — no new interval. `tzToolActive`
-  is deliberately **not** persisted (like `dayViewOffset`); only
-  `calendarTzTool` (`{zones, primary}`) is, and that key had to be added to
+  is deliberately **not** persisted (nor are `tzStartDateStr`/`tzDayCount`, the
+  same call as `dayViewOffset`); only
+  `calendarTzTool` (`{zones, primary, showEvents, hour24}`) is, and that key had to be added to
   `Storage.ALL_APP_KEYS`, `DbManager.APP_KEYS` **and** the `Storage.import()`
   validation block or it silently misses export/import/backup.
 - **Keyboard dial commits are debounced (250 ms) on purpose.** `setTzDialMs`
@@ -434,6 +463,154 @@ the header ticker keeps running.
   tabular-nums alignment. `_tzZoneName` falls back to the city when `_tzLabel`
   degrades to a bare offset, since each row already shows the offset in its own
   badge and "GMT+9 (GMT+9)" tells the user nothing.
+- **Each row is a grid of labelled hour cells, and equal columns are
+  load-bearing.** `_zoneHourCells` emits one record per ABSOLUTE hour —
+  `.cal-tz-cells` is `repeat(var(--tz-cells), 1fr)` — so column k is the same
+  instant in every row. That is not a style choice: the dial, its cell
+  highlight, the range band, the now line and the event pills are all
+  positioned by a plain percentage against that same box, so uniform columns
+  are the only reason they agree about where an instant sits. **Anything that
+  would make one cell wider than another breaks the shared axis** — a roomier
+  date cell being the tempting one; size the type to the column instead.
+  - **One walk, not three.** This single pass replaced separate day-segment,
+    night-segment and hour-tick walks. The cell *is* the tick, its band *is*
+    the shading, and its local-midnight cell *is* the date boundary — so there
+    is no second layer that can disagree with it, and `_zoneHourCells` emits
+    no tick or rule at hour 0 for exactly that reason.
+  - **Two bands, from the row's own local hour**: night `18:00–05:59` (dark
+    blue, white type) and day `06:00–17:59` (sand, near-black type). An
+    earlier cut had a third "shoulder" shade either side of the working day;
+    it read as a third kind of thing rather than as a gradient. The colours
+    are literal rather than tokens because both must survive the theme flip —
+    every surface here is dark in both themes, so a token that inverts would
+    flip one half of the pair and not the other. Local midnight keeps the
+    night colour: the day boundary is marked by the rule and the uppercase
+    date, not by a third shade.
+  - **Cell count comes from the real span**, `Math.round(spanMs / 3600000)` —
+    so a DST day is 23 or 25 cells, never `dayCount * 24`.
+  - **A :30/:45 zone just reads "9:30"** at the boundary. That is why the
+    label carries minutes at all, and why the band test reads the local hour
+    rather than the column index.
+  - **`--tz-cell-min` (25px) is a legibility floor, not a width.**
+    `.cal-tz-bars`' `min-width` multiplies it by the same `--tz-cells`, so a
+    window too wide to show readable cells scrolls in `.cal-tz-scroll`
+    instead of squeezing the two stacked labels into mush.
+  - **Cell type is shrunk by `transform`, not by `font-size`.** One number,
+    `--tz-cell-scale` (0.75), covers all four cell text sizes. It has to be a
+    transform: three of the four would land at or under the ~6px Chrome
+    minimum-font-size floor and simply stop shrinking. The declared
+    `font-size` is therefore the DESIGN size and the rendered size is that
+    times the scale. Safe here because these spans are laid out by flex — the
+    zoom/scale trap the `.cal-tl-hour` comments warn about is about boxes
+    positioned by an inline percentage, which these are not.
+- **Selecting, resizing and dismissing a window.** A click on any row marks
+  the clicked hour as the window and takes the dial with it — one gesture is
+  both "drop the old selection" and "select this hour", so no stale range can
+  outlive the click that replaced it. Dragging paints a multi-hour window, and
+  the two vertical edges are resize handles (`_tzEdgeAt`,
+  `TZ_EDGE_GRAB_PX`, hit-tested off the live CSS variables because the band is
+  `pointer-events: none`). Three rules there are easy to get wrong and all
+  three have tests:
+  - **A resize anchors on a BOUNDARY; a paint anchors on a CELL.** Forcing
+    both through the cell formula moved the supposedly-fixed edge by an hour
+    every time a handle crossed it. Resize is therefore its own drag mode:
+    `lo = min(c, fixed)`, `hi = max(c + 1, fixed)`.
+  - **A handle takes the cell on its own side of its boundary** (`resizeCell`)
+    — the start handle the cell to its right, the end handle the cell to its
+    left. Plain `floor()` for both put the end handle in the cell *after* the
+    boundary it sits on, so merely grabbing it extended the range by an hour.
+  - **Pressing a handle and releasing without moving is a no-op**, not a click
+    on the cell underneath — otherwise touching a handle collapsed the whole
+    window to that single hour.
+  Clicking away drops the selection (`_attachTzClearOutsideHandler`), and the
+  allowlist there is the design: "outside the sliders" cannot mean "outside
+  `.cal-tz-bars`", because the range bar's own Copy and Clear buttons live
+  outside it and clearing on the way to Copy would make Copy unusable.
+- **Every row is a slider; drag on any of them selects the window.** There is
+  no primary-only rule any more — a secondary row silently doing something
+  different from the one above it was the affordance bug this fixed. A drag
+  paints a range and a click moves the dial, on every row. The **range snaps
+  to whole hour cells** (`pointerToCell`/`cellEdgeMs`, both end cells
+  inclusive, so a drag inside one cell selects that one hour), while the
+  **dial keeps its own 15-minute snap** — it is the precise instant the
+  readouts and the keyboard slider work in. `setTzRange(lo, hi)` is still the
+  single commit point.
+- **The dial's cell highlight is a second CSS variable, not a layout read.**
+  CSS cannot floor a percentage to a column, so `_tzWriteDial` publishes
+  `--tz-dialcell-pct` alongside `--tz-dial-pct` on the same cheap drag frame.
+  Still vars-only, still no `getBoundingClientRect` per frame. `.cal-tz-hover`
+  is the same mechanism for the 60-minute box that follows the cursor
+  (`--tz-hovercell-pct`, written by `_attachTzHoverHandler`), and it spans
+  every row rather than lighting up only the row under the pointer — reading
+  one hour across all four zones at once is the point of the widget, and it
+  is what makes hovering a secondary row useful. `pointermove` fires far
+  faster than a frame, so the reads are rAF-coalesced exactly the way the
+  drag coalesces its own; it ignores `pointerType === 'touch'` (a touch move
+  would strand the box with no leave event coming) and hides itself while a
+  drag is live. The two boxes are deliberately different weights: the dial's
+  is a soft tint (where the dial is parked), the hover's a crisp outline
+  (where the cursor is).
+- **`.cal-tz-bars` needs BOTH explicit rows and explicitly-placed rows, and
+  getting either wrong fails silently.** `grid-template-rows: repeat(var(--tz-rows), auto)`
+  exists because `grid-row: 1 / -1` resolves `-1` against the last *explicit*
+  line — with an all-implicit track list that is line 1, so the full-height
+  overlays collapse to height 0 and paint nothing at all. (`.cal-tz-dial`
+  shipped that way: its line and hour box were invisible for two versions,
+  and only the absolutely-positioned grip gave any sign it was there.) Each
+  `.cal-tz-row` then sets `grid-row` inline, because auto-placement refuses
+  to put an auto-placed item in a cell an explicitly-placed one occupies —
+  leave the rows on auto and they get pushed into implicit tracks *below* the
+  overlays, which end up spanning a stack of empty 0px rows. Two
+  explicitly-placed items are allowed to overlap, which is exactly what the
+  dial and hover box need.
+- **The leading badge is hours from the PRIMARY zone, not from UTC**
+  (`_tzRelOffsetLabel`) — "+7" is the number you schedule against, and each
+  row already carries its UTC offset in a second badge. Decimal because
+  :30/:45 zones exist (India reads `-1.5` against Vietnam, Nepal `-1.25`),
+  and evaluated at the dial instant because two zones' gap changes across a
+  DST edge. Suppressed on the primary row, where it would always read 0.
+- **Events are thin lane-packed pills in a strip only the primary row opens.**
+  `_tzLayoutEvents` does greedy first-fit into `TZ_EV_LANES` (2)
+  bottom-aligned lanes, with a gutter measured as a fraction of the window so
+  the gap stays constant in pixels at any width. Whatever does not fit is
+  **returned, never dropped** — `buildTzModel` clusters it into "+n" badges,
+  which sit in their own row above both lanes because anywhere inside them
+  puts the badge on top of the pills it is reporting. Pills below ~4% of the
+  window render no title (the tooltip still has it). A zero-length event gets
+  a 15-minute floor rather than computing 0% and being filtered away unseen.
+  Only `.cal-tz-view.has-events .cal-tz-row.is-primary` reserves the strip:
+  the secondary rows render no events, and reserving it there left every one
+  of them with a hollow bottom third. Rows of differing heights are the
+  honest result — the shared axis is horizontal and needs nothing of row
+  height.
+- **Row height is four custom properties, and `--tz-evstrip-h` is not free.**
+  `--tz-cellbody-h` (64px) plus `--tz-evstrip-h` (80px on the primary row,
+  0 elsewhere) is the track; `--tz-ev-h` (22px) is one pill. The strip has to
+  hold two pill lanes *plus* the overflow badge row above them —
+  `3 * gap + 2 * --tz-ev-h + badge`, currently `6+22+6+22+6+16 = 78` inside
+  80. Grow `--tz-ev-h` without growing the strip and the badge row is pushed
+  up through the top of the track into the hour cells.
+- `.cal-tz-ev` is `pointer-events: auto` **on purpose** — it is what makes the
+  tooltip reachable now that narrow pills carry no label. The drag handler
+  matches with `closest('.cal-tz-bar')`, so a pointerdown on a pill still
+  starts a drag on the row underneath it.
+- **12/24-hour is a stored option** (`hour24`, toolbar segmented control →
+  `setTzHour24`). It is the mirror of `showEvents`: only an explicit stored
+  `true` opts in, so a config written before the option existed reads as
+  12-hour. 24-hour labels are zero-padded (`00`–`23`) to keep the column of
+  numbers a straight edge, and carry **no second line at all** — the renderer
+  omits the meridiem span rather than emitting an empty one, which would
+  still occupy a line box and push the hour off centre. Both halves of the
+  control set a definite value rather than toggling; a lone button labelled
+  "24H" is ambiguous about whether it reports state or action.
+- **Events can be switched off entirely** (toolbar toggle → `toggleTzEvents`),
+  leaving bare date/night bars. It is stored in `calendarTzTool` alongside
+  `{zones, primary}` — a standing display choice, unlike the ephemeral
+  `tzToolActive`/`tzDayCount` — so it also had to be handled in
+  `Storage.import()`'s hand-written validation block. Only an explicit stored
+  `false` means off: a config written before the option existed has no such
+  key and must read as **on**. `buildTzModel` skips the whole event scan in
+  that state rather than rendering hidden nodes.
 - **No green.** This whole feature is outside the `--signal` whitelist: the now
   line is `--ok-neutral` dashed, the dial is white/`--ink` with no glow. Do not
   copy `.cal-tl-now`'s treatment — its green is a whitelisted exception, not a

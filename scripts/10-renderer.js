@@ -907,6 +907,8 @@ const UIRenderer = {
         // Delegated the same way, on the same container, for the same reason:
         // it must survive the calendar card's scoped re-renders.
         this._attachTzDragHandler(container);
+        this._attachTzHoverHandler(container);
+        this._attachTzClearOutsideHandler(container);
     },
 
     // Card re-renders deferred because a drag was in flight (see

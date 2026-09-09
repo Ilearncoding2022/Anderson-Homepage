@@ -4,7 +4,8 @@
 //
 // Multi-timezone comparison tool: up to 4 IANA zones stacked on one shared
 // absolute-time axis (World-Time-Buddy style), a draggable dial, and an
-// optional marked range. This file is DATA ONLY — geometry (percentages,
+// optional marked range. The window is 1-3 days wide (TZ_MAX_DAYS), chosen
+// in the date picker. This file is DATA ONLY — geometry (percentages,
 // segment lists) and persistence, no HTML. The renderer lives in
 // scripts/10.3-renderer-tz.js.
 //
@@ -22,12 +23,20 @@
 Object.assign(CalendarManager.state, {
     tzToolActive: false,
     tzStartDateStr: null,   // 'YYYY-MM-DD' in the primary zone; null = today
+    tzDayCount: null,       // 1..TZ_MAX_DAYS; null = the full TZ_MAX_DAYS window
     tzDialMs: null,
     tzRangeStartMs: null,
     tzRangeEndMs: null
 });
 
 Object.assign(CalendarManager, {
+    // Widest window the tool will draw, and the cap the date picker dims
+    // against. Three days of four zones is already ~72 hour ticks per row;
+    // past that the bars stop being readable at card width, which is the
+    // reason for the limit — it is not an arbitrary number, so if it moves,
+    // re-check the tick density and .cal-tz-bars' min-width together.
+    TZ_MAX_DAYS: 3,
+
     // Per-zone Intl.DateTimeFormat cache for _zonedTimeMs. A single
     // buildTzModel() call makes on the order of a hundred conversions (hour
     // ticks × up to 4 zones × several local days, plus night boundaries), and
@@ -75,6 +84,10 @@ Object.assign(CalendarManager, {
     // Never returns an empty zones array: an invalid/missing config falls
     // back to the header clocks' zones (so the tool starts comparing
     // something the user already set up), then to the browser's own zone.
+    // showEvents defaults ON and is stored, not ephemeral: it is a standing
+    // display choice like the zone set, not a per-visit view state like
+    // tzToolActive/tzDayCount. Anything added here must also be handled by
+    // Storage.import()'s calendarTzTool block, which re-validates by hand.
     getTzToolConfig() {
         const raw = localStorage.getItem(this.config.storageKeys.tzTool);
         const parsed = raw ? Utils.safeJSONParse(raw, null) : null;
@@ -86,7 +99,13 @@ Object.assign(CalendarManager, {
         let primary = parseInt(parsed && parsed.primary, 10);
         if (!Number.isFinite(primary)) primary = 0;
         primary = Math.min(Math.max(primary, 0), zones.length - 1);
-        return { zones, primary };
+        // Only an explicit stored `false` turns events off — a missing key
+        // (every config written before this option existed) must read as on.
+        const showEvents = !(parsed && parsed.showEvents === false);
+        // hour24 is the mirror image: absent means 12-hour, the format the
+        // cells shipped with, so only an explicit `true` opts in.
+        const hour24 = !!(parsed && parsed.hour24 === true);
+        return { zones, primary, showEvents, hour24 };
     },
 
     setTzToolConfig(cfg) {
@@ -95,7 +114,9 @@ Object.assign(CalendarManager, {
         let primary = parseInt(cfg && cfg.primary, 10);
         if (!Number.isFinite(primary)) primary = 0;
         primary = Math.min(Math.max(primary, 0), zones.length - 1);
-        Utils.safeLocalStorageSet(this.config.storageKeys.tzTool, JSON.stringify({ zones, primary }));
+        const showEvents = !(cfg && cfg.showEvents === false);
+        const hour24 = !!(cfg && cfg.hour24 === true);
+        Utils.safeLocalStorageSet(this.config.storageKeys.tzTool, JSON.stringify({ zones, primary, showEvents, hour24 }));
         this._tzFmtCache = {};
         // Scoped refresh (not renderCalendarCard): zone/primary changes only
         // need the day-view body rebuilt, same as the other tz mutators.
@@ -143,6 +164,25 @@ Object.assign(CalendarManager, {
         this.setTzToolConfig(cfg);
     },
 
+    // Events off = bare date/night bars, which is what the tool is for when
+    // you are only comparing wall clocks. buildTzModel skips the whole event
+    // scan in that state rather than rendering it hidden.
+    toggleTzEvents() {
+        const cfg = this.getTzToolConfig();
+        cfg.showEvents = !cfg.showEvents;
+        this.setTzToolConfig(cfg);
+    },
+
+    // Takes an explicit value rather than toggling: the control is a two-way
+    // segmented pair, and each half means "be this", not "flip".
+    setTzHour24(on) {
+        const cfg = this.getTzToolConfig();
+        const next = !!on;
+        if (cfg.hour24 === next) return;
+        cfg.hour24 = next;
+        this.setTzToolConfig(cfg);
+    },
+
     // ---- Conversion primitive -------------------------------------------------
 
     _tzFormatter(tz) {
@@ -184,103 +224,151 @@ Object.assign(CalendarManager, {
         return this._dateOnly(dt, 'UTC');
     },
 
+    // Whole days from dateStr `a` to dateStr `b` (signed, b - a). Same
+    // date-only UTC discipline as _addDaysUTC — the two dates are calendar
+    // labels, so a local-midnight subtraction across a DST edge would round
+    // to the wrong day.
+    _daysBetweenUTC(a, b) {
+        const pa = String(a).split('-').map(Number);
+        const pb = String(b).split('-').map(Number);
+        if (pa.length !== 3 || pb.length !== 3 || pa.some(n => !Number.isFinite(n)) || pb.some(n => !Number.isFinite(n))) return NaN;
+        const ta = Date.UTC(pa[0], pa[1] - 1, pa[2]);
+        const tb = Date.UTC(pb[0], pb[1] - 1, pb[2]);
+        return Math.round((tb - ta) / 86400000);
+    },
+
+    // Effective window width in days. Clamped on read rather than on write so
+    // a restored/hand-edited state can never widen the window past the cap.
+    _tzDayCount() {
+        const n = parseInt(this.state.tzDayCount, 10);
+        if (!Number.isFinite(n)) return this.TZ_MAX_DAYS;
+        return Math.min(Math.max(n, 1), this.TZ_MAX_DAYS);
+    },
+
     _tzStartDateStr(primaryTz) {
         const s = this.state.tzStartDateStr;
         if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
         return this._dateOnly(new Date(), primaryTz);
     },
 
-    // { startMs, endMs, spanMs, primaryTz, dateStrs: [d0,d1,d2,d3] }
-    // spanMs is 95/96/97 hours across a DST edge in the primary zone and that
-    // is correct — NEVER startMs + 4*86400000. dateStrs are date-only UTC
-    // strings (see getDayViewWindow's identical discipline in 5-calendar.js);
-    // each row later walks its OWN local dates through _zonedDayStartMs
-    // rather than reusing these.
+    // { startMs, endMs, spanMs, primaryTz, dayCount, dateStrs: [d0..dN] }
+    // spanMs is an hour short or long of dayCount*24h across a DST edge in the
+    // primary zone and that is correct — NEVER startMs + dayCount*86400000.
+    // dateStrs are date-only UTC strings (see getDayViewWindow's identical
+    // discipline in 5-calendar.js); each row later walks its OWN local dates
+    // through _zonedDayStartMs rather than reusing these.
     getTzWindow() {
         const cfg = this.getTzToolConfig();
         const primaryTz = cfg.zones[cfg.primary];
+        const dayCount = this._tzDayCount();
         const d0 = this._tzStartDateStr(primaryTz);
         const dateStrs = [d0];
-        for (let i = 1; i < 4; i++) dateStrs.push(this._addDaysUTC(dateStrs[i - 1], 1));
-        const d4 = this._addDaysUTC(dateStrs[3], 1);
+        for (let i = 1; i < dayCount; i++) dateStrs.push(this._addDaysUTC(dateStrs[i - 1], 1));
+        const dEnd = this._addDaysUTC(dateStrs[dayCount - 1], 1);
         const startMs = this._zonedDayStartMs(d0, primaryTz);
-        const endMs = this._zonedDayStartMs(d4, primaryTz);
-        return { startMs, endMs, spanMs: endMs - startMs, primaryTz, dateStrs };
+        const endMs = this._zonedDayStartMs(dEnd, primaryTz);
+        return { startMs, endMs, spanMs: endMs - startMs, primaryTz, dayCount, dateStrs };
     },
 
-    // ---- Per-zone geometry helpers (raw ms; buildTzModel converts to %) ------
+    // ---- Per-zone geometry -----------------------------------------------
 
-    // Calendar-day blocks for `zone` that overlap [startMs, endMs), clipped to
-    // the window. Walked from THIS zone's own local date at startMs, not from
-    // the primary's day boundaries — a non-primary zone's day rarely lines up
-    // with the primary's.
-    _zoneDaySegments(zone, startMs, endMs) {
-        const segs = [];
-        let dateStr = this._dateOnly(new Date(startMs), zone);
-        let dayStart = this._zonedDayStartMs(dateStr, zone);
-        while (dayStart < endMs) {
-            const nextDateStr = this._addDaysUTC(dateStr, 1);
-            const nextStart = this._zonedDayStartMs(nextDateStr, zone);
-            segs.push({
-                dateStr,
-                segStart: Math.max(dayStart, startMs),
-                segEnd: Math.min(nextStart, endMs)
-            });
-            dateStr = nextDateStr;
-            dayStart = nextStart;
-        }
-        return segs;
+    // Whole absolute hours in the window. Derived from the REAL span, so a
+    // DST day makes this 71 or 73 rather than 72 — never dayCount * 24.
+    _tzHourCount(spanMs) {
+        return Math.max(1, Math.round(spanMs / 3600000));
     },
 
-    // Night = local 22:00 -> next-day 06:00, via _zonedTimeMs so a DST jump
-    // inside the night yields the true absolute span. Starts scanning from
-    // the local day BEFORE the window's first date so a night that began the
-    // evening before startMs, and straddles it, still gets a (clipped)
-    // segment instead of silently starting mid-window.
-    _zoneNightSegments(zone, startMs, endMs) {
-        const segs = [];
-        let dateStr = this._addDaysUTC(this._dateOnly(new Date(startMs), zone), -1);
-        for (let i = 0; i < 10; i++) {   // a 4-day window spans at most ~6 local days; 10 is a safe bound
-            const nightStart = this._zonedTimeMs(dateStr, 22, 0, zone);
-            if (nightStart > endMs) break;
-            const nextDateStr = this._addDaysUTC(dateStr, 1);
-            const nightEnd = this._zonedTimeMs(nextDateStr, 6, 0, zone);
-            const segStart = Math.max(nightStart, startMs);
-            const segEnd = Math.min(nightEnd, endMs);
-            if (segEnd > segStart) segs.push({ startMs: segStart, endMs: segEnd });
-            dateStr = nextDateStr;
-        }
-        return segs;
-    },
+    // One labelled record per absolute hour of the window, for `zone`.
+    //
+    // This single walk replaces what used to be three separate passes (day
+    // segments, night segments, hour ticks). A WorldTimeBuddy-style grid does
+    // not need them: the cell IS the tick, its band IS the shading, and its
+    // midnight cell IS the date boundary. It also reads better — you see the
+    // local hour written out instead of decoding a shaded region against a
+    // rule.
+    //
+    // Cells are ABSOLUTE hours, so column k is the same instant in every row
+    // and the shared-axis invariant this whole tool rests on is untouched. A
+    // zone on a :30/:45 offset just reads "9:30" at the boundary, which is
+    // exactly what those zones do — that is the reason the label carries
+    // minutes at all, and why the band test reads the local hour rather than
+    // the column index.
+    _zoneHourCells(zone, startMs, hourCount, hour24) {
+        const fmt = this._tzFormatter(zone);
+        const cells = [];
+        for (let i = 0; i < hourCount; i++) {
+            const ms = startMs + i * 3600000;
+            const p = {};
+            for (const part of fmt.formatToParts(new Date(ms))) p[part.type] = part.value;
+            let h = +p.hour;
+            if (h === 24) h = 0;              // some engines emit '24' for midnight
+            const min = +p.minute;
 
-    // Hour gridlines every 3rd hour (0,3,...,21) for every local day
-    // overlapping the window. Fast path when the local day is exactly 24h;
-    // otherwise (23h/25h DST-transition days) each tick is computed
-    // individually via _zonedTimeMs, since the fast arithmetic would
-    // misplace every tick after the transition.
-    _zoneHourTicks(zone, startMs, endMs, pct) {
-        const ticks = [];
-        let dateStr = this._dateOnly(new Date(startMs), zone);
-        let dayStart = this._zonedDayStartMs(dateStr, zone);
-        while (dayStart < endMs) {
-            const nextDateStr = this._addDaysUTC(dateStr, 1);
-            const nextStart = this._zonedDayStartMs(nextDateStr, zone);
-            const isRegularDay = (nextStart - dayStart) === 86400000;
-            for (let h = 0; h < 24; h += 3) {
-                const tickMs = isRegularDay ? dayStart + h * 3600000 : this._zonedTimeMs(dateStr, h, 0, zone);
-                if (tickMs < startMs || tickMs > endMs) continue;
-                const isLabeled = h === 6 || h === 12 || h === 18;
-                ticks.push({
-                    leftPct: pct(tickMs),
-                    hour: h,
-                    isLabeled,
-                    label: isLabeled ? (h === 6 ? '6a' : h === 12 ? '12p' : '6p') : ''
-                });
+            // Local midnight takes the date cell. That cell is the day
+            // boundary marker, which is why nothing else in the row draws
+            // one — no separate rule, no separate label layer, and no way
+            // for the two to disagree.
+            if (h === 0) {
+                const { wkday, dateLabel } = this._tzDateLabel(`${p.year}-${p.month}-${p.day}`);
+                // Midnight sits inside the night band; the cell is set apart by
+                // its rule and its uppercase date, not by a third colour.
+                cells.push({ band: 'night', isDate: true, top: wkday, bot: dateLabel });
+                continue;
             }
-            dateStr = nextDateStr;
-            dayStart = nextStart;
+
+            const mm = String(min).padStart(2, '0');
+            const h12 = (h % 12) || 12;
+            cells.push({
+                // Exactly two bands, split at 06:00 and 18:00. An earlier cut
+                // had a third "shoulder" shade either side of the working day;
+                // it read as a third kind of thing rather than as a gradient,
+                // so day/night is the whole vocabulary now.
+                band: (h >= 18 || h < 6) ? 'night' : 'day',
+                isDate: false,
+                // 24-hour mode is zero-padded so the column of numbers stays a
+                // straight edge, and carries no second line at all — `bot` is
+                // empty and the renderer drops the span rather than rendering
+                // a blank one that would still take a line box.
+                top: hour24
+                    ? (min ? `${String(h).padStart(2, '0')}:${mm}` : String(h).padStart(2, '0'))
+                    : (min ? `${h12}:${mm}` : String(h12)),
+                bot: hour24 ? '' : (h < 12 ? 'am' : 'pm')
+            });
         }
-        return ticks;
+        return cells;
+    },
+
+    // Minutes east of UTC for `zone` at instant `ms` — the generic form of
+    // the guess-and-correct in _zonedTimeMs, reading the offset out instead
+    // of cancelling it.
+    _tzUtcOffsetMin(zone, ms) {
+        const p = {};
+        for (const part of this._tzFormatter(zone).formatToParts(new Date(ms))) p[part.type] = part.value;
+        let h = +p.hour;
+        if (h === 24) h = 0;
+        const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, h, +p.minute, +p.second);
+        return Math.round((asUTC - ms) / 60000);
+    },
+
+    // The row's leading badge: hours from the PRIMARY zone, not from UTC —
+    // "this call is +7 for them" is the question the tool exists to answer,
+    // and each row already carries its own UTC offset in a second badge.
+    // Decimal rather than integer because :30 and :45 zones exist (India
+    // reads +9.5 against New York, Nepal +9.75), and evaluated at `atMs`
+    // rather than now, since two zones' gap changes across a DST edge.
+    _tzRelOffsetLabel(zone, primaryTz, atMs) {
+        if (!zone || !primaryTz || zone === primaryTz) return '';
+        let mins;
+        try {
+            mins = this._tzUtcOffsetMin(zone, atMs) - this._tzUtcOffsetMin(primaryTz, atMs);
+        } catch (_) {
+            return '';
+        }
+        if (!Number.isFinite(mins) || mins === 0) return '0';
+        const hours = mins / 60;
+        // Trim 9.50 -> 9.5 and 7.00 -> 7 without printing a bare '.'
+        const body = Math.abs(hours).toFixed(2).replace(/\.?0+$/, '');
+        return `${hours > 0 ? '+' : '-'}${body}`;
     },
 
     // Timed, non-hidden events overlapping [startMs, endMs). Hoists the
@@ -311,6 +399,42 @@ Object.assign(CalendarManager, {
             out.push({ ev, start, effectiveEnd });
         }
         return out;
+    },
+
+    // Greedy first-fit lane packing for the primary row's event pills.
+    //
+    // The bars used to draw every event as a near-full-height 35%-opacity
+    // slab, so overlapping events simply painted over one another: compounding
+    // washes, colliding titles, and one-letter slivers. Pills are thin and
+    // opaque instead, which only works if they never overlap — hence lanes.
+    //
+    // Two lanes, and no more: at TZ_EV_LANES × pill height plus gutters, a
+    // third would leave no visible track above it, and a fourth would be a
+    // sliver. Whatever does not fit is RETURNED, never silently dropped —
+    // buildTzModel turns it into "+n" markers, so the row can always account
+    // for every event it was given.
+    TZ_EV_LANES: 2,
+
+    _tzLayoutEvents(list, spanMs) {
+        // Horizontal gutter as a fraction of the window, so the gap between
+        // two pills in a lane stays a constant few pixels whether one day or
+        // three are on screen. Without it, back-to-back events (one ending
+        // exactly as the next begins) fuse into a single bar.
+        const gutter = spanMs * 0.005;
+        const sorted = [...list].sort((a, b) => a.segStart - b.segStart || b.segEnd - a.segEnd);
+        const laneEnd = new Array(this.TZ_EV_LANES).fill(-Infinity);
+        const placed = [];
+        const dropped = [];
+        for (const ev of sorted) {
+            let lane = -1;
+            for (let i = 0; i < laneEnd.length; i++) {
+                if (laneEnd[i] <= ev.segStart - gutter) { lane = i; break; }
+            }
+            if (lane < 0) { dropped.push(ev); continue; }
+            laneEnd[lane] = ev.segEnd;
+            placed.push({ ...ev, lane });
+        }
+        return { placed, dropped };
     },
 
     // ---- Labels ---------------------------------------------------------------
@@ -413,10 +537,12 @@ Object.assign(CalendarManager, {
     },
 
     // 14 cells: this Mon-Sun + next Mon-Sun, computed in the PRIMARY zone
-    // (Monday math shared with _baseOffsetFromToday's week view). inSpan
-    // marks the 4 dates the window would cover if that cell were picked as
-    // the start — a date-only approximation of the real (DST-adjusted) ms
-    // window, which is fine for a picker highlight.
+    // (Monday math shared with _baseOffsetFromToday's week view). isStart /
+    // isEnd / inSpan describe the CURRENTLY COMMITTED window — a date-only
+    // approximation of the real (DST-adjusted) ms window, which is fine for a
+    // picker highlight. The picker repaints those three classes itself as the
+    // user clicks (see toggleTzDatePicker), so this is the opening state, not
+    // a per-click source of truth.
     _tzPickerDays() {
         const cfg = this.getTzToolConfig();
         const primaryTz = cfg.zones[cfg.primary];
@@ -426,9 +552,11 @@ Object.assign(CalendarManager, {
         const dow = todayBase.getUTCDay();               // 0=Sun..6=Sat
         const mondayOffset = -((dow + 6) % 7);            // days since Monday
         const startDateStr = this._tzStartDateStr(primaryTz);
+        const dayCount = this._tzDayCount();
+        const endDateStr = this._addDaysUTC(startDateStr, dayCount - 1);
         const [sy, smo, sd] = startDateStr.split('-').map(Number);
         const spanStart = Date.UTC(sy, smo - 1, sd);
-        const spanEnd = spanStart + 4 * 86400000;
+        const spanEnd = spanStart + dayCount * 86400000;
 
         const cells = [];
         for (let i = 0; i < 14; i++) {
@@ -441,6 +569,7 @@ Object.assign(CalendarManager, {
                 label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }),
                 isToday: dateStr === todayStr,
                 isStart: dateStr === startDateStr,
+                isEnd: dayCount > 1 && dateStr === endDateStr,
                 inSpan: d.getTime() >= spanStart && d.getTime() < spanEnd
             });
         }
@@ -455,7 +584,7 @@ Object.assign(CalendarManager, {
     // per rebuild, not once per frame.
     buildTzModel() {
         const cfg = this.getTzToolConfig();
-        const { startMs, endMs, spanMs, primaryTz } = this.getTzWindow();
+        const { startMs, endMs, spanMs, primaryTz, dayCount, dateStrs } = this.getTzWindow();
         const zones = cfg.zones;
         const primaryIdx = cfg.primary;
 
@@ -506,36 +635,62 @@ Object.assign(CalendarManager, {
             }
         }
 
-        // Events: primary row only. The fallback colour matches
-        // DEFAULT_CAL_COLOR (scripts/10-renderer.js) — a literal here rather
-        // than a reference to that global, since this file loads before it.
+        // Events: primary row only, and skipped entirely when the user has
+        // them switched off (cfg.showEvents) — the whole scan, not just the
+        // rendering. The fallback colour matches DEFAULT_CAL_COLOR
+        // (scripts/10-renderer.js) — a literal here rather than a reference to
+        // that global, since this file loads before it.
         const FALLBACK_EVENT_COLOR = '#5B9DFF';
-        const events = this._tzPrimaryEvents(startMs, endMs).map(({ ev, start, effectiveEnd }) => {
-            const segStart = Math.max(start, startMs);
-            const segEnd = Math.min(effectiveEnd, endMs);
-            const left = pct(segStart);
-            return {
-                leftPct: left,
-                widthPct: Math.max(0, pct(segEnd) - left),
-                title: ev.title || '',
-                color: Utils.isValidColor(ev._calColor) ? ev._calColor : FALLBACK_EVENT_COLOR
-            };
-        }).filter(e => e.widthPct > 0);
+        // A zero-length event (no end, or end <= start) used to compute a
+        // 0%-wide box and get filtered away — an event on the calendar that
+        // the bar silently did not show. Floor it at 15 min so it renders as
+        // a small pill instead.
+        const MIN_EV_MS = 900000;
+        let events = [];
+        let eventsOverflow = [];
+        if (cfg.showEvents) {
+            const raw = this._tzPrimaryEvents(startMs, endMs).map(({ ev, start, effectiveEnd }) => {
+                const segStart = Math.max(start, startMs);
+                const rawEnd = Math.min(effectiveEnd, endMs);
+                return {
+                    segStart,
+                    segEnd: Math.max(rawEnd, Math.min(segStart + MIN_EV_MS, endMs)),
+                    title: ev.title || '',
+                    color: Utils.isValidColor(ev._calColor) ? ev._calColor : FALLBACK_EVENT_COLOR
+                };
+            });
+            const laid = this._tzLayoutEvents(raw, spanMs);
+            events = laid.placed.map(e => {
+                const left = pct(e.segStart);
+                const widthPct = Math.max(0, pct(e.segEnd) - left);
+                return {
+                    leftPct: left, widthPct, lane: e.lane, title: e.title, color: e.color,
+                    // Below ~4% of the window a pill is narrower than three
+                    // characters at any realistic track width, and a title
+                    // there renders as the "B…"/"T…" slivers this layout
+                    // exists to remove. The tooltip still carries the name.
+                    showTitle: widthPct >= 4
+                };
+            }).filter(e => e.widthPct > 0);
+            // Overflow markers. `dropped` is in ascending segStart order (the
+            // packer sorted it), so a single forward pass clusters neighbours
+            // into one "+n" rather than stacking unreadable badges.
+            const CLUSTER_PCT = 2.2;
+            for (const e of laid.dropped) {
+                const left = pct(e.segStart);
+                const last = eventsOverflow[eventsOverflow.length - 1];
+                if (last && left - last.leftPct < CLUSTER_PCT) {
+                    last.count += 1;
+                    last.titles.push(e.title);
+                } else {
+                    eventsOverflow.push({ leftPct: left, count: 1, titles: [e.title] });
+                }
+            }
+        }
+
+        const hourCount = this._tzHourCount(spanMs);
 
         const rows = zones.map((zone, idx) => {
-            const days = this._zoneDaySegments(zone, startMs, endMs).map(d => {
-                const { wkday, dateLabel } = this._tzDateLabel(d.dateStr);
-                const left = pct(d.segStart);
-                return { leftPct: left, widthPct: Math.max(0, pct(d.segEnd) - left), wkday, dateLabel, dateStr: d.dateStr };
-            }).filter(d => d.widthPct > 0);
-
-            const nights = this._zoneNightSegments(zone, startMs, endMs).map(n => {
-                const left = pct(n.startMs);
-                return { leftPct: left, widthPct: Math.max(0, pct(n.endMs) - left) };
-            }).filter(n => n.widthPct > 0);
-
-            const ticks = this._zoneHourTicks(zone, startMs, endMs, pct);
-
             const dialDate = new Date(dialMs);
             const readout = { time: this._tzClockStr(dialDate, zone), date: this._tzFriendlyDate(dialDate, zone) };
 
@@ -543,29 +698,62 @@ Object.assign(CalendarManager, {
                 zone,
                 label: this._tzZoneName(zone),
                 offsetLabel: this._tzOffsetLabel(zone),
+                relLabel: idx === primaryIdx ? '' : this._tzRelOffsetLabel(zone, primaryTz, dialMs),
                 isPrimary: idx === primaryIdx,
-                days, nights, ticks, readout,
-                events: idx === primaryIdx ? events : []
+                cells: this._zoneHourCells(zone, startMs, hourCount, cfg.hour24),
+                readout,
+                events: idx === primaryIdx ? events : [],
+                eventsOverflow: idx === primaryIdx ? eventsOverflow : []
             };
         });
 
-        return { startMs, endMs, spanMs, primaryTz, primaryIdx, nowPct, dial, range, rows };
+        // windowLabel comes from the window's own date strings, not from a
+        // row's segments — the rows no longer carry day geometry at all.
+        const first = this._tzDateLabel(dateStrs[0]).dateLabel;
+        const last = this._tzDateLabel(dateStrs[dateStrs.length - 1]).dateLabel;
+
+        return {
+            startMs, endMs, spanMs, primaryTz, primaryIdx, nowPct, dial, range, rows,
+            dayCount, hourCount,
+            cellPct: Math.round((100 / hourCount) * 10000) / 10000,
+            windowLabel: last && last !== first ? `${first} – ${last}` : first,
+            showEvents: cfg.showEvents, hour24: cfg.hour24
+        };
     },
 
     // ---- Mutators (each ends in a scoped refresh) ------------------------------
 
+    // Sets both ends of the window at once: `dateStr` is day 1, `dayCount`
+    // (1..TZ_MAX_DAYS, defaulting to the current width) is how many days
+    // follow it. One mutator rather than two because the two are never
+    // independently meaningful — the picker always knows both, and a
+    // start-only commit would briefly render a window the user never asked
+    // for and refresh the card twice for one click.
+    //
     // Keeps the dial if it still falls inside the new window; nulls it
     // otherwise (buildTzModel re-materializes it to "now" on the next call).
     // The range is clipped the same way — but if the new window doesn't
-    // overlap it AT ALL (a jump far away, not a slide), there is nothing left
-    // to clip to, so it is cleared rather than left dangling.
-    setTzStartDate(dateStr) {
+    // overlap it AT ALL (a jump far away, or a shrink to one day past it),
+    // there is nothing left to clip to, so it is cleared rather than left
+    // dangling.
+    setTzStartDate(dateStr, dayCount) {
         if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
         const [y, mo, d] = dateStr.split('-').map(Number);
         const check = new Date(Date.UTC(y, mo - 1, d));
         if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return;
 
+        let n = parseInt(dayCount, 10);
+        if (!Number.isFinite(n)) n = this._tzDayCount();
+        n = Math.min(Math.max(n, 1), this.TZ_MAX_DAYS);
+
+        // Compared against the EFFECTIVE start (null means today), so
+        // re-picking today's cell on a fresh window is the no-op it looks
+        // like rather than a rebuild that replaces the picker's own anchor.
+        const cfg = this.getTzToolConfig();
+        if (this._tzStartDateStr(cfg.zones[cfg.primary]) === dateStr && this._tzDayCount() === n) return;
+
         this.state.tzStartDateStr = dateStr;
+        this.state.tzDayCount = n;
         const { startMs, endMs } = this.getTzWindow();
 
         if (this.state.tzDialMs != null && (this.state.tzDialMs < startMs || this.state.tzDialMs > endMs)) {
@@ -599,21 +787,22 @@ Object.assign(CalendarManager, {
         window.UIRenderer?.refreshCalendarDayView();
     },
 
-    setTzRangeStartAtDial() {
-        if (this.state.tzDialMs == null) return;
-        this.state.tzRangeStartMs = this.state.tzDialMs;
-        // A fresh start point invalidates a stale end that no longer follows it.
-        if (this.state.tzRangeEndMs != null && this.state.tzRangeEndMs <= this.state.tzRangeStartMs) {
-            this.state.tzRangeEndMs = null;
-        }
-        window.UIRenderer?.refreshCalendarDayView();
-    },
-
-    // No-op unless a start exists and the dial is strictly after it.
-    setTzRangeEndAtDial() {
-        if (this.state.tzRangeStartMs == null || this.state.tzDialMs == null) return;
-        if (this.state.tzDialMs <= this.state.tzRangeStartMs) return;
-        this.state.tzRangeEndMs = this.state.tzDialMs;
+    // The ONE way a range is marked, and the drag paint's only commit point.
+    // Both ends land in a single state write, so the range never exists
+    // half-set: there is no "start marked, end pending" state to render, and
+    // the dial is left exactly where the user dropped it rather than being
+    // dragged along as a side effect of recording the range.
+    setTzRange(loMs, hiMs) {
+        const a = Number(loMs), b = Number(hiMs);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return;
+        const { startMs, endMs } = this.getTzWindow();
+        const clamp = (v) => Math.min(Math.max(v, startMs), endMs);
+        const lo = clamp(Math.min(a, b));
+        const hi = clamp(Math.max(a, b));
+        if (hi <= lo) return;   // both ends snapped to one instant — a click, not a paint
+        if (this.state.tzRangeStartMs === lo && this.state.tzRangeEndMs === hi) return;
+        this.state.tzRangeStartMs = lo;
+        this.state.tzRangeEndMs = hi;
         window.UIRenderer?.refreshCalendarDayView();
     },
 
