@@ -809,6 +809,46 @@ const UIRenderer = {
             this._clearManualCardHeight(id);
         });
 
+        // Double-click a timeline gutter's zone label to choose the zone that
+        // column shows. Delegated here because the calendar card re-renders
+        // wholesale; the menu itself is torn down with the calendar menus.
+        container.addEventListener('dblclick', (e) => {
+            const corner = e.target.closest('.calendar-timeline .cal-tl-corner[data-tz-slot]');
+            if (!corner) return;
+            e.preventDefault();
+            this.showColumnTzMenu(corner, corner.dataset.tzSlot, e);
+        });
+
+        // Timeline planning box: double-click empty grid in a day column to
+        // place it, single-click empty grid to clear it (deferred — see
+        // _scheduleTimelineMarkerClear). Events keep their own behaviour.
+        container.addEventListener('dblclick', (e) => {
+            const col = e.target.closest('.calendar-timeline > .cal-tl-col');
+            if (!col || e.target.closest('.cal-tl-event')) return;
+            e.preventDefault();
+            window.getSelection()?.removeAllRanges();
+            this._cancelTimelineMarkerClear();
+            this._placeTimelineMarker(col, e);
+        });
+        container.addEventListener('click', (e) => {
+            if (e.detail !== 1 || window.CalendarManager?.state.tlMarkerMs == null) return;
+            const col = e.target.closest('.calendar-timeline > .cal-tl-col');
+            if (!col || e.target.closest('.cal-tl-event')) return;
+            this._scheduleTimelineMarkerClear();
+        });
+        // Esc clears it too, unless something else owns Esc right now (an
+        // open menu or dialog) or the key is going into a text field. CAPTURE
+        // phase on purpose: a dialog's own Esc handler removes the dialog, so
+        // checking for it after that (bubble phase) finds nothing and one Esc
+        // would close the dialog AND drop the box.
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (window.CalendarManager?.state.tlMarkerMs == null) return;
+            if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            if (document.querySelector('.modal.show, .clock-tz-menu, .card-context-menu')) return;
+            window.CalendarManager.clearTimelineMarker();
+        }, true);
+
         container.addEventListener('pointerdown', (e) => {
             const grip = e.target.closest('[data-card-action="resize"]');
             if (!grip || e.button !== 0) return;

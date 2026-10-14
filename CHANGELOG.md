@@ -5,6 +5,34 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.45] — 2026-10-14
+
+### Plan across time zones right on the calendar
+
+- **Every header clock can have its own time column:** right-click a clock
+  and choose "Show as time zone column". Up to three sit beside the calendar's
+  own hours, and they arrange themselves from the earliest local time to the
+  latest, so the columns read west to east without you ordering them.
+- **Change a column by double-clicking its label:** a short list of your
+  clocks appears, and picking one switches that column over. Choosing the
+  calendar's main zone swaps the two columns, and any column except the main
+  one can be hidden from the same list.
+- **Dates where the day differs:** under each hour, columns that are on a
+  different date from the main zone show that date, and neighbouring columns
+  on the same date share one date under a small bracket.
+- **Double-click the hour grid to mark a 30-minute slot:** a box appears at
+  the half-hour you clicked, its day is highlighted, and a dotted line runs
+  back to the time columns, where each one shows that start time in its own
+  zone. That hour grows taller to make room, every column in it is dated
+  (the main one included), and all the dates down the side switch to
+  counting from the marked day. Double-click elsewhere to move the box;
+  click an empty spot or press Esc to clear it. Double-clicking inside a
+  greyed "no events" stretch opens that hour back up so the box has room.
+- **Roomier hours:** ordinary hour rows are 20% taller, while the greyed
+  "no events" stretches stay the same size.
+- **Smaller dates under the times,** so they sit more quietly beside the
+  hours they belong to.
+
 ## [v4.44] — 2026-10-14
 
 ### A third time column in the calendar timeline

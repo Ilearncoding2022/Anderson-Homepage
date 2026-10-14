@@ -933,6 +933,30 @@ Object.assign(UIRenderer, {
         const spanHours = spanMin / 60;
         const hourH = Math.min(this.TL_HOUR_MAX, Math.max(this.TL_HOUR_MIN, avail / spanHours));
         tl.style.setProperty('--tl-gridh', (spanHours * hourH).toFixed(1) + 'px');
+        this._fitTimelineHourDates(tl);
+    },
+
+    // Extra-zone dates (.cal-tl-dategrp: bracket + date) hang below their
+    // hour line, and whether one fits before the next line's labels depends
+    // on the font-size setting, the card height and collapsed "no events"
+    // rows, none of which CSS can see together. So after every retune: hide
+    // each date that would run into the labels below it, and bring back any
+    // that fit again. The other lines of the same run keep theirs, so the
+    // date stays readable. All class resets first, then all reads, then the
+    // writes, so this costs one layout. Hiding is visibility-only: the groups
+    // are absolutely positioned, so it never moves anything just measured.
+    _fitTimelineHourDates(tl) {
+        const groups = tl.querySelectorAll('.cal-tl-dategrp');
+        if (!groups.length) return;
+        // Every extra gutter's label i sits on the same hour line, so the
+        // first gutter's labels stand for the whole row.
+        const labels = tl.querySelector('.cal-tl-gutter2')?.querySelectorAll('.cal-tl-hour') || [];
+        groups.forEach(g => g.classList.remove('is-crowded'));
+        const crowded = [...groups].filter(g => {
+            const next = labels[Number(g.dataset.hourIdx) + 1];
+            return next && g.getBoundingClientRect().bottom > next.getBoundingClientRect().top;
+        });
+        crowded.forEach(g => g.classList.add('is-crowded'));
     },
 
     // To-Do has no automatic sizing mode — it is either the stylesheet default

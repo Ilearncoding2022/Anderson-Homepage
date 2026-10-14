@@ -52,6 +52,7 @@ const CalendarManager = {
             upcomingBarFormat: 'calendarUpcomingBarFormat',
             secondaryTz: 'calendarSecondaryTz',
             tertiaryTz: 'calendarTertiaryTz',
+            quaternaryTz: 'calendarQuaternaryTz',
             tzTool: 'calendarTzTool'
         }
     },
@@ -70,7 +71,11 @@ const CalendarManager = {
         // Per-calendar last-known-good events, keyed by ICS url. Lets a flaky
         // response for one calendar fall back to its previous data instead of
         // silently wiping it from the merged view.
-        calendarBuckets: {}
+        calendarBuckets: {},
+        // Timeline planning box (double-click the hour grid): its start as an
+        // absolute instant, or null. Deliberately NOT persisted — it survives
+        // background re-renders by living here, and ends with the page.
+        tlMarkerMs: null
     },
 
     initialize() {
@@ -912,20 +917,22 @@ const CalendarManager = {
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
     },
 
-    // ---- Extra timeline zones (right-click a header clock → "Set as
-    // secondary / third time zone column") -----------------------------------
-    // Two independent slots, 'secondary' and 'tertiary', each holding a raw
-    // IANA zone the user picked; neither is ever auto-changed by anything
-    // (grouping changes, clock edits, reorders). What *renders* is
-    // getExtraTimelineZones(), which hides a slot — choice kept — while no
-    // enabled clock resolves to its zone or while it equals the anchor zone
-    // (two identical gutters add nothing). The slots are mutually exclusive:
-    // assigning a zone to one clears it from the other, so the same zone can
-    // never occupy two columns.
+    // ---- Extra timeline zones (right-click a header clock → "Show as time
+    // zone column", or double-click a column's label) ------------------------
+    // Up to three extra zones, one per non-primary clock. They are stored in
+    // three slots, but a slot is STORAGE ONLY — it says nothing about where
+    // the column goes: getExtraTimelineZones() orders the columns by local
+    // time, earliest first (user request, v4.45). Each slot holds a raw IANA
+    // zone the user picked; none is ever auto-changed by anything (grouping
+    // changes, clock edits, reorders). A slot is hidden — choice kept — while
+    // no enabled clock resolves to its zone or while it equals the anchor
+    // zone (two identical gutters add nothing). The slots are mutually
+    // exclusive, so the same zone can never occupy two columns.
+    timelineSlots: ['secondary', 'tertiary', 'quaternary'],
+
     _timelineTzKey(slot) {
-        return slot === 'tertiary'
-            ? this.config.storageKeys.tertiaryTz
-            : this.config.storageKeys.secondaryTz;
+        const keys = this.config.storageKeys;
+        return { secondary: keys.secondaryTz, tertiary: keys.tertiaryTz, quaternary: keys.quaternaryTz }[slot];
     },
 
     // The user's stored choice for a slot, or null. A zone this engine can't
@@ -934,12 +941,7 @@ const CalendarManager = {
     getTimelineTzChoice(slot) {
         const zone = localStorage.getItem(this._timelineTzKey(slot));
         if (!zone) return null;
-        try {
-            new Intl.DateTimeFormat('en-US', { timeZone: zone });
-            return zone;
-        } catch {
-            return null;
-        }
+        return this._isValidZone(zone) ? zone : null;
     },
 
     // The zone a slot should actually render a gutter for, or null. Compared
@@ -949,53 +951,141 @@ const CalendarManager = {
     getTimelineSlotZone(slot) {
         const choice = this.getTimelineTzChoice(slot);
         if (!choice) return null;
-        const hasClock = ['timezone1', 'timezone2', 'timezone3', 'timezone4']
-            .some(key => this._resolveZone(key) === choice);
-        if (!hasClock) return null;
+        if (!this._modeForZone(choice)) return null;
         if (choice === this.getAnchorTimezone()) return null;
         return choice;
     },
 
-    // The extra gutters to render, in left-to-right order: the third column
-    // sits to the LEFT of the secondary one (user request), so the primary
-    // axis stays nearest the day columns. Either slot may be absent on its
-    // own; a duplicate (only reachable through hand-edited storage) renders
-    // once.
-    getExtraTimelineZones() {
-        const zones = [];
-        for (const slot of ['tertiary', 'secondary']) {
-            const zone = this.getTimelineSlotZone(slot);
-            if (zone && !zones.includes(zone)) zones.push(zone);
-        }
-        return zones;
+    // First enabled clock slot ('tz1'…'tz4') showing `zone`, or null — the
+    // same first-match normalization getGrouping() applies.
+    _modeForZone(zone) {
+        return ['tz1', 'tz2', 'tz3', 'tz4']
+            .find(mode => this._resolveZone(`timezone${mode.slice(2)}`) === zone) || null;
     },
 
-    // Store (or clear, when falsy) a slot's zone. Stores even in list view /
-    // timeline off — the column simply appears when the timeline is next
-    // shown. Invalid zones are ignored silently. Assigning a zone that the
-    // other slot holds moves it rather than duplicating it.
-    setTimelineTz(slot, zone) {
-        const key = this._timelineTzKey(slot);
-        if (!zone) {
-            localStorage.removeItem(key);
-        } else {
-            try {
-                new Intl.DateTimeFormat('en-US', { timeZone: zone });
-            } catch {
-                return;
+    // The extra gutters to render, left to right: EARLIEST local time first
+    // (smallest UTC offset at `atMs`), so the stack reads west to east. That
+    // order is also what makes the shared-date brackets possible: at any one
+    // instant a zone's local date can only stay level or step forward as its
+    // offset grows, so columns showing the same date are always adjacent.
+    // Ties keep slot order. A duplicate (only reachable through hand-edited
+    // storage) renders once.
+    getExtraTimelineZones(atMs = Date.now()) {
+        const out = [];
+        for (const slot of this.timelineSlots) {
+            const zone = this.getTimelineSlotZone(slot);
+            if (zone && !out.some(e => e.zone === zone)) {
+                out.push({ slot, zone, offset: this._tzUtcOffsetMin(zone, atMs) });
             }
-            const other = slot === 'tertiary' ? 'secondary' : 'tertiary';
-            if (this.getTimelineTzChoice(other) === zone) {
+        }
+        return out.sort((a, b) => a.offset - b.offset);
+    },
+
+    _isValidZone(zone) {
+        try {
+            new Intl.DateTimeFormat('en-US', { timeZone: zone });
+            return true;
+        } catch {
+            return false;
+        }
+    },
+
+    // Slot write, no re-render. Falsy clears; a zone is first cleared from
+    // every other slot, so the slots stay exclusive even where a choice is
+    // stored but hidden (e.g. equal to the anchor).
+    _writeTimelineTz(slot, zone) {
+        if (!zone) {
+            localStorage.removeItem(this._timelineTzKey(slot));
+            return;
+        }
+        for (const other of this.timelineSlots) {
+            if (other !== slot && this.getTimelineTzChoice(other) === zone) {
                 localStorage.removeItem(this._timelineTzKey(other));
             }
-            Utils.safeLocalStorageSet(key, zone);
+        }
+        Utils.safeLocalStorageSet(this._timelineTzKey(slot), zone);
+    },
+
+    // Is `zone` one of the stored extra zones (shown or not)?
+    isExtraTimelineZone(zone) {
+        return this.timelineSlots.some(slot => this.getTimelineTzChoice(slot) === zone);
+    },
+
+    // The clock menu's action: show `zone` as an extra column, or hide it if
+    // it is already one. Stores even in list view / timeline off — the column
+    // simply appears when the timeline is next shown. A new zone takes an
+    // empty slot, else one whose choice is not rendering anyway (a clock
+    // that has since changed zone), else the last slot.
+    toggleExtraTimelineZone(zone) {
+        if (!this._isValidZone(zone)) return;
+        const held = this.timelineSlots.find(slot => this.getTimelineTzChoice(slot) === zone);
+        if (held) {
+            this._writeTimelineTz(held, null);
+        } else {
+            const slot = this.timelineSlots.find(s => !this.getTimelineTzChoice(s))
+                || this.timelineSlots.find(s => !this.getTimelineSlotZone(s))
+                || this.timelineSlots[this.timelineSlots.length - 1];
+            this._writeTimelineTz(slot, zone);
         }
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
     },
 
-    // The context menu's action: same zone again turns that column off.
-    toggleTimelineTz(slot, zone) {
-        this.setTimelineTz(slot, this.getTimelineTzChoice(slot) === zone ? null : zone);
+    // The column-label picker's action (double-click a gutter's label): put
+    // `zone` in column `slot` ('primary' or an extra slot). A zone showing in
+    // the PRIMARY column trades places with this one — the picker is "what
+    // should this column show", so the axis must keep showing something.
+    // 'primary' means the timeline's anchor, i.e. the calendar's grouping
+    // clock; null hides an extra column. A zone already in another EXTRA
+    // column is a no-op: columns are ordered by time, not by slot, so
+    // trading two extra columns would change nothing on screen (the picker
+    // greys those options out).
+    assignColumnZone(slot, zone) {
+        if (zone && !this._isValidZone(zone)) return;
+        const anchor = this.getAnchorTimezone();
+        const current = slot === 'primary' ? anchor : this.getTimelineSlotZone(slot);
+        if (zone === current) return;
+        if (!zone && slot === 'primary') return;   // the axis can't be hidden
+        const holder = !zone ? null
+            : zone === anchor ? 'primary'
+            : this.timelineSlots.find(s => this.getTimelineSlotZone(s) === zone) || null;
+        if (slot === 'primary' || holder === 'primary') {
+            // One side is the anchor: re-point the grouping, and hand the old
+            // anchor zone to the extra slot involved (if any).
+            const extra = slot === 'primary' ? holder : slot;
+            const newAnchor = slot === 'primary' ? zone : current;
+            const mode = newAnchor && this._modeForZone(newAnchor);
+            if (!mode) return;
+            if (extra) this._writeTimelineTz(extra, anchor);
+            this.setGrouping(mode);   // re-renders
+            return;
+        }
+        if (holder) return;
+        this._writeTimelineTz(slot, zone);
+        if (window.UIRenderer) UIRenderer.renderCalendarCard();
+    },
+
+    // ---- Timeline planning box ------------------------------------------------
+    // Double-click the hour grid → a 30-minute box at the half-hour slot that
+    // was clicked (UIRenderer._placeTimelineMarker). Stored as an absolute
+    // instant, not a column/row, so it lands correctly whatever the grid
+    // looks like next time (a different grouping zone, a band that has since
+    // collapsed or split, a re-fetch), and simply isn't drawn while its day is
+    // outside the window. Everything else is derived in buildTimelineModel.
+    TL_MARKER_MIN: 30,
+    // The hour holding the box renders this much taller than its neighbours
+    // (user request) — room for the chips and their date brackets.
+    TL_MARKER_ROW_SCALE: 1.5,
+
+    setTimelineMarker(ms) {
+        if (!Number.isFinite(ms)) return;
+        this.state.tlMarkerMs = ms;
+        window.UIRenderer?.refreshCalendarDayView();
+    },
+
+    clearTimelineMarker() {
+        if (this.state.tlMarkerMs == null) return;
+        this.state.tlMarkerMs = null;
+        window.UIRenderer?.refreshCalendarDayView();
     },
 
     // UTC-ms of local midnight for `dateStr` (YYYY-MM-DD) in zone `tz`. Used to
@@ -1080,6 +1170,16 @@ const CalendarManager = {
             ? Math.floor(nowMin / 60) * 60
             : null;
 
+        // The planning box (state.tlMarkerMs), if its day is in this window.
+        // Its hour is kept out of the gap collapse for the same reason as the
+        // now-slot: a 30-minute box inside a collapsed band would be a couple
+        // of pixels tall. Double-clicking a band therefore opens that hour up.
+        const markerMs = this.state.tlMarkerMs;
+        const markerDay = markerMs == null ? null
+            : perDay.find(pd => pd.day.dateStr === this._dateOnly(new Date(markerMs), tz)) || null;
+        const markerMin = markerDay ? (markerMs - markerDay.dayStart) / 60000 : null;
+        const markerSlot = markerMin != null ? Math.floor(markerMin / 60) * 60 : null;
+
         // Merged free stretches: 2+ consecutive hour slots with no timed event on
         // ANY visible day. Detected BEFORE positioning because each stretch is
         // COLLAPSED to a single reduced-height row in the display, which warps
@@ -1090,12 +1190,16 @@ const CalendarManager = {
         // pixels above the 19:00 events and misread as "next event imminent".
         // Keeping that one hour full-height puts the dial at its true position.
         // Free runs left over on either side still collapse if they are >= 2h.
-        const GAP_ROW_MIN = 39;   // a merged gap renders at 65% of an hour-row
+        // A merged gap renders at 54% of an hour-row. It was 39 (65%) until
+        // v4.45 raised the hour rows 20% (TL_HOUR_MIN/MAX) for regular hours
+        // only; 39 / 1.2 keeps a collapsed row the same height in pixels.
+        const GAP_ROW_MIN = 32.5;
         const rawGaps = [];
         let runStart = null;
         for (let m = rangeStartMin; m <= rangeEndMin; m += 60) {
             const free = m < rangeEndMin
                 && m !== nowSlot
+                && m !== markerSlot
                 && !perDay.some(pd => pd.timed.some(t => t.startMin < m + 60 && t.endMin > m));
             if (free) { if (runStart === null) runStart = m; continue; }
             if (runStart !== null && m - runStart >= 120) {
@@ -1110,6 +1214,14 @@ const CalendarManager = {
         // day by construction), so event heights are preserved. Hour boundaries
         // below a gap leave the fixed hour lattice (the collapsed row is
         // sub-hour), so gridlines are drawn per hour off this same mapping.
+        //
+        // The planning box's hour is the one stretch that grows instead:
+        // TL_MARKER_ROW_SCALE times as tall. Done HERE, in the one mapping
+        // every position goes through (labels, gridlines, events, the box,
+        // and minAtPct's inverse for clicks), so nothing can disagree about
+        // where that row's minutes sit. It is never inside a gap — the gap
+        // collapse excludes markerSlot — so the two adjustments don't overlap.
+        const markerGrow = markerSlot == null ? 0 : this.TL_MARKER_ROW_SCALE - 1;
         const dispMin = (m) => {
             let d = m - rangeStartMin;
             for (const g of rawGaps) {
@@ -1118,6 +1230,7 @@ const CalendarManager = {
                 d -= m >= g.endMin ? (len - GAP_ROW_MIN)
                                    : (m - g.startMin) * (1 - GAP_ROW_MIN / len);
             }
+            if (markerGrow) d += Math.min(Math.max(m - markerSlot, 0), 60) * markerGrow;
             return d;
         };
         const displaySpanMin = dispMin(rangeEndMin);
@@ -1126,11 +1239,16 @@ const CalendarManager = {
 
         // Hour-axis labels: boundary hours only — hours interior to a collapsed
         // gap have no gridline of their own (the band's label names the range).
-        // `atMs` is the UTC instant of the hour line for the secondary gutter:
-        // the gutter is shared across all day columns, so the window's FIRST
-        // day is the reference — on a DST-transition window, other days'
-        // secondary times are approximate (accepted; m = 1440 is next-day
-        // midnight, which is correct as an instant).
+        // `atMs` is the UTC instant of the hour line for the extra time-zone
+        // gutters: the gutter is shared across all day columns, so one day is
+        // the reference — the PLANNING BOX's day while there is one (the user
+        // is reading the gutters against that column), else TODAY when it is
+        // in the window (the column the now-dial sits in), else the window's
+        // first day. The gutters' "other date" labels are therefore exact for
+        // that column only; on a DST-transition window other days' extra-zone
+        // times are approximate too (accepted; m = 1440 is next-day midnight,
+        // which is correct as an instant).
+        const refDay = markerDay || perDay.find(pd => pd.day.isToday) || perDay[0];
         const hours = [];
         for (let m = rangeStartMin; m <= rangeEndMin; m += 60) {
             if (rawGaps.some(g => g.startMin < m && m < g.endMin)) continue;
@@ -1138,7 +1256,7 @@ const CalendarManager = {
                 min: m,
                 label: String(Math.floor(m / 60)).padStart(2, '0'),
                 topPct: pct(m),
-                atMs: perDay[0].dayStart + m * 60000
+                atMs: refDay.dayStart + m * 60000
             });
         }
 
@@ -1197,7 +1315,7 @@ const CalendarManager = {
                     nowUntilMs = pd.dayStart + Math.min(...covering.map(t => t.endMin)) * 60000;
                 }
             }
-            return { day: pd.day, allDay: pd.allDay, timed: positioned, nowTopPct, nowInEvent, nowUntilMs };
+            return { day: pd.day, dayStart: pd.dayStart, allDay: pd.allDay, timed: positioned, nowTopPct, nowInEvent, nowUntilMs };
         });
 
         // Display geometry for the collapsed gap bands, labeled with the real
@@ -1210,7 +1328,37 @@ const CalendarManager = {
             heightPct: pct(g.endMin) - pct(g.startMin)   // exactly GAP_ROW_MIN tall
         }));
 
-        return { rangeStartMin, rangeEndMin, displaySpanMin, hours, days: days2, gaps, tz };
+        // The box itself, in the same percentage space as everything else.
+        // Clamped to the day's end (a 23:30 box ends at 24:00).
+        let marker = null;
+        if (markerDay) {
+            const endMin = Math.min(markerMin + this.TL_MARKER_MIN, rangeEndMin);
+            marker = {
+                dayIdx: perDay.indexOf(markerDay),
+                // The hour line at the top of the box's (enlarged) row.
+                hourIdx: hours.findIndex(h => h.min === markerSlot),
+                startMs: markerMs,
+                endMs: markerMs + (endMin - markerMin) * 60000,
+                topPct: pct(markerMin),
+                heightPct: pct(endMin) - pct(markerMin)
+            };
+        }
+
+        // Inverse of pct(): the real minute of day at a vertical percentage,
+        // for turning a click into a time. dispMin is monotonic, so bisection
+        // is exact to well under a minute in 24 steps and needs no second
+        // copy of the gap arithmetic to keep in sync with the forward map.
+        const minAtPct = (p) => {
+            const target = (Math.min(100, Math.max(0, p)) / 100) * displaySpanMin;
+            let lo = rangeStartMin, hi = rangeEndMin;
+            for (let i = 0; i < 24; i++) {
+                const mid = (lo + hi) / 2;
+                if (dispMin(mid) < target) lo = mid; else hi = mid;
+            }
+            return lo;
+        };
+
+        return { rangeStartMin, rangeEndMin, displaySpanMin, hours, days: days2, gaps, tz, marker, minAtPct };
     },
 
     // Target for the timeline's dotted "next event" trace + countdown chip:
