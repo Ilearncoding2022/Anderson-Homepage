@@ -48,7 +48,7 @@ const DbManager = {
         'websites', 'groups', 'theme', 'view', 'iconSize',
         'backgroundPosition', 'backgroundBlur',
         'calendarProxyUrl', 'calendarProxyToken', 'calendarSources',
-        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarHeight',
+        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarTertiaryTz', 'calendarHeight',
         'calendarCountdownPlacement', 'calendarCountdownWindow',
         'calendarCountdownWarnMins', 'calendarCountdownUrgentMins',
         'calendarUpcomingBarCount', 'calendarUpcomingBarFormat', 'calendarTzTool',

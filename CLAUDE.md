@@ -385,6 +385,29 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   an already-running session in this environment — don't rely on either
   behavior.
 
+## Timeline Extra Time Columns (v4.44)
+
+Right-clicking a secondary header clock offers "Set as secondary / third time
+zone column". Two independent slots (`calendarSecondaryTz`,
+`calendarTertiaryTz`) render as extra hour gutters ahead of the primary axis,
+third leftmost: `[gutter3 | gutter2 | gutter | day-1 | …]`.
+
+- **The slots are exclusive.** `setTimelineTz` moves a zone that the other
+  slot holds rather than duplicating it; `getExtraTimelineZones()` also
+  dedupes, for hand-edited storage. A slot is hidden — choice kept — while no
+  enabled clock resolves to its zone or it equals the anchor zone.
+- **Every extra gutter is `.cal-tl-gutter2`, never `.cal-tl-gutter`.**
+  `_sizeTimelineHours` measures `querySelector('.cal-tl-gutter')` and must keep
+  finding the primary axis.
+- **Each extra column costs one leading cell in every auto-placed row** (corner,
+  all-day spacer) and shifts every explicitly-placed hour-row cell by one; the
+  grid template and the gap overlay's start line are per-count classes
+  (`is-two-tz`, `is-three-tz`). Miss one and the day headers drift a column
+  away from the hour grid.
+- A new slot key has to be added to `Storage.ALL_APP_KEYS`,
+  `DbManager.APP_KEYS` **and** the `Storage.import()` validation loop, or it
+  silently misses export/import/backup.
+
 ## Calendar Time-Zone Tool (v4.42)
 
 A globe button in the Calendar header swaps the card body for up to 4 stacked

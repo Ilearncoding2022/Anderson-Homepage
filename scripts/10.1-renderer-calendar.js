@@ -332,9 +332,10 @@ Object.assign(UIRenderer, {
         document.querySelector('#calViewMenu .cal-menu-switch')?.focus();
     },
 
-    // Right-click menu for a secondary header clock: one checkable item that
-    // shows/hides the timeline's secondary time-zone gutter for that clock's
-    // zone. Lives here (not 3-app-init) so its document-level listeners are
+    // Right-click menu for a secondary header clock: two checkable items that
+    // show/hide the timeline's secondary and third time-zone gutters for that
+    // clock's zone (the slots are exclusive — CalendarManager.setTimelineTz
+    // moves a zone rather than duplicating it). Lives here (not 3-app-init) so its document-level listeners are
     // torn down with the other calendar menus (_teardownCalendarMenus) before
     // a card re-render can orphan them. Invoked from the header's delegated
     // contextmenu handler; `ev` is the contextmenu event (keyboard Shift+F10 /
@@ -346,18 +347,26 @@ Object.assign(UIRenderer, {
         this._viewMenuClose?.(false);
         this._closeClockTzMenu?.(false);
 
-        const checked = cm.getSecondaryTzChoice() === zone;
         const menu = document.createElement('div');
         menu.className = 'card-context-menu clock-tz-menu';
         menu.setAttribute('role', 'menu');
         menu.setAttribute('aria-label', `Calendar options — ${cm._tzLabel(zone)}`);
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'card-context-item';
-        item.setAttribute('role', 'menuitemcheckbox');
-        item.setAttribute('aria-checked', String(checked));
-        item.textContent = `${checked ? '✓ ' : ''}Set as secondary time zone column`;
-        menu.appendChild(item);
+        const slots = [
+            { slot: 'secondary', label: 'Set as secondary time zone column' },
+            { slot: 'tertiary', label: 'Set as third time zone column' }
+        ];
+        const items = slots.map(({ slot, label }) => {
+            const checked = cm.getTimelineTzChoice(slot) === zone;
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'card-context-item';
+            item.setAttribute('role', 'menuitemcheckbox');
+            item.setAttribute('aria-checked', String(checked));
+            item.textContent = `${checked ? '✓ ' : ''}${label}`;
+            item.dataset.slot = slot;
+            menu.appendChild(item);
+            return item;
+        });
 
         let x = ev?.pageX || 0;
         let y = ev?.pageY || 0;
@@ -384,18 +393,20 @@ Object.assign(UIRenderer, {
         };
         this._closeClockTzMenu = close;
 
-        item.addEventListener('click', () => {
+        menu.addEventListener('click', (e) => {
+            const slot = e.target.closest('.card-context-item')?.dataset.slot;
+            if (!slot) return;
             // Close BEFORE toggling: the toggle re-renders the calendar card,
             // whose teardown would otherwise rip this menu's state out from
             // under the close() that follows.
             close(true);
-            cm.toggleSecondaryTz(zone);
+            cm.toggleTimelineTz(slot, zone);
             // The choice is stored even where the column can't show right now;
             // say so instead of appearing to do nothing.
-            const nowOn = cm.getSecondaryTzChoice() === zone;
+            const nowOn = cm.getTimelineTzChoice(slot) === zone;
             if (nowOn && (cm.getViewMode() === 'list' || !cm.getTimelineMode()
-                || cm.getSecondaryTimelineZone() !== zone)) {
-                UI.showToast("Saved — the second time column shows in the calendar's hour-by-hour timeline view.");
+                || cm.getTimelineSlotZone(slot) !== zone)) {
+                UI.showToast("Saved — the extra time column shows in the calendar's hour-by-hour timeline view.");
             }
         });
 
@@ -405,11 +416,17 @@ Object.assign(UIRenderer, {
         this._clockTzMenuDismiss = (e) => { if (!menu.contains(e.target)) close(false); };
         this._clockTzMenuKeydown = (e) => {
             if (e.key === 'Escape') { e.stopPropagation(); close(true); return; }
-            if (e.key === 'Tab') close(false);   // single item: don't trap, just fold
+            if (e.key === 'Tab') { close(false); return; }   // don't trap, just fold
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const i = items.indexOf(document.activeElement);
+                const step = e.key === 'ArrowDown' ? 1 : -1;
+                items[(i + step + items.length) % items.length].focus();
+            }
         };
         document.addEventListener('click', this._clockTzMenuDismiss, true);
         document.addEventListener('keydown', this._clockTzMenuKeydown, true);
-        item.focus();
+        items[0].focus();
     },
 
     _calendarSetupPrompt() {
@@ -748,11 +765,14 @@ Object.assign(UIRenderer, {
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
-        // Optional secondary time-zone gutter (right-click a header clock →
-        // "Set as secondary time zone column"). Null while the choice is unset, orphaned (no
-        // enabled clock has the zone) or equal to the axis's own zone — the
-        // whole grid then renders exactly as before, one gutter column.
-        const tz2 = cm.getSecondaryTimelineZone();
+        // Optional extra time-zone gutters (right-click a header clock → "Set
+        // as secondary / third time zone column"), left to right: [third,
+        // secondary]. A slot drops out while its choice is unset, orphaned (no
+        // enabled clock has the zone) or equal to the axis's own zone — with
+        // both gone the grid renders exactly as before, one gutter column.
+        const extraTzs = cm.getExtraTimelineZones();
+        // Grid column of the primary gutter; day columns follow it.
+        const axisCol = extraTzs.length + 1;
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
         // one reduced-height row each, not their real length.
         const spanHours = model.displaySpanMin / 60;
@@ -769,21 +789,21 @@ Object.assign(UIRenderer, {
 
         // A single CSS grid holds three row-groups that share one column template
         // and one horizontal scroll, so the day headers, all-day band, and hour
-        // grid stay aligned: [gutter | day-1 | … | day-N] — or, with a secondary
-        // zone active, [gutter2 | gutter | day-1 | … | day-N]. The corner and
-        // all-day-label cells are AUTO-placed, so each of those rows needs one
-        // extra leading cell when the extra column exists, or auto-placement
-        // shoves the day headers/cells a column right of the hour grid.
+        // grid stay aligned: [gutter | day-1 | … | day-N] — or, with extra
+        // zones active, [gutter3 | gutter2 | gutter | day-1 | … | day-N]. The
+        // corner and all-day-label cells are AUTO-placed, so each of those rows
+        // needs one extra leading cell per extra column, or auto-placement
+        // shoves the day headers/cells right of the hour grid.
         // Row 1 — per-day headers (matches the chip day view's column headers).
         // Each gutter's corner carries its zone's short label — it is the one
         // place a time column identifies itself (the gutters show bare times).
         // The primary corner sat empty until v4.38 (user request: the primary
         // axis should name its zone the same way the secondary column does).
         const anchorTz = cm.getAnchorTimezone();
-        const corner2 = tz2
-            ? `<div class="cal-tl-corner cal-tl-corner2" aria-hidden="true" title="${Utils.sanitizeHTML(tz2)}">${Utils.sanitizeHTML(cm._tzLabel(tz2))}</div>`
-            : '';
-        const headers = corner2 + `<div class="cal-tl-corner cal-tl-corner1" aria-hidden="true" title="${Utils.sanitizeHTML(anchorTz)}">${Utils.sanitizeHTML(cm._tzLabel(anchorTz))}</div>`
+        const extraCorners = extraTzs.map(tz =>
+            `<div class="cal-tl-corner cal-tl-corner2" aria-hidden="true" title="${Utils.sanitizeHTML(tz)}">${Utils.sanitizeHTML(cm._tzLabel(tz))}</div>`
+        ).join('');
+        const headers = extraCorners + `<div class="cal-tl-corner cal-tl-corner1" aria-hidden="true" title="${Utils.sanitizeHTML(anchorTz)}">${Utils.sanitizeHTML(cm._tzLabel(anchorTz))}</div>`
             + model.days.map(d =>
                 `<div class="cal-tl-dayhead${d.day.isToday ? ' is-today' : ''}">${Utils.sanitizeHTML(d.day.isToday ? 'Today · ' + d.day.label : d.day.label)}</div>`
             ).join('');
@@ -791,7 +811,7 @@ Object.assign(UIRenderer, {
         // Row 2 — all-day band (only when the window has any all-day events).
         const hasAllDay = model.days.some(d => d.allDay.length > 0);
         const alldayRow = hasAllDay
-            ? (tz2 ? `<div class="cal-tl-allday-spacer" aria-hidden="true"></div>` : '')
+            ? '<div class="cal-tl-allday-spacer" aria-hidden="true"></div>'.repeat(extraTzs.length)
               + `<div class="cal-tl-allday-label" aria-hidden="true">all-day</div>`
               + model.days.map(d =>
                     `<div class="cal-tl-allday-cell${d.day.isToday ? ' is-today' : ''}">${d.allDay.map(ev => this._calendarDayChip(ev, win.tz, d.day.label)).join('')}</div>`
@@ -804,21 +824,22 @@ Object.assign(UIRenderer, {
         // skip its cells — auto-placed columns would be pushed out of the row.
         // Explicitly placed items may overlap freely.
         const hourRow = hasAllDay ? 3 : 2;
-        // Secondary gutter: same hour lines, formatted in tz2 off each line's
-        // instant (h.atMs) — real minutes included, so :30/:45-offset zones read
-        // "18:30". Class is cal-tl-gutter2, deliberately NOT also cal-tl-gutter:
+        // Extra gutters: same hour lines, formatted in each extra zone off each
+        // line's instant (h.atMs) — real minutes included, so :30/:45-offset
+        // zones read "18h30". Class is cal-tl-gutter2 (for the third column
+        // too), deliberately NOT also cal-tl-gutter:
         // _sizeTimelineHours measures querySelector('.cal-tl-gutter') and must
         // keep finding the primary. Labels reuse .cal-tl-hour (typography and,
         // critically, its no-`zoom` rule — zoom would scale the calc() top and
         // drag the labels off the gridlines) plus a dimming modifier.
-        const gutter2 = tz2 ? `
-            <div class="cal-tl-gutter2" style="grid-row:${hourRow}; grid-column:1; height:var(--tl-gridh)" aria-hidden="true">
+        const extraGutters = extraTzs.map((tz, i) => `
+            <div class="cal-tl-gutter2" style="grid-row:${hourRow}; grid-column:${i + 1}; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h =>
-                    `<span class="cal-tl-hour cal-tl-hour--alt" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${cm._paddedTimeStr(new Date(h.atMs), tz2)}</span>`
+                    `<span class="cal-tl-hour cal-tl-hour--alt" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${cm._paddedTimeStr(new Date(h.atMs), tz)}</span>`
                 ).join('')}
-            </div>` : '';
+            </div>`).join('');
         const gutter = `
-            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:${tz2 ? 2 : 1}; height:var(--tl-gridh)" aria-hidden="true">
+            <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:${axisCol}; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h => {
                     // topPct comes from the model's compressed (gap-collapsed) mapping.
                     // "14h" notation (matching the gap bands and the secondary gutter).
@@ -893,7 +914,7 @@ Object.assign(UIRenderer, {
             // a second helper.
             const eta = (di === trace?.todayIdx) ? etaChip : '';
             return `
-                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${di + (tz2 ? 3 : 2)}; height:var(--tl-gridh); ${lineBg}">
+                <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${axisCol + 1 + di}; height:var(--tl-gridh); ${lineBg}">
                     ${nowLine}${traceHere}${blocks || ''}${eta}
                 </div>`;
         }).join('');
@@ -910,10 +931,10 @@ Object.assign(UIRenderer, {
             : '';
 
         return `
-            <div class="calendar-timeline${tz2 ? ' is-two-tz' : ''}" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
+            <div class="calendar-timeline${['', ' is-two-tz', ' is-three-tz'][extraTzs.length]}" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
                 ${headers}
                 ${alldayRow}
-                ${gutter2}
+                ${extraGutters}
                 ${gutter}
                 ${cols}
                 ${gapsHtml}

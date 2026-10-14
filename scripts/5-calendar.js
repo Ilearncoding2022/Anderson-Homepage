@@ -51,6 +51,7 @@ const CalendarManager = {
             upcomingBarCount: 'calendarUpcomingBarCount',
             upcomingBarFormat: 'calendarUpcomingBarFormat',
             secondaryTz: 'calendarSecondaryTz',
+            tertiaryTz: 'calendarTertiaryTz',
             tzTool: 'calendarTzTool'
         }
     },
@@ -911,19 +912,27 @@ const CalendarManager = {
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
     },
 
-    // ---- Secondary timeline zone (right-click a header clock → "Show in
-    // calendar") -------------------------------------------------------------
-    // The CHOICE is a raw IANA zone the user picked; it is deliberately never
-    // auto-changed by anything (grouping changes, clock edits, reorders). What
-    // *renders* is getSecondaryTimelineZone(), which hides the column — choice
-    // kept — while no enabled clock resolves to the zone or while it equals
-    // the anchor zone (two identical gutters add nothing).
+    // ---- Extra timeline zones (right-click a header clock → "Set as
+    // secondary / third time zone column") -----------------------------------
+    // Two independent slots, 'secondary' and 'tertiary', each holding a raw
+    // IANA zone the user picked; neither is ever auto-changed by anything
+    // (grouping changes, clock edits, reorders). What *renders* is
+    // getExtraTimelineZones(), which hides a slot — choice kept — while no
+    // enabled clock resolves to its zone or while it equals the anchor zone
+    // (two identical gutters add nothing). The slots are mutually exclusive:
+    // assigning a zone to one clears it from the other, so the same zone can
+    // never occupy two columns.
+    _timelineTzKey(slot) {
+        return slot === 'tertiary'
+            ? this.config.storageKeys.tertiaryTz
+            : this.config.storageKeys.secondaryTz;
+    },
 
-    // The user's stored choice, or null. A zone this engine can't format
-    // (corrupted storage) degrades to "off" rather than throwing later in the
-    // render path.
-    getSecondaryTzChoice() {
-        const zone = localStorage.getItem(this.config.storageKeys.secondaryTz);
+    // The user's stored choice for a slot, or null. A zone this engine can't
+    // format (corrupted storage) degrades to "off" rather than throwing later
+    // in the render path.
+    getTimelineTzChoice(slot) {
+        const zone = localStorage.getItem(this._timelineTzKey(slot));
         if (!zone) return null;
         try {
             new Intl.DateTimeFormat('en-US', { timeZone: zone });
@@ -933,12 +942,12 @@ const CalendarManager = {
         }
     },
 
-    // The zone the timeline should actually render a second gutter for, or
-    // null. Compared against getAnchorTimezone(), not getGroupingTimezone():
-    // with grouping "none" the axis is still anchored to Clock #1's zone, and
-    // a duplicate of THAT is just as redundant.
-    getSecondaryTimelineZone() {
-        const choice = this.getSecondaryTzChoice();
+    // The zone a slot should actually render a gutter for, or null. Compared
+    // against getAnchorTimezone(), not getGroupingTimezone(): with grouping
+    // "none" the axis is still anchored to Clock #1's zone, and a duplicate of
+    // THAT is just as redundant.
+    getTimelineSlotZone(slot) {
+        const choice = this.getTimelineTzChoice(slot);
         if (!choice) return null;
         const hasClock = ['timezone1', 'timezone2', 'timezone3', 'timezone4']
             .some(key => this._resolveZone(key) === choice);
@@ -947,26 +956,46 @@ const CalendarManager = {
         return choice;
     },
 
-    // Store (or clear, when falsy) the secondary-column zone. Stores even in
-    // list view / timeline off — the column simply appears when the timeline
-    // is next shown. Invalid zones are ignored silently.
-    setSecondaryTz(zone) {
+    // The extra gutters to render, in left-to-right order: the third column
+    // sits to the LEFT of the secondary one (user request), so the primary
+    // axis stays nearest the day columns. Either slot may be absent on its
+    // own; a duplicate (only reachable through hand-edited storage) renders
+    // once.
+    getExtraTimelineZones() {
+        const zones = [];
+        for (const slot of ['tertiary', 'secondary']) {
+            const zone = this.getTimelineSlotZone(slot);
+            if (zone && !zones.includes(zone)) zones.push(zone);
+        }
+        return zones;
+    },
+
+    // Store (or clear, when falsy) a slot's zone. Stores even in list view /
+    // timeline off — the column simply appears when the timeline is next
+    // shown. Invalid zones are ignored silently. Assigning a zone that the
+    // other slot holds moves it rather than duplicating it.
+    setTimelineTz(slot, zone) {
+        const key = this._timelineTzKey(slot);
         if (!zone) {
-            localStorage.removeItem(this.config.storageKeys.secondaryTz);
+            localStorage.removeItem(key);
         } else {
             try {
                 new Intl.DateTimeFormat('en-US', { timeZone: zone });
             } catch {
                 return;
             }
-            Utils.safeLocalStorageSet(this.config.storageKeys.secondaryTz, zone);
+            const other = slot === 'tertiary' ? 'secondary' : 'tertiary';
+            if (this.getTimelineTzChoice(other) === zone) {
+                localStorage.removeItem(this._timelineTzKey(other));
+            }
+            Utils.safeLocalStorageSet(key, zone);
         }
         if (window.UIRenderer) UIRenderer.renderCalendarCard();
     },
 
-    // The context menu's action: same zone again turns the column off.
-    toggleSecondaryTz(zone) {
-        this.setSecondaryTz(this.getSecondaryTzChoice() === zone ? null : zone);
+    // The context menu's action: same zone again turns that column off.
+    toggleTimelineTz(slot, zone) {
+        this.setTimelineTz(slot, this.getTimelineTzChoice(slot) === zone ? null : zone);
     },
 
     // UTC-ms of local midnight for `dateStr` (YYYY-MM-DD) in zone `tz`. Used to

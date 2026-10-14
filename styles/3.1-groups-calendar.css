@@ -1383,12 +1383,17 @@
     scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
 }
 
-/* Secondary time-zone gutter active (right-click a header clock → "Set as
-   secondary time zone column"): one extra 2.6rem track ahead of the hour
-   axis. The renderer shifts every explicitly-placed hour-row cell and emits
-   the extra corner / all-day-spacer cells the auto-placed rows need. */
+/* Extra time-zone gutters active (right-click a header clock → "Set as
+   secondary / third time zone column"): one extra 2.6rem track ahead of the
+   hour axis per extra zone, the third zone leftmost. The renderer shifts
+   every explicitly-placed hour-row cell and emits the extra corner /
+   all-day-spacer cells the auto-placed rows need. */
 .calendar-timeline.is-two-tz {
     grid-template-columns: 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
+}
+
+.calendar-timeline.is-three-tz {
+    grid-template-columns: 2.6rem 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
 }
 
 /* Row 1: per-day headers, mirroring the chip day view's column headers. They
@@ -1466,8 +1471,8 @@
 }
 
 /* Row 3, column 1: left hour axis. Labels are absolutely positioned at their
-   hour offset. .cal-tl-gutter2 is the optional secondary-zone axis to its
-   left — a distinct class on purpose: _sizeTimelineHours measures
+   hour offset. .cal-tl-gutter2 is an optional extra-zone axis (secondary or
+   third) to its left — a distinct class on purpose: _sizeTimelineHours measures
    querySelector('.cal-tl-gutter') and must keep finding the primary. */
 .cal-tl-gutter,
 .cal-tl-gutter2 {
@@ -1707,9 +1712,13 @@
     pointer-events: none;
 }
 
-/* With the secondary gutter active the day columns start one track later. */
+/* With extra gutters active the day columns start one track later per gutter. */
 .calendar-timeline.is-two-tz .cal-tl-gaps {
     grid-column: 3 / -1;
+}
+
+.calendar-timeline.is-three-tz .cal-tl-gaps {
+    grid-column: 4 / -1;
 }
 
 .cal-tl-gap {
