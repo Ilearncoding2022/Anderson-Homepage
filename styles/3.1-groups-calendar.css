@@ -1446,18 +1446,41 @@
     background: color-mix(in srgb, var(--accent) 22%, transparent);
     pointer-events: none;
     overflow: hidden;
+    /* The label — "23–23:30 | 11–11:30 PM" — centred both ways. In a column
+       too narrow for one line the two clocks wrap onto two, still centred
+       (each half is nowrap, so a range never breaks in the middle). */
     display: flex;
-    align-items: flex-start;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+    column-gap: 0.4em;
+    text-align: center;
     padding: 1px 4px;
 }
 
-.cal-tl-marker-time {
+.cal-tl-marker-time,
+.cal-tl-marker-sep {
     font-size: var(--cal-fs-event, 0.7rem);
     line-height: 1.1;
+    white-space: nowrap;
+}
+
+.cal-tl-marker-time {
     font-weight: 700;
     color: var(--ink);
-    white-space: nowrap;
     font-variant-numeric: tabular-nums;
+}
+
+.cal-tl-marker-sep {
+    color: var(--ink-dim);
+}
+
+/* Two lines (UIRenderer._fitTimelineMarkerLabel): the divider would end the
+   first line on its own. display:none, not visibility — it must give its
+   width back so the first line centres on its text. */
+.cal-tl-marker.is-wrapped .cal-tl-marker-sep {
+    display: none;
 }
 
 /* Spans the gutters plus the day columns before the box's. Sits under the
@@ -1567,7 +1590,13 @@
 
 .cal-tl-hour {
     position: absolute;
-    right: 0.25rem;
+    /* Full gutter width, text centred (user request, v4.46) — it used to sit
+       flush right. Centred, a "5h" and a "12h" share a midline rather than
+       a right edge, which lines each up with its gutter's chip and date
+       bracket, both of which are centred too. */
+    left: 0;
+    right: 0;
+    text-align: center;
     transform: translateY(-50%);
     /* 2px below the Time-zone-row size — the hour axis is a quiet reference
        scale, so it reads smaller than the rest of the row's text. */

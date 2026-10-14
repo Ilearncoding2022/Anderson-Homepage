@@ -425,6 +425,16 @@ double-click a gutter's label (`.cal-tl-corner[data-tz-slot]`, delegated in
   `_sizeTimelineHours`) toggles `.is-crowded` per group. `.cal-tl-hour` is
   `line-height: 1` for the same reason: the default line box used up the
   space the date needs.
+- **A column can be any Settings zone, not just a clock's (v4.46).** An extra
+  column's picker adds "Other time zones": the rest of the Settings clock list,
+  read from the `#timezone1` options at open time (`getSettingsZoneOptions`) so
+  it can't drift from Settings. So a slot no longer needs a clock: it hides
+  only while it equals the anchor, and stays until hidden. Column labels go
+  through `_tlColumnLabel`, which falls back to the Settings option's short
+  form when `_tzLabel` only has a bare offset ("GMT+9" is both Tokyo and
+  Seoul). The primary's picker stays clocks-only, because the primary *is* the
+  grouping clock; for the same reason a non-clock column can't swap with the
+  primary, and its picker greys VN out as "(main column)".
 - **The picker swaps with the primary, and greys out the rest.** Picking the
   primary's zone for an extra column, or picking an extra column's zone for
   the primary, trades the two (the primary side re-points the grouping clock

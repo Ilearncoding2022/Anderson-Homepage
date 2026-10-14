@@ -542,6 +542,25 @@ body.card-resizing .app-group {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* The time-zone menus can list every Settings zone; keep them on screen. */
+.clock-tz-menu {
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+/* Non-interactive section title inside a context menu ("Other time zones"). */
+.card-context-heading {
+    margin-top: 4px;
+    padding: 6px 16px 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.7rem;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: default;
+}
+
 /* A choice that would do nothing right now (e.g. a zone already shown in
    another time column). Still focusable, per the ARIA menu pattern. */
 .card-context-item.is-disabled {

@@ -934,6 +934,22 @@ Object.assign(UIRenderer, {
         const hourH = Math.min(this.TL_HOUR_MAX, Math.max(this.TL_HOUR_MIN, avail / spanHours));
         tl.style.setProperty('--tl-gridh', (spanHours * hourH).toFixed(1) + 'px');
         this._fitTimelineHourDates(tl);
+        this._fitTimelineMarkerLabel(tl);
+    },
+
+    // The planning box's "23–23:30 | 11–11:30 PM" wraps onto two lines in a
+    // narrow column, which would strand the "|" at the end of the first. CSS
+    // can't tell a wrapped flex line from an unwrapped one, so: reset, then
+    // compare the two halves' tops (one read), and hide the divider when the
+    // second half has dropped to its own line.
+    _fitTimelineMarkerLabel(tl) {
+        const box = tl.querySelector('.cal-tl-marker');
+        if (!box) return;
+        box.classList.remove('is-wrapped');
+        const [first, , second] = box.children;
+        if (first && second && second.getBoundingClientRect().top > first.getBoundingClientRect().top + 1) {
+            box.classList.add('is-wrapped');
+        }
     },
 
     // Extra-zone dates (.cal-tl-dategrp: bracket + date) hang below their
