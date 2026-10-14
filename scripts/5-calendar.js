@@ -919,15 +919,16 @@ const CalendarManager = {
 
     // ---- Extra timeline zones (right-click a header clock → "Show as time
     // zone column", or double-click a column's label) ------------------------
-    // Up to three extra zones, one per non-primary clock. They are stored in
-    // three slots, but a slot is STORAGE ONLY — it says nothing about where
-    // the column goes: getExtraTimelineZones() orders the columns by local
-    // time, earliest first (user request, v4.45). Each slot holds a raw IANA
-    // zone the user picked; none is ever auto-changed by anything (grouping
-    // changes, clock edits, reorders). A slot is hidden — choice kept — while
-    // no enabled clock resolves to its zone or while it equals the anchor
-    // zone (two identical gutters add nothing). The slots are mutually
-    // exclusive, so the same zone can never occupy two columns.
+    // Up to three extra zones. They are stored in three slots, but a slot is
+    // STORAGE ONLY — it says nothing about where the column goes:
+    // getExtraTimelineZones() orders the columns by local time, earliest
+    // first (user request, v4.45). Each slot holds a raw IANA zone the user
+    // picked — a header clock's zone, or since v4.46 any zone from the
+    // Settings clock list (the column-label picker's "Other time zones") —
+    // and none is ever auto-changed by anything (grouping changes, clock
+    // edits, reorders). A slot is hidden — choice kept — only while it equals
+    // the anchor zone (two identical gutters add nothing). The slots are
+    // mutually exclusive, so the same zone can never occupy two columns.
     timelineSlots: ['secondary', 'tertiary', 'quaternary'],
 
     _timelineTzKey(slot) {
@@ -947,13 +948,46 @@ const CalendarManager = {
     // The zone a slot should actually render a gutter for, or null. Compared
     // against getAnchorTimezone(), not getGroupingTimezone(): with grouping
     // "none" the axis is still anchored to Clock #1's zone, and a duplicate of
-    // THAT is just as redundant.
+    // THAT is just as redundant. No header clock needs to show the zone: until
+    // v4.46 a column whose clock went away was hidden, but a column can now be
+    // any zone, so a stored one shows until the user hides it.
     getTimelineSlotZone(slot) {
         const choice = this.getTimelineTzChoice(slot);
         if (!choice) return null;
-        if (!this._modeForZone(choice)) return null;
         if (choice === this.getAnchorTimezone()) return null;
         return choice;
+    },
+
+    // The zones the Settings clock dropdowns offer, as [{ zone, text }] in
+    // their order — read from the DOM so the column picker can never drift
+    // from that list. "local" is skipped: it is a mode, not a zone. `text` is
+    // the option as shown there (with its live "· GMT+9" suffix once Settings
+    // has decorated it).
+    getSettingsZoneOptions() {
+        return [...document.querySelectorAll('#timezone1 option')]
+            .filter(o => o.value && o.value !== 'local' && this._isValidZone(o.value))
+            .map(o => ({ zone: o.value, text: o.textContent.trim() }));
+    },
+
+    // A timeline column's short label. Same as _tzLabel — a clock's custom
+    // label, else the zone's abbreviation — except where the browser only
+    // knows the zone as a bare offset: "GMT+9" is both Tokyo and Seoul, so a
+    // column labelled that way could be either. Those fall back to the
+    // Settings option's own short form: its abbreviation where it has one
+    // ("Tokyo (JST)" → JST), the place name where the abbreviation is a pair
+    // ("Paris (CET/CEST)" → Paris) or the parenthesis names a city
+    // ("Eastern Time (New York)" → New York), else the name ("Alaska Time" →
+    // Alaska).
+    _tlColumnLabel(zone) {
+        const label = this._tzLabel(zone);
+        if (!/^(GMT|UTC)[+-]/.test(label)) return label;
+        const opt = this.getSettingsZoneOptions().find(o => o.zone === zone);
+        if (!opt) return label;
+        const name = opt.text.split(' · ')[0].trim();
+        const m = name.match(/^(.*?)\s*\(([^)]*)\)$/);
+        if (!m) return name.replace(/ Time$/, '');
+        if (/^[A-Z]{2,5}$/.test(m[2])) return m[2];
+        return / Time$/.test(m[1]) ? m[2] : m[1];
     },
 
     // First enabled clock slot ('tz1'…'tz4') showing `zone`, or null — the
@@ -1033,7 +1067,9 @@ const CalendarManager = {
     // The column-label picker's action (double-click a gutter's label): put
     // `zone` in column `slot` ('primary' or an extra slot). A zone showing in
     // the PRIMARY column trades places with this one — the picker is "what
-    // should this column show", so the axis must keep showing something.
+    // should this column show", so the axis must keep showing something —
+    // which only works when this column's zone is a clock's (the primary is
+    // always the grouping clock); the picker greys it out otherwise.
     // 'primary' means the timeline's anchor, i.e. the calendar's grouping
     // clock; null hides an extra column. A zone already in another EXTRA
     // column is a no-op: columns are ordered by time, not by slot, so
@@ -1235,7 +1271,9 @@ const CalendarManager = {
         };
         const displaySpanMin = dispMin(rangeEndMin);
         const pct = (min) => (dispMin(min) / displaySpanMin) * 100;
-        const hourLabel = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}h`;
+        // "5h", not "05h" (user request, v4.46) — the same unpadded notation
+        // as every time gutter (_hourAxisStr).
+        const hourLabel = (m) => `${Math.floor(m / 60)}h`;
 
         // Hour-axis labels: boundary hours only — hours interior to a collapsed
         // gap have no gridline of their own (the band's label names the range).
@@ -1254,7 +1292,7 @@ const CalendarManager = {
             if (rawGaps.some(g => g.startMin < m && m < g.endMin)) continue;
             hours.push({
                 min: m,
-                label: String(Math.floor(m / 60)).padStart(2, '0'),
+                label: String(Math.floor(m / 60)),
                 topPct: pct(m),
                 atMs: refDay.dayStart + m * 60000
             });
@@ -1650,17 +1688,19 @@ const CalendarManager = {
         return date.toLocaleDateString('en-CA', opts);
     },
 
-    // Hour-axis "h" notation for the timeline's secondary gutter — visual
-    // parity with the primary axis ("07h"; a :30/:45-offset zone reads
-    // "12h30"), so deliberately NOT _timeStr, which strips leading zeros and
-    // renders "7:30". hourCycle 'h23' avoids the h24 midnight quirk; the '24'
+    // Hour-axis "h" notation for the timeline's extra-zone gutters and the
+    // planning box's chips — visual parity with the primary axis ("7h"; a
+    // :30/:45-offset zone reads "12h30"), so deliberately NOT _timeStr, which
+    // renders "7:30". No leading zero since v4.46 (user request; it used to
+    // be "07h"). hourCycle 'h23' avoids the h24 midnight quirk; the '24'
     // guard is belt-and-braces (same engine quirk _zonedDayStartMs handles).
-    _paddedTimeStr(date, tz) {
+    _hourAxisStr(date, tz) {
         const parts = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+            timeZone: tz, hour: 'numeric', minute: '2-digit', hourCycle: 'h23'
         }).formatToParts(date);
         let hour = parts.find(p => p.type === 'hour')?.value ?? '';
-        if (hour === '24') hour = '00';
+        if (hour === '24') hour = '0';
+        hour = String(Number(hour));   // engines differ on padding 'numeric' in h23
         const minute = parts.find(p => p.type === 'minute')?.value ?? '';
         return minute === '00' ? `${hour}h` : `${hour}h${minute}`;
     },

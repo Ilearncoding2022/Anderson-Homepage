@@ -5,6 +5,23 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.46] — 2026-10-14
+
+### Any time zone in a column, and easier-to-read times
+
+- **Put any time zone in a time column:** double-clicking a column's label now
+  also lists every zone from the Settings clock list under "Other time zones",
+  so a column can show Tokyo, Seoul or Sydney without changing a header clock.
+  Its label stays short and distinct (JST, KST, Sydney), and the column stays
+  until you hide it. The main column still follows your clocks.
+- **Hours without the leading zero:** the time columns, the marked slot's
+  chips and the "no events" stretches now read 5h rather than 05h.
+- **Times centred in their columns,** so each hour lines up with the chip and
+  the date bracket beneath it.
+- **The marked 30-minute slot shows both clocks:** for example
+  "23–23:30 | 11–11:30 PM", centred in the box. In a narrow column the two
+  sit on separate lines instead.
+
 ## [v4.45] — 2026-10-14
 
 ### Plan across time zones right on the calendar
