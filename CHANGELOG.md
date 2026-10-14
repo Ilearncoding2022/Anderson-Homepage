@@ -5,6 +5,22 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.44] — 2026-10-14
+
+### A third time column in the calendar timeline
+
+- **Show a third time zone beside the hours:** right-clicking a header clock
+  now offers "Set as third time zone column" under the existing secondary
+  option. The third column sits to the left of the secondary one, so the
+  calendar's own hours stay nearest the days, and each column is labelled
+  with its zone. Either extra column also works on its own.
+- **One zone, one column:** choosing a zone for the third column when it is
+  already the secondary one moves it across rather than showing it twice.
+  Choosing a ticked option again turns that column off, and the arrow keys
+  move between the two options.
+- **Backups include it:** the third zone is exported, imported and backed up
+  alongside the secondary one.
+
 ## [v4.43] — 2026-09-09
 
 ### The time-zone view becomes a scheduling grid

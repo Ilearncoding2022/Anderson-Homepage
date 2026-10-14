@@ -31,7 +31,7 @@ const Storage = {
         'websites', 'groups', 'theme', 'view', 'iconSize',
         'backgroundPosition', 'backgroundBlur',
         'calendarProxyUrl', 'calendarProxyToken', 'calendarSources',
-        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarHeight',
+        'calendarRefreshInterval', 'calendarDaysAhead', 'calendarGrouping', 'calendarSecondaryTz', 'calendarTertiaryTz', 'calendarHeight',
         'calendarCountdownPlacement', 'calendarCountdownWindow',
         'calendarCountdownWarnMins', 'calendarCountdownUrgentMins',
         'calendarUpcomingBarCount', 'calendarUpcomingBarFormat', 'calendarTzTool',
@@ -490,16 +490,16 @@ const Storage = {
         if (['tz1', 'tz2', 'tz3', 'tz4', 'none'].includes(data.calendarGrouping)) {
             Utils.safeLocalStorageSet('calendarGrouping', data.calendarGrouping);
         }
-        // Timeline secondary-column zone: an IANA id, validated like the clock
-        // zones below — an unformattable zone must not be stored.
-        if (data.calendarSecondaryTz && typeof data.calendarSecondaryTz === 'string') {
-            const zone = data.calendarSecondaryTz.trim();
-            if (zone !== '') {
-                try {
-                    new Intl.DateTimeFormat('en-US', { timeZone: zone });
-                    Utils.safeLocalStorageSet('calendarSecondaryTz', zone);
-                } catch { /* unknown zone — dropped */ }
-            }
+        // Timeline secondary/third-column zones: IANA ids, validated like the
+        // clock zones below — an unformattable zone must not be stored.
+        for (const key of ['calendarSecondaryTz', 'calendarTertiaryTz']) {
+            if (!data[key] || typeof data[key] !== 'string') continue;
+            const zone = data[key].trim();
+            if (zone === '') continue;
+            try {
+                new Intl.DateTimeFormat('en-US', { timeZone: zone });
+                Utils.safeLocalStorageSet(key, zone);
+            } catch { /* unknown zone — dropped */ }
         }
         // Multi-timezone tool config (v4.41): { zones: [...IANA ids], primary }.
         // Same validation as the clock zones below, applied per-entry — an
