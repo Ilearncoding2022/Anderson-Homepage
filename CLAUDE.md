@@ -385,28 +385,115 @@ started by `serve-hidden.vbs`/`serve.bat`); the homepage polls `/pending` every
   an already-running session in this environment — don't rely on either
   behavior.
 
-## Timeline Extra Time Columns (v4.44)
+## Timeline Extra Time Columns (v4.44; time-ordered with shared dates since v4.45)
 
-Right-clicking a secondary header clock offers "Set as secondary / third time
-zone column". Two independent slots (`calendarSecondaryTz`,
-`calendarTertiaryTz`) render as extra hour gutters ahead of the primary axis,
-third leftmost: `[gutter3 | gutter2 | gutter | day-1 | …]`.
+Up to three extra hour gutters (one per non-primary clock) sit ahead of the
+primary axis: `[extra… | gutter | day-1 | …]`. Two ways in: right-click a
+secondary header clock ("Show as time zone column", one toggle), or
+double-click a gutter's label (`.cal-tl-corner[data-tz-slot]`, delegated in
+`10-renderer.js`) for a picker of the enabled clocks.
 
-- **The slots are exclusive.** `setTimelineTz` moves a zone that the other
-  slot holds rather than duplicating it; `getExtraTimelineZones()` also
-  dedupes, for hand-edited storage. A slot is hidden — choice kept — while no
-  enabled clock resolves to its zone or it equals the anchor zone.
+- **A slot is storage, not a position.** The zones live in three keys
+  (`calendarSecondaryTz`/`TertiaryTz`/`QuaternaryTz`, `timelineSlots`), but
+  `getExtraTimelineZones(atMs)` orders the columns **earliest local time
+  first** (smallest UTC offset at the gutter's reference instant). The user
+  asked for this explicitly; don't reintroduce user-chosen column positions.
+  `toggleExtraTimelineZone` takes an empty slot, else one whose choice isn't
+  rendering, else the last.
+- **That order is load-bearing for the dates.** Under each hour line, every
+  extra column on a different date from the primary axis gets the date, and
+  *adjacent* columns on the same date share one date under a bracket
+  (`_calendarTimelineDates`, `.cal-tl-dategrp`). Grouping only adjacent runs
+  is correct only because, at one instant, local date never decreases as the
+  offset grows, so same-date columns are always neighbours. Sort the columns
+  any other way and one date splits into two brackets.
+- **The dates are one overlay spanning all extra gutters**, so a group can be
+  centred across its columns. Groups are placed by percentage of that overlay
+  (`(100% + var(--tl-colgap)) * k / n`, the gap being a variable for exactly
+  this), vertically by the hour line's calc() fraction of `--tl-gridh` plus
+  half a label. The bracket is drawn *inside the date's line* (└─ Oct 13 ─┘);
+  a stacked bracket-then-date cost ~5px and crowded every date out of a
+  (then 33px) `TL_HOUR_MIN` row at the 20px font setting.
+- **Which day the dates describe.** The gutter is shared by every day column,
+  so it is computed off ONE reference day: `refDay` in `buildTimelineModel`,
+  which is today when it's in the window (the column the now-dial is in, which
+  is what the gutters get read against), else the first day. Dates are exact
+  for that column only.
+- **Dates that don't fit are hidden, not squeezed.** Whether a date fits
+  before the next line's labels depends on font setting, hour height and
+  collapsed rows together, so `_fitTimelineHourDates` (run at the end of every
+  `_sizeTimelineHours`) toggles `.is-crowded` per group. `.cal-tl-hour` is
+  `line-height: 1` for the same reason: the default line box used up the
+  space the date needs.
+- **The picker swaps with the primary, and greys out the rest.** Picking the
+  primary's zone for an extra column, or picking an extra column's zone for
+  the primary, trades the two (the primary side re-points the grouping clock
+  via `setGrouping`). Picking a zone already in another *extra* column would
+  change nothing on screen, since columns sort by time, so those options are
+  `aria-disabled` "(already shown)". Slots stay exclusive even for hidden
+  choices (`_writeTimelineTz` clears the zone from every other slot's stored
+  choice).
 - **Every extra gutter is `.cal-tl-gutter2`, never `.cal-tl-gutter`.**
   `_sizeTimelineHours` measures `querySelector('.cal-tl-gutter')` and must keep
   finding the primary axis.
 - **Each extra column costs one leading cell in every auto-placed row** (corner,
-  all-day spacer) and shifts every explicitly-placed hour-row cell by one; the
-  grid template and the gap overlay's start line are per-count classes
-  (`is-two-tz`, `is-three-tz`). Miss one and the day headers drift a column
-  away from the hour grid.
+  all-day spacer) and shifts every explicitly-placed hour-row cell by one. The
+  column template reads `--tl-axes` (inline on `.calendar-timeline`) and the
+  gap overlay's start line is set inline from the same count. Miss either and
+  the day headers or the "no events" bands drift a column off the hour grid.
+- The corners stay `aria-hidden`; the double-click is a mouse shortcut, and
+  every choice it offers is also reachable by keyboard through the clock
+  context menu and the grouping dropdown. Both menus share `_openTzMenu`, whose
+  listeners live in the `_clockTzMenu*` fields so `_teardownCalendarMenus`
+  strips them on re-render.
 - A new slot key has to be added to `Storage.ALL_APP_KEYS`,
   `DbManager.APP_KEYS` **and** the `Storage.import()` validation loop, or it
   silently misses export/import/backup.
+
+## Timeline Planning Box (v4.45)
+
+Double-click empty grid in a timeline day column → a 30-minute box starting at
+the top of the clicked half-hour slot (`_placeTimelineMarker`), its day header
+highlighted (`.is-marked`), a dotted rule back to the time gutters, and a chip
+on each gutter reading the start in that zone. Single click on empty grid or
+Esc clears it. It is a visual marker: the calendar proxy is read-only.
+
+- **State is one absolute instant, `CalendarManager.state.tlMarkerMs`, never
+  persisted.** Everything else is derived in `buildTimelineModel` (`model.marker`),
+  so the box survives background re-renders, grouping changes and bands that
+  re-collapse, and simply isn't drawn while its day is outside the window.
+- **Clicks are mapped through the model, not the lattice.** `model.minAtPct`
+  inverts the gap-compressed minute mapping by bisection over `dispMin`; don't
+  replace it with `y / hourHeight`, which is wrong below every collapsed band.
+  The box's hour is excluded from the gap collapse exactly like the now-slot
+  (a 30-minute box inside a band would be ~2px), which is what makes a
+  double-click on a band open that hour up.
+- **The box's hour is 1.5x tall (`TL_MARKER_ROW_SCALE`), applied inside
+  `dispMin`** — the one minute→display mapping every position and the click
+  inverse go through. Don't scale that row anywhere else (CSS, a second
+  offset): the labels, gridlines, events and `minAtPct` would stop agreeing.
+- **The box's row has its own date brackets, under the chips.** Every column
+  is dated there, the primary included, adjacent same-date columns sharing a
+  bracket (`.cal-tl-dategrp.is-markrow`, inside `.cal-tl-markline`, hung from
+  the chip's bottom edge with taller ticks). `_calendarTimelineDates` skips
+  that hour's ordinary brackets (`model.marker.hourIdx`) so the two never
+  stack. They go through the same `_fitTimelineHourDates` pass: with a :30
+  box at large font settings the half-row under the chips is too short and
+  they hide rather than overlap the next label.
+- **While a box exists it is the gutters' reference day** (`refDay` = box day,
+  else today, else the first day), so the extra-zone times and shared dates
+  read against the column being planned in. Clearing reverts to today.
+- **Single-click clear is deferred 500 ms** (`_scheduleTimelineMarkerClear`;
+  the dblclick cancels it). Clearing re-renders the grid, and a re-render
+  between the two clicks of a double-click can swallow the dblclick that was
+  about to *move* the box. 500 ms is Windows' default double-click time.
+- **The Esc listener is capture-phase on purpose.** A dialog's own Esc handler
+  removes the dialog, so a bubble-phase "is a dialog open?" check finds nothing
+  and one Esc closes the event details *and* drops the box.
+- No `--signal`: this is an active selection, so it is `--accent`. The rule
+  sits under events (z 1) so it doesn't strike through titles on the days it
+  crosses; chips are placed by `--tl-gutter-w`/`--tl-colgap`, the same
+  variables the grid template uses.
 
 ## Calendar Time-Zone Tool (v4.42)
 

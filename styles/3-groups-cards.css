@@ -542,6 +542,25 @@ body.card-resizing .app-group {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* A choice that would do nothing right now (e.g. a zone already shown in
+   another time column). Still focusable, per the ARIA menu pattern. */
+.card-context-item.is-disabled {
+    color: rgba(255, 255, 255, 0.35);
+    cursor: default;
+}
+
+.card-context-item.is-disabled:hover {
+    background: none;
+}
+
+/* A trailing action set apart from a list of choices (e.g. "Hide this column"
+   under the time-zone picker). */
+.card-context-item.is-separated {
+    margin-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0 0 4px 4px;
+}
+
 .card-context-item.delete {
     color: #f44336;
 }

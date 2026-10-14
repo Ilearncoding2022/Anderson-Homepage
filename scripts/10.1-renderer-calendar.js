@@ -332,17 +332,71 @@ Object.assign(UIRenderer, {
         document.querySelector('#calViewMenu .cal-menu-switch')?.focus();
     },
 
-    // Right-click menu for a secondary header clock: two checkable items that
-    // show/hide the timeline's secondary and third time-zone gutters for that
-    // clock's zone (the slots are exclusive — CalendarManager.setTimelineTz
-    // moves a zone rather than duplicating it). Lives here (not 3-app-init) so its document-level listeners are
-    // torn down with the other calendar menus (_teardownCalendarMenus) before
-    // a card re-render can orphan them. Invoked from the header's delegated
-    // contextmenu handler; `ev` is the contextmenu event (keyboard Shift+F10 /
-    // menu key report 0,0 coordinates, so those anchor to the clock instead).
+    // Right-click menu for a secondary header clock: one checkable item that
+    // shows/hides a timeline column for the clock's zone. Where the column
+    // goes is not the user's choice — the extra columns sort themselves by
+    // local time (CalendarManager.getExtraTimelineZones). Invoked from the
+    // header's delegated contextmenu handler; `ev` is the contextmenu event
+    // (keyboard Shift+F10 / menu key report 0,0 coordinates, so those anchor
+    // to the clock instead).
     showClockTzMenu(clockEl, zone, ev) {
         const cm = window.CalendarManager;
         if (!cm) return;
+        const entries = [{
+            label: 'Show as time zone column',
+            checked: cm.isExtraTimelineZone(zone),
+            onPick: () => {
+                cm.toggleExtraTimelineZone(zone);
+                // The choice is stored even where the column can't show right
+                // now; say so instead of appearing to do nothing.
+                if (cm.isExtraTimelineZone(zone) && (cm.getViewMode() === 'list' || !cm.getTimelineMode()
+                    || !cm.getExtraTimelineZones().some(e => e.zone === zone))) {
+                    UI.showToast("Saved — the extra time column shows in the calendar's hour-by-hour timeline view.");
+                }
+            }
+        }];
+        this._openTzMenu(clockEl, ev, `Calendar options — ${cm._tzLabel(zone)}`, entries);
+    },
+
+    // Double-click a timeline gutter's label → pick the zone that column
+    // shows, from the enabled header clocks. `slot` is 'primary' (the axis —
+    // re-points the calendar's grouping clock) or an extra slot, which also
+    // offers "Hide this column". The primary's zone trades places with this
+    // column (CalendarManager.assignColumnZone); a zone already in another
+    // EXTRA column is greyed out, since the columns sort by time and trading
+    // two of them would change nothing on screen.
+    showColumnTzMenu(cornerEl, slot, ev) {
+        const cm = window.CalendarManager;
+        if (!cm) return;
+        const anchor = cm.getAnchorTimezone();
+        const current = slot === 'primary' ? anchor : cm.getTimelineSlotZone(slot);
+        const shown = cm.getExtraTimelineZones().map(e => e.zone);
+        const entries = cm.getGroupingOptions()
+            .filter(o => o.mode !== 'none')
+            .map(o => {
+                const zone = cm._resolveZone(`timezone${o.mode.slice(2)}`);
+                const elsewhere = slot !== 'primary' && zone !== current && shown.includes(zone);
+                return {
+                    label: elsewhere ? `${o.label} (already shown)` : o.label,
+                    checked: zone === current, radio: true, disabled: elsewhere,
+                    onPick: () => cm.assignColumnZone(slot, zone)
+                };
+            });
+        if (slot !== 'primary') {
+            entries.push({ label: 'Hide this column', separated: true,
+                onPick: () => cm.assignColumnZone(slot, null) });
+        }
+        this._openTzMenu(cornerEl, ev, `Time zone for the ${cm._tzLabel(current)} column`, entries);
+    },
+
+    // Shared body-appended menu behind both of the above. Its document-level
+    // listeners live in the _clockTzMenu* fields so _teardownCalendarMenus
+    // strips them (and the node) before a card re-render can orphan them.
+    // `entries`: [{label, checked?, radio?, separated?, disabled?, onPick}].
+    // Disabled items stay focusable (the ARIA menu pattern) but do nothing.
+    // Positioned
+    // at the pointer, or under `anchorEl` for keyboard-opened menus (0,0).
+    _openTzMenu(anchorEl, ev, ariaLabel, entries) {
         // One open menu at a time, of any kind.
         this._viewMenuClose?.(false);
         this._closeClockTzMenu?.(false);
@@ -350,20 +404,23 @@ Object.assign(UIRenderer, {
         const menu = document.createElement('div');
         menu.className = 'card-context-menu clock-tz-menu';
         menu.setAttribute('role', 'menu');
-        menu.setAttribute('aria-label', `Calendar options — ${cm._tzLabel(zone)}`);
-        const slots = [
-            { slot: 'secondary', label: 'Set as secondary time zone column' },
-            { slot: 'tertiary', label: 'Set as third time zone column' }
-        ];
-        const items = slots.map(({ slot, label }) => {
-            const checked = cm.getTimelineTzChoice(slot) === zone;
+        menu.setAttribute('aria-label', ariaLabel);
+        const items = entries.map((entry, i) => {
             const item = document.createElement('button');
             item.type = 'button';
-            item.className = 'card-context-item';
-            item.setAttribute('role', 'menuitemcheckbox');
-            item.setAttribute('aria-checked', String(checked));
-            item.textContent = `${checked ? '✓ ' : ''}${label}`;
-            item.dataset.slot = slot;
+            item.className = 'card-context-item' + (entry.separated ? ' is-separated' : '');
+            if (entry.checked === undefined) {
+                item.setAttribute('role', 'menuitem');
+            } else {
+                item.setAttribute('role', entry.radio ? 'menuitemradio' : 'menuitemcheckbox');
+                item.setAttribute('aria-checked', String(entry.checked));
+            }
+            if (entry.disabled) {
+                item.setAttribute('aria-disabled', 'true');
+                item.classList.add('is-disabled');
+            }
+            item.textContent = `${entry.checked ? '✓ ' : ''}${entry.label}`;
+            item.dataset.idx = String(i);
             menu.appendChild(item);
             return item;
         });
@@ -371,48 +428,44 @@ Object.assign(UIRenderer, {
         let x = ev?.pageX || 0;
         let y = ev?.pageY || 0;
         if (!x && !y) {
-            const r = clockEl.getBoundingClientRect();
+            const r = anchorEl.getBoundingClientRect();
             x = r.left + window.scrollX + r.width / 2;
             y = r.bottom + window.scrollY;
         }
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
         document.body.appendChild(menu);
-        // Keep the pane on screen near the viewport edges (the header spans
-        // the full width, so the right edge is a real case).
+        // Keep the pane on screen near the viewport edges. The menu is
+        // absolutely positioned in page coordinates and the rect is in
+        // viewport coordinates, so flip by the pane's size, never past the
+        // scrolled-to edge.
         const mr = menu.getBoundingClientRect();
-        if (mr.right > window.innerWidth) menu.style.left = `${Math.max(0, x - mr.width)}px`;
-        if (mr.bottom > window.innerHeight) menu.style.top = `${Math.max(0, y - mr.height)}px`;
+        if (mr.right > window.innerWidth) menu.style.left = `${Math.max(window.scrollX, x - mr.width)}px`;
+        if (mr.bottom > window.innerHeight) menu.style.top = `${Math.max(window.scrollY, y - mr.height)}px`;
 
         const close = (refocus) => {
             menu.remove();
             document.removeEventListener('click', this._clockTzMenuDismiss, true);
             document.removeEventListener('keydown', this._clockTzMenuKeydown, true);
             this._clockTzMenuDismiss = this._clockTzMenuKeydown = this._closeClockTzMenu = null;
-            if (refocus) clockEl.focus();
+            if (refocus && anchorEl.isConnected) anchorEl.focus?.();
         };
         this._closeClockTzMenu = close;
 
         menu.addEventListener('click', (e) => {
-            const slot = e.target.closest('.card-context-item')?.dataset.slot;
-            if (!slot) return;
-            // Close BEFORE toggling: the toggle re-renders the calendar card,
+            const item = e.target.closest('.card-context-item');
+            if (!item || item.getAttribute('aria-disabled') === 'true') return;
+            // Close BEFORE acting: every action re-renders the calendar card,
             // whose teardown would otherwise rip this menu's state out from
             // under the close() that follows.
             close(true);
-            cm.toggleTimelineTz(slot, zone);
-            // The choice is stored even where the column can't show right now;
-            // say so instead of appearing to do nothing.
-            const nowOn = cm.getTimelineTzChoice(slot) === zone;
-            if (nowOn && (cm.getViewMode() === 'list' || !cm.getTimelineMode()
-                || cm.getTimelineSlotZone(slot) !== zone)) {
-                UI.showToast("Saved — the extra time column shows in the calendar's hour-by-hour timeline view.");
-            }
+            entries[Number(item.dataset.idx)].onPick();
         });
 
-        // The opening event is 'contextmenu' (or a keyboard equivalent), never
-        // 'click', so registering the dismiss listeners immediately is safe —
-        // the gesture that opened the menu cannot also close it.
+        // The opening event is 'contextmenu' or 'dblclick' (or a keyboard
+        // equivalent). A dblclick's own clicks have already dispatched by the
+        // time it fires, so registering the dismiss listeners immediately is
+        // safe — the gesture that opened the menu cannot also close it.
         this._clockTzMenuDismiss = (e) => { if (!menu.contains(e.target)) close(false); };
         this._clockTzMenuKeydown = (e) => {
             if (e.key === 'Escape') { e.stopPropagation(); close(true); return; }
@@ -426,7 +479,7 @@ Object.assign(UIRenderer, {
         };
         document.addEventListener('click', this._clockTzMenuDismiss, true);
         document.addEventListener('keydown', this._clockTzMenuKeydown, true);
-        items[0].focus();
+        (items.find((_, i) => entries[i].checked) || items[0]).focus();
     },
 
     _calendarSetupPrompt() {
@@ -752,12 +805,15 @@ Object.assign(UIRenderer, {
     },
 
     // Timeline hour-row height clamp, in px per hour. v4.26 raised both ends
-    // 10% (from 30/78; 78 was 2x the legacy fixed 39) — dense spans sit at
-    // the min, so that is the knob that actually changes what a day view
-    // shows. Between the clamps the grid exactly fills the card, so the
-    // computed height there is the card's, not these.
-    TL_HOUR_MIN: 33,
-    TL_HOUR_MAX: 86,
+    // 10% (from 30/78; 78 was 2x the legacy fixed 39), and v4.45 another 20%
+    // (from 33/86; user request) — dense spans sit at the min, so that is the
+    // knob that actually changes what a day view shows. Between the clamps
+    // the grid exactly fills the card, so the computed height there is the
+    // card's, not these. The v4.45 raise was for regular hours only:
+    // GAP_ROW_MIN (buildTimelineModel) shrank by the same factor so collapsed
+    // "no events" rows keep their pixel height — change one, change both.
+    TL_HOUR_MIN: 40,
+    TL_HOUR_MAX: 103,
 
     // Hour-by-hour timeline for 3/5-day views. A shared hour axis (left gutter)
     // aligns time-positioned event blocks across all day columns; all-day events
@@ -765,12 +821,18 @@ Object.assign(UIRenderer, {
     _calendarTimeline(win) {
         const cm = window.CalendarManager;
         const model = cm.buildTimelineModel(win);
-        // Optional extra time-zone gutters (right-click a header clock → "Set
-        // as secondary / third time zone column"), left to right: [third,
-        // secondary]. A slot drops out while its choice is unset, orphaned (no
-        // enabled clock has the zone) or equal to the axis's own zone — with
-        // both gone the grid renders exactly as before, one gutter column.
-        const extraTzs = cm.getExtraTimelineZones();
+        // Kept for the double-click handler, which needs this exact render's
+        // minute mapping to turn a click into a time (_placeTimelineMarker).
+        this._tlModel = model;
+        const marker = model.marker;
+        // Optional extra time-zone gutters (right-click a header clock → "Show
+        // as time zone column", or double-click a gutter's label), left to
+        // right EARLIEST local time first, ordered at the gutters' own
+        // reference instant. A slot drops out while its choice is unset,
+        // orphaned (no enabled clock has the zone) or equal to the axis's own
+        // zone — with all gone the grid renders exactly as before, one
+        // gutter column.
+        const extraTzs = cm.getExtraTimelineZones(model.hours[0]?.atMs);
         // Grid column of the primary gutter; day columns follow it.
         const axisCol = extraTzs.length + 1;
         // displaySpanMin is the COMPRESSED span: merged free stretches count as
@@ -790,7 +852,7 @@ Object.assign(UIRenderer, {
         // A single CSS grid holds three row-groups that share one column template
         // and one horizontal scroll, so the day headers, all-day band, and hour
         // grid stay aligned: [gutter | day-1 | … | day-N] — or, with extra
-        // zones active, [gutter3 | gutter2 | gutter | day-1 | … | day-N]. The
+        // zones active, [extra… | gutter | day-1 | … | day-N]. The
         // corner and all-day-label cells are AUTO-placed, so each of those rows
         // needs one extra leading cell per extra column, or auto-placement
         // shoves the day headers/cells right of the hour grid.
@@ -800,12 +862,16 @@ Object.assign(UIRenderer, {
         // The primary corner sat empty until v4.38 (user request: the primary
         // axis should name its zone the same way the secondary column does).
         const anchorTz = cm.getAnchorTimezone();
-        const extraCorners = extraTzs.map(tz =>
-            `<div class="cal-tl-corner cal-tl-corner2" aria-hidden="true" title="${Utils.sanitizeHTML(tz)}">${Utils.sanitizeHTML(cm._tzLabel(tz))}</div>`
-        ).join('');
-        const headers = extraCorners + `<div class="cal-tl-corner cal-tl-corner1" aria-hidden="true" title="${Utils.sanitizeHTML(anchorTz)}">${Utils.sanitizeHTML(cm._tzLabel(anchorTz))}</div>`
-            + model.days.map(d =>
-                `<div class="cal-tl-dayhead${d.day.isToday ? ' is-today' : ''}">${Utils.sanitizeHTML(d.day.isToday ? 'Today · ' + d.day.label : d.day.label)}</div>`
+        // data-tz-slot is what the delegated dblclick (scripts/10-renderer.js)
+        // reads to open that column's zone picker. The corners stay
+        // aria-hidden: the same choices are reachable by keyboard through the
+        // header clocks' context menu and the calendar's grouping dropdown.
+        const corner = (cls, slot, tz) =>
+            `<div class="cal-tl-corner ${cls}" data-tz-slot="${slot}" aria-hidden="true" title="${Utils.sanitizeHTML(tz)} — double-click to change">${Utils.sanitizeHTML(cm._tzLabel(tz))}</div>`;
+        const extraCorners = extraTzs.map(({ slot, zone }) => corner('cal-tl-corner2', slot, zone)).join('');
+        const headers = extraCorners + corner('cal-tl-corner1', 'primary', anchorTz)
+            + model.days.map((d, di) =>
+                `<div class="cal-tl-dayhead${d.day.isToday ? ' is-today' : ''}${marker?.dayIdx === di ? ' is-marked' : ''}">${Utils.sanitizeHTML(d.day.isToday ? 'Today · ' + d.day.label : d.day.label)}</div>`
             ).join('');
 
         // Row 2 — all-day band (only when the window has any all-day events).
@@ -832,12 +898,13 @@ Object.assign(UIRenderer, {
         // keep finding the primary. Labels reuse .cal-tl-hour (typography and,
         // critically, its no-`zoom` rule — zoom would scale the calc() top and
         // drag the labels off the gridlines) plus a dimming modifier.
-        const extraGutters = extraTzs.map((tz, i) => `
+        const extraGutters = extraTzs.map(({ zone: tz }, i) => `
             <div class="cal-tl-gutter2" style="grid-row:${hourRow}; grid-column:${i + 1}; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h =>
                     `<span class="cal-tl-hour cal-tl-hour--alt" style="top:calc(var(--tl-gridh)*${frac(h.topPct)})">${cm._paddedTimeStr(new Date(h.atMs), tz)}</span>`
                 ).join('')}
             </div>`).join('');
+        const extraDates = this._calendarTimelineDates(model, extraTzs, win.tz, hourRow, frac);
         const gutter = `
             <div class="cal-tl-gutter" style="grid-row:${hourRow}; grid-column:${axisCol}; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.hours.map(h => {
@@ -872,6 +939,47 @@ Object.assign(UIRenderer, {
         const trace = cm.getTimelineTraceTarget(model);
         const traceSegs = this._calendarTraceSegments(model, trace);
         const etaChip = this._calendarEtaChipHTML(model, trace, frac);
+
+        // Planning box (double-click the grid): the box in its day column, plus
+        // a dotted rule running left from it across the earlier day columns to
+        // the time gutters, where a chip on each gutter reads out the box's
+        // start in that zone — the box usually starts on a :30, between two
+        // hour labels. The rule and chips are one overlay spanning the gutters
+        // and the columns before the box's, positioned off the same calc()
+        // fraction of --tl-gridh as the box, so the three can't disagree.
+        let markerBox = '';
+        let markerLine = '';
+        if (marker) {
+            const start = new Date(marker.startMs);
+            const end = new Date(marker.endMs);
+            const top = `calc(var(--tl-gridh)*${frac(marker.topPct)})`;
+            markerBox = `<div class="cal-tl-marker" aria-hidden="true" style="top:${top}; height:calc(var(--tl-gridh)*${frac(marker.heightPct)})">`
+                + `<span class="cal-tl-marker-time">${Utils.sanitizeHTML(`${cm._timeStr(start, win.tz)}–${cm._timeStr(end, win.tz)}`)}</span></div>`;
+            const zones = [...extraTzs.map(e => e.zone), win.tz];
+            const gutX = (k) => `${k} * (var(--tl-gutter-w) + var(--tl-colgap))`;
+            const chips = zones.map((tz, i) =>
+                `<span class="cal-tl-markchip" style="top:${top}; left:calc(${gutX(i)})">${cm._paddedTimeStr(start, tz)}</span>`
+            ).join('');
+            // Under the chips, EVERY column is dated — the primary included —
+            // and adjacent columns on the same date share one bracket, so the
+            // row reads as "these zones are on Oct 15, these on Oct 16" at
+            // the box's own instant. These replace the ordinary date brackets
+            // for this hour (_calendarTimelineDates skips it). Only with extra
+            // zones: a lone primary chip has nothing to be grouped with.
+            let markDates = '';
+            if (extraTzs.length) {
+                const dates = zones.map(tz => cm._dateOnly(start, tz));
+                for (let s = 0; s < dates.length;) {
+                    let e = s + 1;
+                    while (e < dates.length && dates[e] === dates[s]) e++;
+                    markDates += `<div class="cal-tl-dategrp is-markrow" data-hour-idx="${marker.hourIdx}" style="top:${top}; left:calc(${gutX(s)}); width:calc(${gutX(e - s)} - var(--tl-colgap))">`
+                        + `<span class="cal-tl-bracket"></span><span class="cal-tl-date">${this._tlDateLabel(dates[s])}</span><span class="cal-tl-bracket"></span></div>`;
+                    s = e;
+                }
+            }
+            markerLine = `<div class="cal-tl-markline" style="grid-row:${hourRow}; grid-column:1 / ${axisCol + 1 + marker.dayIdx}; height:var(--tl-gridh)" aria-hidden="true">`
+                + `<span class="cal-tl-markrule" style="top:${top}"></span>${chips}${markDates}</div>`;
+        }
 
         const cols = model.days.map((d, di) => {
             const traceHere = traceSegs.filter(s => s.dayIdx === di).map(s =>
@@ -915,7 +1023,7 @@ Object.assign(UIRenderer, {
             const eta = (di === trace?.todayIdx) ? etaChip : '';
             return `
                 <div class="cal-tl-col${d.day.isToday ? ' is-today' : ''}" style="grid-row:${hourRow}; grid-column:${axisCol + 1 + di}; height:var(--tl-gridh); ${lineBg}">
-                    ${nowLine}${traceHere}${blocks || ''}${eta}
+                    ${nowLine}${traceHere}${blocks || ''}${eta}${marker?.dayIdx === di ? markerBox : ''}
                 </div>`;
         }).join('');
 
@@ -925,20 +1033,113 @@ Object.assign(UIRenderer, {
         // hour range it stands in for. Positioned as a calc() fraction of
         // --tl-gridh, the same basis as hour labels/gridlines/event blocks.
         const gapsHtml = model.gaps.length
-            ? `<div class="cal-tl-gaps" style="grid-row:${hourRow}; height:var(--tl-gridh)" aria-hidden="true">
+            ? `<div class="cal-tl-gaps" style="grid-row:${hourRow}; grid-column:${axisCol + 1} / -1; height:var(--tl-gridh)" aria-hidden="true">
                 ${model.gaps.map(g => `<div class="cal-tl-gap" style="top:calc(var(--tl-gridh)*${frac(g.topPct)}); height:calc(var(--tl-gridh)*${frac(g.heightPct)})"><span>${Utils.sanitizeHTML(g.label)} · no events</span></div>`).join('')}
                </div>`
             : '';
 
         return `
-            <div class="calendar-timeline${['', ' is-two-tz', ' is-three-tz'][extraTzs.length]}" style="--cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
+            <div class="calendar-timeline" style="--tl-axes:${axisCol}; --cal-days:${n}; --tl-gridh:${gridH}px" data-span-min="${model.displaySpanMin}">
                 ${headers}
                 ${alldayRow}
                 ${extraGutters}
+                ${extraDates}
+                ${markerLine}
                 ${gutter}
                 ${cols}
                 ${gapsHtml}
             </div>`;
+    },
+
+    // ---- Timeline planning box ----------------------------------------------
+    // Double-click on a day column's empty grid → a 30-minute box starting at
+    // the top of the half-hour slot that was clicked (11:00–11:29 → 11:00).
+    // The click's y is mapped through THIS render's model (minAtPct inverts
+    // the gap-compressed minute mapping), so a click inside a collapsed band
+    // lands on the time the band stands for there; the re-render then opens
+    // that hour up (buildTimelineModel keeps the box's hour uncollapsed).
+    _placeTimelineMarker(colEl, ev) {
+        const model = this._tlModel;
+        const tl = colEl.closest('.calendar-timeline');
+        if (!model || !tl) return;
+        const di = [...tl.querySelectorAll(':scope > .cal-tl-col')].indexOf(colEl);
+        const day = model.days[di];
+        if (!day) return;
+        const r = colEl.getBoundingClientRect();
+        if (!(r.height > 0)) return;
+        const min = model.minAtPct(((ev.clientY - r.top) / r.height) * 100);
+        const slot = window.CalendarManager.TL_MARKER_MIN;
+        const startMin = Math.min(model.rangeEndMin - slot, Math.floor(min / slot) * slot);
+        window.CalendarManager.setTimelineMarker(day.dayStart + startMin * 60000);
+    },
+
+    // Single click on empty grid clears the box — but only once it is clear
+    // the click is not the first half of a double-click that is about to MOVE
+    // the box. Clearing re-renders the grid, and a re-render between the two
+    // clicks of a double-click can swallow the dblclick. 500 ms is Windows'
+    // default double-click time; the dblclick handler cancels the timer.
+    _scheduleTimelineMarkerClear() {
+        clearTimeout(this._tlMarkerClearTimer);
+        this._tlMarkerClearTimer = setTimeout(() => window.CalendarManager?.clearTimelineMarker(), 500);
+    },
+
+    _cancelTimelineMarkerClear() {
+        clearTimeout(this._tlMarkerClearTimer);
+        this._tlMarkerClearTimer = null;
+    },
+
+    // 'YYYY-MM-DD' → "Oct 13". Date-only, so formatted in UTC: the string
+    // already IS the zone's local date and must not be shifted again.
+    _tlDateLabel(dateStr) {
+        const [y, mo, d] = dateStr.split('-').map(Number);
+        return new Date(Date.UTC(y, mo - 1, d))
+            .toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+    },
+
+    // ---- Timeline extra-zone dates ------------------------------------------
+    // Under each hour line, every extra column whose local DATE differs from
+    // the primary axis's at that instant (01h Wed in VN is 11h Tue in US-W)
+    // gets that date — and adjacent columns on the same date share ONE date
+    // under a bracket spanning them (user request). Adjacency is guaranteed
+    // by the columns' earliest-first order (see getExtraTimelineZones). The
+    // comparison is per instant, so it follows the axis's own date across the
+    // m = 1440 next-day line. Reference day: see `atMs` in buildTimelineModel.
+    //
+    // One overlay spanning all the extra gutters, not a date per gutter, so a
+    // group can be centred across its columns. Group boxes are placed by a
+    // plain percentage of that overlay: each column is (100% + gap) / N wide
+    // including its share of the column gap, which keeps the brackets on the
+    // gutters without measuring anything. Vertical placement is the hour
+    // line's own calc() fraction of --tl-gridh plus half a label (CSS), the
+    // same single basis everything else on the hour row uses.
+    _calendarTimelineDates(model, extraTzs, axisTz, hourRow, frac) {
+        const cm = window.CalendarManager;
+        const n = extraTzs.length;
+        if (!n) return '';
+        const col = (k) => `(100% + var(--tl-colgap)) * ${k} / ${n}`;
+        const groups = [];
+        model.hours.forEach((h, i) => {
+            // The planning box's hour is dated by the brackets under its
+            // chips instead (see the marker block in _calendarTimeline).
+            if (i === model.marker?.hourIdx) return;
+            const at = new Date(h.atMs);
+            const axisDate = cm._dateOnly(at, axisTz);
+            const dates = extraTzs.map(({ zone }) => {
+                const d = cm._dateOnly(at, zone);
+                return d === axisDate ? null : d;
+            });
+            for (let start = 0; start < n;) {
+                let end = start + 1;
+                while (end < n && dates[end] === dates[start]) end++;
+                if (dates[start]) {
+                    groups.push(`<div class="cal-tl-dategrp" data-hour-idx="${i}" style="top:calc(var(--tl-gridh)*${frac(h.topPct)}); left:calc(${col(start)}); width:calc(${col(end - start)} - var(--tl-colgap))">`
+                        + `<span class="cal-tl-bracket"></span><span class="cal-tl-date">${this._tlDateLabel(dates[start])}</span><span class="cal-tl-bracket"></span></div>`);
+                }
+                start = end;
+            }
+        });
+        if (!groups.length) return '';
+        return `<div class="cal-tl-dates" style="grid-row:${hourRow}; grid-column:1 / span ${n}; height:var(--tl-gridh)" aria-hidden="true">${groups.join('')}</div>`;
     },
 
     // ---- Timeline "next event" trace + countdown ----------------------------

@@ -1352,11 +1352,19 @@
 /* ---- Hour-by-hour timeline (3/5-day/week views) ---- */
 /* One grid, three row-groups (day headers, all-day band, hour grid) sharing the
    same column template and a single horizontal scroll so everything stays aligned:
-   column 1 is the hour-axis gutter, columns 2..N+1 are the days. */
+   columns 1..A are the hour-axis gutters (--tl-axes, set inline by the
+   renderer: the primary axis plus 0–3 extra time-zone columns), the days
+   follow. */
 .calendar-timeline {
     display: grid;
-    grid-template-columns: 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
-    column-gap: 0.3rem;
+    grid-template-columns: repeat(var(--tl-axes, 1), var(--tl-gutter-w)) repeat(var(--cal-days, 3), minmax(90px, 1fr));
+    /* A variable because the extra-zone date brackets (.cal-tl-dategrp)
+       compute their column spans from it. */
+    --tl-colgap: 0.3rem;
+    /* Each time gutter's width — the template above repeats it, and the
+       planning box's per-gutter time chips are placed by it. */
+    --tl-gutter-w: 2.6rem;
+    column-gap: var(--tl-colgap);
     row-gap: 0.35rem;
     /* align-items:start keeps each cell at its own height; align-content:start
        keeps the rows packed at the top so the hour row is never stretched taller
@@ -1372,7 +1380,7 @@
     overflow: auto;
     /* Grow to fill whatever room the card has: this is what hands that room
        to the timeline to measure. _sizeTimelineHours() (scripts/10.1-renderer-calendar.js) then
-       stretches the hour scale — clamp(available/spanHours, 30, 78) px/hour,
+       stretches the hour scale — clamp(available/spanHours, TL_HOUR_MIN, TL_HOUR_MAX) px/hour,
        written to --tl-gridh, which every position in here is a calc()
        fraction of — into it: fits between the clamps and the grid exactly
        fills the card; denser than 30px/h scrolls as today; sparser than
@@ -1381,19 +1389,6 @@
     flex: 1 1 auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.05);
-}
-
-/* Extra time-zone gutters active (right-click a header clock → "Set as
-   secondary / third time zone column"): one extra 2.6rem track ahead of the
-   hour axis per extra zone, the third zone leftmost. The renderer shifts
-   every explicitly-placed hour-row cell and emits the extra corner /
-   all-day-spacer cells the auto-placed rows need. */
-.calendar-timeline.is-two-tz {
-    grid-template-columns: 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
-}
-
-.calendar-timeline.is-three-tz {
-    grid-template-columns: 2.6rem 2.6rem 2.6rem repeat(var(--cal-days, 3), minmax(90px, 1fr));
 }
 
 /* Row 1: per-day headers, mirroring the chip day view's column headers. They
@@ -1426,6 +1421,83 @@
     color: var(--accent);
 }
 
+/* The planning box's day (double-click the grid). */
+.cal-tl-dayhead.is-marked {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 30%, rgba(20, 20, 24, 0.92));
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* ---- Planning box (double-click the hour grid) ----
+   A 30-minute box at the clicked half-hour, a dotted rule from it back to the
+   time gutters, and a chip on each gutter with the box's start in that zone.
+   All positioned by calc() fractions of --tl-gridh like everything else on
+   the hour row; none of it takes pointer events, so events under it stay
+   clickable. No green: --signal is reserved, and this is an "active
+   selection", which is --accent's job. */
+.cal-tl-marker {
+    position: absolute;
+    left: 0;
+    right: 2px;
+    z-index: 4;
+    box-sizing: border-box;
+    border: 1.5px dashed var(--accent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    pointer-events: none;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    padding: 1px 4px;
+}
+
+.cal-tl-marker-time {
+    font-size: var(--cal-fs-event, 0.7rem);
+    line-height: 1.1;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Spans the gutters plus the day columns before the box's. Sits under the
+   events (z 2) so a rule crossing a busy day doesn't strike through event
+   titles, but above the "no events" bands and the gutters. */
+.cal-tl-markline {
+    position: relative;
+    align-self: start;
+    z-index: 1;
+    pointer-events: none;
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);   /* = the hour labels */
+}
+
+.cal-tl-markrule {
+    position: absolute;
+    left: 0;
+    /* Bridge the column gap so the rule meets the box's left edge. */
+    right: calc(-1 * var(--tl-colgap));
+    border-top: 1.5px dotted var(--accent);
+    transform: translateY(-50%);
+}
+
+/* One per gutter, over that gutter's hour labels at the box's start time.
+   Opaque so the label underneath doesn't show through. */
+.cal-tl-markchip {
+    position: absolute;
+    width: var(--tl-gutter-w);
+    box-sizing: border-box;
+    transform: translateY(-50%);
+    padding: 2px 0;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: rgba(20, 20, 24, 0.95);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+}
+
 /* Each gutter's corner names its zone (the gutters themselves show bare
    times) — the primary corner joined in v4.38 (user request: the primary
    axis should identify itself like the secondary column does). Both share
@@ -1443,6 +1515,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Double-click a gutter's label to pick its zone (UIRenderer.showColumnTzMenu).
+   user-select:none stops the double-click from selecting the label text; the
+   hover brightening is the only visible hint that the label does anything. */
+.cal-tl-corner[data-tz-slot] {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.cal-tl-corner[data-tz-slot]:hover {
+    color: var(--ink);
 }
 
 /* Row 2: all-day band (label in the gutter column, chips per day). */
@@ -1496,6 +1581,10 @@
     color: rgba(255, 255, 255, 0.45);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    /* A tight box, so the extra-zone dates (.cal-tl-dategrp, hung below it)
+       has room before the next hour line. On every gutter, not just the extra
+       ones, so all the columns' labels centre on their gridlines identically. */
+    line-height: 1;
 }
 
 /* Secondary-zone hour labels: same positioning/typography (and the same
@@ -1503,6 +1592,90 @@
    reference. */
 .cal-tl-hour--alt {
     color: rgba(255, 255, 255, 0.30);
+}
+
+/* Extra-zone dates: under an hour line, each run of adjacent extra columns on
+   a date other than the primary's gets ONE date under a bracket spanning
+   those columns (UIRenderer._calendarTimelineDates). The overlay spans all
+   the extra gutters; groups are absolutely placed in it. It shares the hour
+   labels' font-size, so `margin-top: 0.5em` is exactly half a (line-height 1)
+   label — the bracket starts just under the time it belongs to. No `zoom`,
+   for the same reason as .cal-tl-hour. */
+.cal-tl-dates {
+    position: relative;
+    font-size: calc(var(--cal-fs-tz, 0.65rem) - 2px);
+    pointer-events: none;
+}
+
+.cal-tl-dategrp {
+    position: absolute;
+    margin-top: calc(0.5em + 1px);
+    display: flex;
+    align-items: flex-start;
+    /* A date wider than a lone 2.6rem column overflows evenly into the column
+       gaps either side rather than running off one edge. */
+    justify-content: center;
+}
+
+/* The bracket is drawn in the date's own line — └─ Oct 13 ─┘ — so it costs
+   no height: arms either side of the text, their bottom edge at the text's
+   middle (half the date's font-size), their outer ticks rising
+   toward the times they gather. A stacked bracket-then-date added ~5px,
+   enough to crowd every date out of a (then 33px) TL_HOUR_MIN row at the
+   20px setting. */
+.cal-tl-bracket {
+    flex: 1 1 0;
+    min-width: 3px;
+    /* Half the date's own font-size (.cal-tl-date), so the arms meet the
+       text at its middle. Same expression, halved. */
+    height: calc(max(0.75em - 2px, 6px) / 2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.cal-tl-bracket:first-child {
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+    border-bottom-left-radius: 2px;
+}
+
+.cal-tl-bracket:last-child {
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+    border-bottom-right-radius: 2px;
+}
+
+.cal-tl-date {
+    padding: 0 2px;
+    /* 2px under the original 0.75em (v4.45, user request), with a 6px
+       floor where the default font setting would take it below that. */
+    font-size: max(calc(0.75em - 2px), 6px);
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+/* The planning box's row: brackets under the chips (one per run of columns
+   on the same date, the primary included), hung from the chip's bottom edge
+   rather than a label's — a chip is 1em + 6px tall (line-height 1, 2px
+   padding, 1px border). Taller ticks, with the date dropped by the same
+   amount so the arms still meet it mid-height: the row is 1.5x tall
+   (TL_MARKER_ROW_SCALE), and this spends some of that room. */
+.cal-tl-markline .cal-tl-dategrp {
+    margin-top: calc(0.5em + 4px);
+}
+
+.cal-tl-dategrp.is-markrow .cal-tl-bracket {
+    height: calc(max(0.75em - 2px, 6px) / 2 + 5px);
+}
+
+.cal-tl-dategrp.is-markrow .cal-tl-date {
+    margin-top: 5px;
+}
+
+/* Would run into the next hour line's labels at the current font size / hour
+   height (UIRenderer._fitTimelineHourDates). visibility, not display: the
+   group is absolutely positioned either way, so hiding it moves nothing. */
+.cal-tl-dategrp.is-crowded {
+    visibility: hidden;
 }
 
 /* Each day column: a positioned canvas for the event blocks. Hour gridlines are
@@ -1699,8 +1872,9 @@
 }
 
 /* Merged free-time bands: when 2+ consecutive hour slots are event-free across
-   every visible day, one greyed band spans all day columns. Placed after the
-   day columns in the DOM so it paints over their backgrounds; events
+   every visible day, one greyed band spans all day columns (its start line is
+   set inline — it moves right with each extra time-zone gutter). Placed after
+   the day columns in the DOM so it paints over their backgrounds; events
    (z-index:2), the "next event" trace (z-index:1) and .cal-tl-now (z-index:3)
    all stay visible through it regardless — the trace, unlike events, legitimately
    crosses a collapsed band on its way to a later event. pointer-events:none
@@ -1710,15 +1884,6 @@
     position: relative;
     align-self: start;
     pointer-events: none;
-}
-
-/* With extra gutters active the day columns start one track later per gutter. */
-.calendar-timeline.is-two-tz .cal-tl-gaps {
-    grid-column: 3 / -1;
-}
-
-.calendar-timeline.is-three-tz .cal-tl-gaps {
-    grid-column: 4 / -1;
 }
 
 .cal-tl-gap {
