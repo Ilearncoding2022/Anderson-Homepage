@@ -5,6 +5,23 @@ All notable changes to **Anderson Homepage** are documented here.
   history — their dates come from the development timeline and file timestamps,
   and some are reconstructed from the codebase (see the note under v3.0).
 
+## [v4.47] — 2026-10-19
+
+### Hotfix: endless "Data restored from backup" reload loop
+
+- **What broke:** after clearing browser data, the homepage showed "Data
+  restored from backup! Refreshing..." and then reloaded forever. The
+  backup check only asked whether the backup had website and group entries,
+  not whether they held anything, so a backup saved from an empty page
+  counted as real data. Restoring it changed nothing, the page came back
+  empty, and it restored again.
+- **The fix:** the backup now counts only when it holds real websites or
+  groups. An empty backup leaves you on the normal empty page with its
+  "Restore from Database Backup" button.
+- **A restore can no longer loop:** an automatic restore runs at most once
+  a minute in each tab. If the page is still empty after it, the homepage
+  stops, leaves the backup untouched, and offers the manual restore button.
+
 ## [v4.46] — 2026-10-14
 
 ### Any time zone in a column, and easier-to-read times
