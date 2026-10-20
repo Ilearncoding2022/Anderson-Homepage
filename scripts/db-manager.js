@@ -164,9 +164,22 @@ const DbManager = {
                 && this._isGroupsEffectivelyEmpty(localStorage.getItem('groups'));
             const dbHasData = this._hasData();
 
+            if (lsEmpty && dbHasData && this._autoRestoreRecentlyTried()) {
+                // We restored and reloaded moments ago and localStorage is STILL
+                // empty, so the restore didn't take. Stop here rather than loop,
+                // and leave the backup untouched (no sync, saves off) so the
+                // manual restore button can still reach it.
+                console.warn('DbManager: auto-restore did not take; not retrying this session');
+                this.isReady = false;
+                this._addRestoreHint();
+                this._updateUI();
+                return;
+            }
+
             if (lsEmpty && dbHasData) {
                 // Auto-restore — disable saves during reload to avoid overwriting the
                 // just-restored data with empty localStorage contents.
+                this._markAutoRestore();
                 this.isReady = false;
                 this._restoreToLocalStorage();
                 this._updateUI();
@@ -264,14 +277,42 @@ const DbManager = {
         });
     },
 
+    // Judged by CONTENT, with the same predicates as the localStorage side. A
+    // row-count test made the auto-restore loop forever: a fresh page syncs
+    // Storage.load()'s defaults ('[]' + the lone 'ungrouped' group) into the
+    // backup on its first flush, so the next load saw "localStorage empty,
+    // backup has rows", restored those same empty rows, reloaded, and repeated.
     _hasData() {
         if (!this.db) return false;
         try {
-            const r = this.db.exec('SELECT COUNT(*) FROM app_data WHERE key IN ("websites","groups")');
-            return r.length > 0 && r[0].values[0][0] > 0;
+            const r = this.db.exec('SELECT key, value FROM app_data WHERE key IN ("websites","groups")');
+            if (r.length === 0) return false;
+            const row = Object.fromEntries(r[0].values);
+            return !(this._isWebsitesEffectivelyEmpty(row.websites ?? null)
+                && this._isGroupsEffectivelyEmpty(row.groups ?? null));
         } catch {
             return false;
         }
+    },
+
+    // One auto-restore per tab per minute. If the restore didn't take (quota,
+    // a key Storage.load() rejects, anything we haven't foreseen), the reload
+    // lands back in the same state — without this the page reloads forever and
+    // the user can't even reach Settings to recover by hand.
+    AUTO_RESTORE_KEY: 'dbAutoRestoreAt',
+    AUTO_RESTORE_GUARD_MS: 60000,
+
+    _autoRestoreRecentlyTried() {
+        try {
+            const at = Number(sessionStorage.getItem(this.AUTO_RESTORE_KEY));
+            return Number.isFinite(at) && at > 0 && Date.now() - at < this.AUTO_RESTORE_GUARD_MS;
+        } catch {
+            return true; // no sessionStorage → no way to detect a loop, so don't risk one
+        }
+    },
+
+    _markAutoRestore() {
+        try { sessionStorage.setItem(this.AUTO_RESTORE_KEY, String(Date.now())); } catch { /* guarded above */ }
     },
 
     // ===================== Save (IDB + optional file) =====================
